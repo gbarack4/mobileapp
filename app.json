@@ -3,42 +3,37 @@
     "name": "instructor-hub",
     "slug": "instructor-hub",
     "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
     "scheme": "instructorhub",
+    "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "supportsTablet": true,
+      "bundleIdentifier": "com.driverapps.instructorhub"
     },
     "android": {
+      "package": "com.driverapps.instructorhub",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
-      },
-      "predictiveBackGestureEnabled": false
-    },
-    "web": {
-      "output": "static",
-      "favicon": "./assets/images/favicon.png"
+        "backgroundColor": "#ffffff"
+      }
     },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
-          "android": {
-            "image": "./assets/images/splash-icon.png",
-            "imageWidth": 76
-          }
+          "backgroundColor": "#ffffff"
         }
-      ]
+      ],
+      "react-native-maps"
     ],
     "experiments": {
-      "typedRoutes": true,
-      "reactCompiler": true
-    }
+      "tsconfigPaths": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "598440c1-e7be-4572-b192-a7ffcb4ed2b1"
+      }
+    },
+    "owner": "driver-apps"
   }
 }
