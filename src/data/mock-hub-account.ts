@@ -42,15 +42,22 @@ export type HubDocumentItem = {
   label: string;
   status: HubDocumentStatus;
   detail?: string;
+  fileName?: string;
 };
 
 export const MOCK_HUB_DOCUMENTS: HubDocumentItem[] = [
-  { id: 'licence', label: 'Driver licence', status: 'uploaded' },
+  {
+    id: 'licence',
+    label: 'Driver licence',
+    status: 'uploaded',
+    fileName: 'driver-licence.pdf',
+  },
   {
     id: 'wwcc',
     label: 'Working with children check',
     status: 'expiring',
     detail: 'Expires in 30 days',
+    fileName: 'wwcc-certificate.pdf',
   },
   {
     id: 'police-check',
@@ -58,7 +65,12 @@ export const MOCK_HUB_DOCUMENTS: HubDocumentItem[] = [
     status: 'required',
     detail: 'Upload required',
   },
-  { id: 'insurance', label: 'Insurance certificate', status: 'uploaded' },
+  {
+    id: 'insurance',
+    label: 'Insurance certificate',
+    status: 'uploaded',
+    fileName: 'insurance-2026.pdf',
+  },
 ];
 
 export function getHubDocumentsNeedingAction(documents: HubDocumentItem[]) {

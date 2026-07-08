@@ -89,8 +89,11 @@ export default function LessonDetailScreen() {
     }
   }
 
-  function handleConfirmReschedule(_selection: RescheduleSelection) {
+  async function handleConfirmReschedule(_selection: RescheduleSelection) {
     // TODO: connect to NestJS reschedule API
+  }
+
+  function handleRescheduleConfirmedClose() {
     setRescheduleSheetVisible(false);
     goBackOr('/dashboard');
   }
@@ -187,6 +190,7 @@ export default function LessonDetailScreen() {
             visible={rescheduleSheetVisible}
             lesson={activeLesson}
             onClose={() => setRescheduleSheetVisible(false)}
+            onConfirmedClose={handleRescheduleConfirmedClose}
             onConfirm={handleConfirmReschedule}
           />
         ) : null}

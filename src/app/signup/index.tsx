@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AuthTextField } from '../../components/auth/auth-text-field';
+import { ConfirmedPopup } from '../../components/confirmed-popup';
 import { LockIcon } from '../../components/icons/auth-icons';
 import { Logo } from '../../components/logo';
 import { colors, radius, spacing } from '../../constants/theme';
@@ -34,6 +35,9 @@ const ANDROID_RIPPLE =
   Platform.OS === 'android' ? { color: 'rgba(0, 94, 255, 0.14)' } : undefined;
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const CREATING_ACCOUNT_MS = 2000;
+
+type SignUpPhase = 'form' | 'submitting' | 'confirmed';
 
 export default function SignUpScreen() {
   const lastNameRef = useRef<TextInput>(null);
@@ -49,6 +53,7 @@ export default function SignUpScreen() {
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [focusedField, setFocusedField] = useState<SignUpField | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [phase, setPhase] = useState<SignUpPhase>('form');
 
   function clearError() {
     if (error) {
@@ -56,7 +61,11 @@ export default function SignUpScreen() {
     }
   }
 
-  function handleSignUp() {
+  async function handleSignUp() {
+    if (phase !== 'form') {
+      return;
+    }
+
     const trimmedFirstName = firstName.trim();
     const trimmedLastName = lastName.trim();
     const trimmedEmail = email.trim();
@@ -93,12 +102,33 @@ export default function SignUpScreen() {
     }
 
     setError(null);
-    // TODO: connect to NestJS sign-up API
+    setPhase('submitting');
+
+    try {
+      await new Promise((resolve) => setTimeout(resolve, CREATING_ACCOUNT_MS));
+      // TODO: connect to NestJS sign-up API
+      setPhase('confirmed');
+    } catch {
+      setPhase('form');
+      setError('Unable to create account. Please try again.');
+    }
+  }
+
+  function handleSuccessClose() {
     router.push('/onboarding');
   }
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      {phase === 'confirmed' ? (
+        <ConfirmedPopup
+          title="Account created"
+          message="Your InstructorHub account is ready. Let's finish setting up your instructor profile."
+          actionLabel="Set up profile"
+          onClose={handleSuccessClose}
+        />
+      ) : null}
+
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -234,13 +264,17 @@ export default function SignUpScreen() {
 
             <Pressable
               onPress={handleSignUp}
+              disabled={phase === 'submitting'}
               android_ripple={ANDROID_RIPPLE}
               style={({ pressed, hovered }: PressableState) => [
                 styles.primaryButton,
-                hovered && !pressed && styles.primaryButtonHovered,
-                pressed && styles.buttonPressed,
+                phase === 'submitting' && styles.primaryButtonDisabled,
+                hovered && phase === 'form' && !pressed && styles.primaryButtonHovered,
+                pressed && phase === 'form' && styles.buttonPressed,
               ]}>
-              <Text style={styles.primaryButtonText}>Create account</Text>
+              <Text style={styles.primaryButtonText}>
+                {phase === 'submitting' ? 'Creating account....' : 'Create account'}
+              </Text>
             </Pressable>
           </View>
         </ScrollView>
@@ -269,12 +303,12 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xxl,
   },
   title: {
-    fontSize: 28,
-    lineHeight: 34,
+    fontSize: 22,
+    lineHeight: 28,
     fontWeight: '700',
     color: colors.text,
     textAlign: 'center',
-    letterSpacing: -0.3,
+    letterSpacing: -0.2,
   },
   form: {
     gap: spacing.lg,
@@ -334,6 +368,9 @@ const styles = StyleSheet.create({
   },
   primaryButtonHovered: {
     backgroundColor: colors.primaryHover,
+  },
+  primaryButtonDisabled: {
+    opacity: 0.85,
   },
   primaryButtonText: {
     color: colors.white,

@@ -4,6 +4,7 @@ import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { colors } from '../../constants/theme';
 import type { Lesson } from '../../types/dashboard';
+import { cancelLesson } from '../../services/lessons';
 import { formatLessonMeta } from '../../utils/lessons';
 import { CancelLessonSheet, type CancellationReason } from './cancel-lesson-sheet';
 import { CarIcon, MapPinIcon, MoreVerticalIcon } from '../icons/dashboard-icons';
@@ -61,9 +62,8 @@ export function LessonCard({ lesson }: LessonCardProps) {
     setCancelSheetVisible(true);
   }
 
-  function handleConfirmCancellation(_reason: CancellationReason) {
-    // TODO: connect to NestJS cancellation API
-    setCancelSheetVisible(false);
+  async function handleConfirmCancellation(reason: CancellationReason) {
+    await cancelLesson(lesson.id, reason);
   }
 
   return (

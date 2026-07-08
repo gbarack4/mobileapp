@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 
 import { FoldedMapIcon } from '../icons/school-icons';
 import { MOCK_SCHOOLS } from '../../data/mock-schools';
@@ -13,7 +14,11 @@ import { SchoolSearchBar } from './school-search-bar';
 const ANDROID_RIPPLE =
   Platform.OS === 'android' ? { color: 'rgba(0, 94, 255, 0.08)' } : undefined;
 
-export function SchoolsScreen() {
+export function SchoolsScreen({
+  onScroll,
+}: {
+  onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
+}) {
   const [searchInput, setSearchInput] = useState('');
   const [submittedQuery, setSubmittedQuery] = useState('');
 
@@ -58,7 +63,9 @@ export function SchoolsScreen() {
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled">
+        keyboardShouldPersistTaps="handled"
+        onScroll={onScroll}
+        scrollEventThrottle={8}>
         {schools.length > 0 ? (
           schools.map((school) => (
             <SchoolCard key={school.id} school={school} onJoin={handleJoin} />

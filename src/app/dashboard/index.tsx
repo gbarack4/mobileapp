@@ -17,9 +17,11 @@ import { DashboardBottomNav } from '../../components/dashboard/dashboard-bottom-
 import { LessonCard } from '../../components/dashboard/lesson-card';
 import { LessonTabs } from '../../components/dashboard/lesson-tabs';
 import { SearchBar } from '../../components/dashboard/search-bar';
+import { WeeklyEarningsScreen } from '../../components/earnings/weekly-earnings-screen';
 import { SchoolsScreen } from '../../components/schools/schools-screen';
 import { CalendarIcon } from '../../components/icons/dashboard-icons';
 import { colors, spacing } from '../../constants/theme';
+import { useBottomNavScroll } from '../../hooks/use-bottom-nav-scroll';
 import { MOCK_LESSONS } from '../../data/mock-lessons';
 import type { DashboardTab, LessonTab } from '../../types/dashboard';
 
@@ -46,6 +48,8 @@ export default function DashboardScreen() {
   const [dashboardTab, setDashboardTab] = useState<DashboardTab>('bookings');
   const [searchQuery, setSearchQuery] = useState('');
   const fadeAnim = useRef(new Animated.Value(1)).current;
+  const { translateY: bottomNavTranslateY, onScroll: onBottomNavScroll, resetNav } =
+    useBottomNavScroll();
 
   useEffect(() => {
     fadeAnim.setValue(0);
@@ -55,7 +59,8 @@ export default function DashboardScreen() {
       easing: Easing.out(Easing.quad),
       useNativeDriver: true,
     }).start();
-  }, [dashboardTab, fadeAnim]);
+    resetNav();
+  }, [dashboardTab, fadeAnim, resetNav]);
 
   const lessons = useMemo(() => {
     const tabLessons = MOCK_LESSONS.filter((lesson) => lesson.status === lessonTab);
@@ -87,9 +92,16 @@ export default function DashboardScreen() {
     return (
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <Animated.View style={[styles.fadeContainer, { opacity: fadeAnim }]}>
-          <AccountScreen onClose={() => setDashboardTab('bookings')} />
+          <AccountScreen
+            onClose={() => setDashboardTab('bookings')}
+            onScroll={onBottomNavScroll}
+          />
         </Animated.View>
-        <DashboardBottomNav activeTab={dashboardTab} onTabChange={setDashboardTab} />
+        <DashboardBottomNav
+          activeTab={dashboardTab}
+          onTabChange={setDashboardTab}
+          translateY={bottomNavTranslateY}
+        />
       </SafeAreaView>
     );
   }
@@ -98,7 +110,7 @@ export default function DashboardScreen() {
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <Animated.View style={[styles.fadeContainer, { opacity: fadeAnim }]}>
         {dashboardTab === 'school' ? (
-          <SchoolsScreen />
+          <SchoolsScreen onScroll={onBottomNavScroll} />
         ) : dashboardTab === 'bookings' ? (
           <View style={styles.screen}>
             <View style={styles.header}>
@@ -122,7 +134,9 @@ export default function DashboardScreen() {
               key={lessonTab}
               style={styles.lessonScroll}
               contentContainerStyle={styles.lessonScrollContent}
-              showsVerticalScrollIndicator={false}>
+              showsVerticalScrollIndicator={false}
+              onScroll={onBottomNavScroll}
+              scrollEventThrottle={8}>
               {lessons.length > 0 ? (
                 lessons.map((lesson) => <LessonCard key={lesson.id} lesson={lesson} />)
               ) : (
@@ -139,6 +153,8 @@ export default function DashboardScreen() {
               )}
             </ScrollView>
           </View>
+        ) : dashboardTab === 'earnings' ? (
+          <WeeklyEarningsScreen onScroll={onBottomNavScroll} />
         ) : (
           <View style={styles.placeholderScreen}>
             <Text style={styles.placeholderTitle}>
@@ -149,7 +165,11 @@ export default function DashboardScreen() {
         )}
       </Animated.View>
 
-      <DashboardBottomNav activeTab={dashboardTab} onTabChange={setDashboardTab} />
+      <DashboardBottomNav
+        activeTab={dashboardTab}
+        onTabChange={setDashboardTab}
+        translateY={bottomNavTranslateY}
+      />
     </SafeAreaView>
   );
 }

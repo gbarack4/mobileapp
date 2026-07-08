@@ -9,10 +9,27 @@ export type DocumentType =
   | 'workingWithChildrenCheck'
   | 'policeCheck';
 
+export type OnboardingAddress = {
+  line1: string;
+  line2: string;
+  suburb: string;
+  state: string;
+  postcode: string;
+};
+
+export const EMPTY_ONBOARDING_ADDRESS: OnboardingAddress = {
+  line1: '',
+  line2: '',
+  suburb: '',
+  state: '',
+  postcode: '',
+};
+
 export type OnboardingForm = {
   profilePhotoUri: string | null;
+  profilePhotoName: string | null;
   dateOfBirth: string;
-  address: string;
+  address: OnboardingAddress;
   emergencyContactName: string;
   emergencyContactPhone: string;
   driverLicenceNumber: string;
@@ -34,8 +51,9 @@ export type OnboardingForm = {
 
 export const INITIAL_ONBOARDING_FORM: OnboardingForm = {
   profilePhotoUri: null,
+  profilePhotoName: null,
   dateOfBirth: '',
-  address: '',
+  address: { ...EMPTY_ONBOARDING_ADDRESS },
   emergencyContactName: '',
   emergencyContactPhone: '',
   driverLicenceNumber: '',

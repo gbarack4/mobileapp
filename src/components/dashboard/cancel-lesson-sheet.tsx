@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { ConfirmedPopup } from '../confirmed-popup';
 import { CarIcon } from '../icons/dashboard-icons';
 import { SheetCloseIcon, WarningIcon } from '../icons/cancel-lesson-icons';
 import { colors, spacing } from '../../constants/theme';
@@ -28,7 +29,7 @@ type CancelLessonSheetProps = {
   visible: boolean;
   lesson: Lesson;
   onClose: () => void;
-  onConfirm: (reason: CancellationReason) => void;
+  onConfirm: (reason: CancellationReason) => void | Promise<void>;
 };
 
 const CANCELLATION_REASONS: { id: CancellationReason; label: string }[] = [
@@ -42,6 +43,9 @@ const CANCELLATION_REASONS: { id: CancellationReason; label: string }[] = [
 const SHEET_SLIDE_DISTANCE = 720;
 const FADE_DURATION = 220;
 const SLIDE_DURATION = 320;
+const CANCELLING_MS = 2000;
+
+type SheetPhase = 'form' | 'submitting' | 'confirmed';
 
 type PressableState = {
   pressed: boolean;
@@ -58,6 +62,7 @@ export function CancelLessonSheet({ visible, lesson, onClose, onConfirm }: Cance
   const insets = useSafeAreaInsets();
   const [mounted, setMounted] = useState(visible);
   const [selectedReason, setSelectedReason] = useState<CancellationReason | null>(null);
+  const [phase, setPhase] = useState<SheetPhase>('form');
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(SHEET_SLIDE_DISTANCE)).current;
 
@@ -65,6 +70,7 @@ export function CancelLessonSheet({ visible, lesson, onClose, onConfirm }: Cance
     if (visible) {
       setMounted(true);
       setSelectedReason(null);
+      setPhase('form');
       fadeAnim.setValue(0);
       slideAnim.setValue(SHEET_SLIDE_DISTANCE);
 
@@ -113,13 +119,53 @@ export function CancelLessonSheet({ visible, lesson, onClose, onConfirm }: Cance
     return null;
   }
 
-  const canConfirm = selectedReason !== null;
+  const canConfirm = selectedReason !== null && phase === 'form';
+
+  async function handleConfirmPress() {
+    if (!selectedReason || phase !== 'form') {
+      return;
+    }
+
+    setPhase('submitting');
+    const startedAt = Date.now();
+
+    try {
+      await onConfirm(selectedReason);
+
+      const remaining = CANCELLING_MS - (Date.now() - startedAt);
+      if (remaining > 0) {
+        await new Promise<void>((resolve) => {
+          setTimeout(resolve, remaining);
+        });
+      }
+
+      setPhase('confirmed');
+    } catch {
+      setPhase('form');
+    }
+  }
+
+  function handleConfirmedClose() {
+    onClose();
+  }
+
+  function handleClose() {
+    if (phase === 'submitting') {
+      return;
+    }
+
+    onClose();
+  }
 
   return (
-    <Modal visible={mounted} transparent animationType="none" onRequestClose={onClose}>
+    <Modal visible={mounted} transparent animationType="none" onRequestClose={handleClose}>
       <View style={styles.overlay}>
         <Animated.View style={[styles.backdrop, { opacity: fadeAnim }]}>
-          <Pressable style={styles.backdropPressable} onPress={onClose} accessibilityLabel="Close" />
+          <Pressable
+            style={styles.backdropPressable}
+            onPress={handleClose}
+            accessibilityLabel="Close"
+          />
         </Animated.View>
 
         <Animated.View
@@ -133,7 +179,8 @@ export function CancelLessonSheet({ visible, lesson, onClose, onConfirm }: Cance
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Cancel lesson</Text>
             <Pressable
-              onPress={onClose}
+              onPress={handleClose}
+              disabled={phase === 'submitting'}
               hitSlop={12}
               android_ripple={ANDROID_RIPPLE}
               accessibilityLabel="Close"
@@ -142,7 +189,10 @@ export function CancelLessonSheet({ visible, lesson, onClose, onConfirm }: Cance
             </Pressable>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContent}
+            scrollEnabled={phase === 'form'}>
             <View style={styles.lessonCard}>
               <View style={styles.lessonIconWrap}>
                 <CarIcon size={16} color="#ef4444" />
@@ -170,6 +220,7 @@ export function CancelLessonSheet({ visible, lesson, onClose, onConfirm }: Cance
                   <Pressable
                     key={reason.id}
                     onPress={() => setSelectedReason(reason.id)}
+                    disabled={phase !== 'form'}
                     android_ripple={ANDROID_RIPPLE}
                     style={[
                       styles.reasonRow,
@@ -188,27 +239,31 @@ export function CancelLessonSheet({ visible, lesson, onClose, onConfirm }: Cance
           </ScrollView>
 
           <Pressable
-            onPress={() => {
-              if (selectedReason) {
-                onConfirm(selectedReason);
-              }
-            }}
-            disabled={!canConfirm}
+            onPress={handleConfirmPress}
+            disabled={!selectedReason || phase !== 'form'}
             android_ripple={canConfirm ? ANDROID_RIPPLE : undefined}
             style={({ pressed }: PressableState) => [
               styles.confirmButton,
-              canConfirm ? styles.confirmButtonActive : styles.confirmButtonDisabled,
+              selectedReason ? styles.confirmButtonActive : styles.confirmButtonDisabled,
               canConfirm && pressed && styles.pressed,
             ]}>
             <Text
               style={[
                 styles.confirmButtonText,
-                !canConfirm && styles.confirmButtonTextDisabled,
+                !selectedReason && styles.confirmButtonTextDisabled,
               ]}>
-              Confirm cancellation
+              {phase === 'submitting' ? 'Cancelling....' : 'Cancel lesson'}
             </Text>
           </Pressable>
         </Animated.View>
+
+        {phase === 'confirmed' ? (
+          <ConfirmedPopup
+            title="Cancellation confirmed"
+            message="The lesson has been cancelled successfully."
+            onClose={handleConfirmedClose}
+          />
+        ) : null}
       </View>
     </Modal>
   );

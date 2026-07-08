@@ -1,4 +1,4 @@
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors } from '../../constants/theme';
@@ -13,6 +13,7 @@ import {
 type DashboardBottomNavProps = {
   activeTab: DashboardTab;
   onTabChange: (tab: DashboardTab) => void;
+  translateY?: Animated.Value;
 };
 
 const NAV_ITEMS: {
@@ -31,15 +32,21 @@ const ANDROID_RIPPLE =
 
 const NAV_ICON_SIZE = 18;
 
-export function DashboardBottomNav({ activeTab, onTabChange }: DashboardBottomNavProps) {
+export function DashboardBottomNav({
+  activeTab,
+  onTabChange,
+  translateY,
+}: DashboardBottomNavProps) {
   const insets = useSafeAreaInsets();
 
   return (
-    <View
+    <Animated.View
       style={[
         styles.wrapper,
         { paddingBottom: Math.max(insets.bottom, 12) },
-      ]}>
+        translateY ? { transform: [{ translateY }] } : null,
+      ]}
+    >
       <View style={styles.bar}>
         {NAV_ITEMS.map((item) => {
           const active = activeTab === item.id;
@@ -60,7 +67,7 @@ export function DashboardBottomNav({ activeTab, onTabChange }: DashboardBottomNa
           );
         })}
       </View>
-    </View>
+    </Animated.View>
   );
 }
 

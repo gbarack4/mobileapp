@@ -1,3 +1,4 @@
+import { SiteLoaderGate } from '@/components/site-loader/site-loader-gate';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'react-native';
 
@@ -6,6 +7,7 @@ export default function RootLayout() {
     <>
       <StatusBar barStyle="dark-content" />
       <Stack screenOptions={{ headerShown: false }} />
+      <SiteLoaderGate />
     </>
   );
 }

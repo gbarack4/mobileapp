@@ -1,0 +1,43 @@
+.site-loader {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+}
+
+.site-loader__spinner {
+  position: relative;
+  width: 40px;
+  height: 40px;
+}
+
+.site-loader__bar {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 3px;
+  height: 10px;
+  margin-top: -20px;
+  margin-left: -1.5px;
+  border-radius: 2px;
+  background: #005eff;
+  transform-origin: 50% 20px;
+  transform: rotate(calc(var(--bar-index) * 30deg));
+  opacity: 0.2;
+  animation: site-loader-pulse 1s linear infinite;
+  animation-delay: calc(var(--bar-index) * -0.083s);
+}
+
+@keyframes site-loader-pulse {
+  0%,
+  100% {
+    opacity: 0.2;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}

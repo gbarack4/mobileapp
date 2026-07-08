@@ -39,3 +39,22 @@ export function InfoIcon({ size = 18, color = '#2563eb' }: IconProps) {
     </Svg>
   );
 }
+
+export function CheckCircleIcon({ size = 24, color = '#16a34a' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"
+        stroke={color}
+        strokeWidth="1.75"
+      />
+      <Path
+        d="M8.5 12.5l2.5 2.5 5-5"
+        stroke={color}
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}

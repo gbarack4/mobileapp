@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -14,13 +14,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AuthTextField } from '../../components/auth/auth-text-field';
 import { DocumentUploadField } from '../../components/onboarding/document-upload-field';
-import { ProfilePhotoPicker } from '../../components/onboarding/profile-photo-picker';
+import { PersonalInfoStep } from '../../components/onboarding/personal-info-step';
 import { SelectionPills } from '../../components/onboarding/selection-pills';
 import { Logo } from '../../components/logo';
 import { colors, radius, spacing } from '../../constants/theme';
+import { savePersonalInfo } from '../../services/onboarding';
 import {
   type DocumentType,
   INITIAL_ONBOARDING_FORM,
+  type OnboardingAddress,
   type OnboardingForm,
   type TransmissionType,
   type YesNo,
@@ -41,6 +43,8 @@ type PressableState = {
 
 const ANDROID_RIPPLE =
   Platform.OS === 'android' ? { color: 'rgba(0, 94, 255, 0.14)' } : undefined;
+
+const CONTINUING_MS = 2000;
 
 const STEPS: OnboardingStep[] = [
   {
@@ -95,10 +99,7 @@ export default function OnboardingScreen() {
   const [form, setForm] = useState<OnboardingForm>(INITIAL_ONBOARDING_FORM);
   const [focusedField, setFocusedField] = useState<FocusedField>(null);
   const [error, setError] = useState<string | null>(null);
-
-  const addressRef = useRef<TextInput>(null);
-  const emergencyNameRef = useRef<TextInput>(null);
-  const emergencyPhoneRef = useRef<TextInput>(null);
+  const [isContinuing, setIsContinuing] = useState(false);
 
   const currentStep = STEPS[stepIndex];
   const isLastStep = stepIndex === STEPS.length - 1;
@@ -107,6 +108,22 @@ export default function OnboardingScreen() {
   function updateForm<K extends keyof OnboardingForm>(key: K, value: OnboardingForm[K]) {
     setForm((current) => ({ ...current, [key]: value }));
     clearError();
+  }
+
+  function updateAddress<K extends keyof OnboardingAddress>(key: K, value: OnboardingAddress[K]) {
+    setForm((current) => ({
+      ...current,
+      address: { ...current.address, [key]: value },
+    }));
+    clearError();
+  }
+
+  function handleFocusField(field: string) {
+    setFocusedField(field);
+  }
+
+  function handleBlurField(field: string) {
+    setFocusedField((current) => (current === field ? null : current));
   }
 
   function clearError() {
@@ -118,8 +135,28 @@ export default function OnboardingScreen() {
   function validateStep(): boolean {
     switch (currentStep.id) {
       case 'personal':
-        if (!form.address.trim()) {
-          setError('Enter your address.');
+        if (!form.profilePhotoUri) {
+          setError('Add a profile photo.');
+          return false;
+        }
+        if (!form.address.line1.trim()) {
+          setError('Enter your street address.');
+          return false;
+        }
+        if (!form.address.suburb.trim()) {
+          setError('Enter your suburb.');
+          return false;
+        }
+        if (!form.address.state.trim()) {
+          setError('Enter your state.');
+          return false;
+        }
+        if (!/^\d{4}$/.test(form.address.postcode.trim())) {
+          setError('Enter a valid 4-digit postcode.');
+          return false;
+        }
+        if (form.dateOfBirth.trim() && !/^\d{2}\/\d{2}\/\d{4}$/.test(form.dateOfBirth.trim())) {
+          setError('Enter date of birth as DD/MM/YYYY.');
           return false;
         }
         if (!form.emergencyContactName.trim()) {
@@ -224,22 +261,64 @@ export default function OnboardingScreen() {
     setStepIndex((current) => current - 1);
   }
 
-  function handleNext() {
+  async function handleNext() {
+    if (isContinuing) {
+      return;
+    }
+
     if (!validateStep()) {
       return;
     }
 
-    if (isLastStep) {
-    // TODO: connect to NestJS onboarding API
-    router.replace('/dashboard');
-      return;
-    }
+    setIsContinuing(true);
 
-    setStepIndex((current) => current + 1);
+    const stepId = currentStep.id;
+    const advancingFromLastStep = isLastStep;
+
+    try {
+      await new Promise((resolve) => setTimeout(resolve, CONTINUING_MS));
+
+      if (stepId === 'personal') {
+        await savePersonalInfo({
+          profilePhotoUri: form.profilePhotoUri,
+          profilePhotoName: form.profilePhotoName,
+          dateOfBirth: form.dateOfBirth.trim() || null,
+          address: form.address,
+          emergencyContactName: form.emergencyContactName.trim(),
+          emergencyContactPhone: form.emergencyContactPhone.trim(),
+        });
+      }
+
+      if (advancingFromLastStep) {
+        // TODO: connect to NestJS onboarding API
+        router.replace('/dashboard');
+        return;
+      }
+
+      setStepIndex((current) => current + 1);
+    } catch {
+      setError('Unable to save your details. Please try again.');
+    } finally {
+      setIsContinuing(false);
+    }
   }
 
-  function handleMockPhotoSelect() {
-    updateForm('profilePhotoUri', 'profile-photo.jpg');
+  function handlePhotoSelect(uri: string, fileName: string) {
+    setForm((current) => ({
+      ...current,
+      profilePhotoUri: uri,
+      profilePhotoName: fileName,
+    }));
+    clearError();
+  }
+
+  function handlePhotoRemove() {
+    setForm((current) => ({
+      ...current,
+      profilePhotoUri: null,
+      profilePhotoName: null,
+    }));
+    clearError();
   }
 
   function handleMockDocumentUpload(type: DocumentType) {
@@ -253,68 +332,16 @@ export default function OnboardingScreen() {
 
   function renderPersonalStep() {
     return (
-      <>
-        <ProfilePhotoPicker photoUri={form.profilePhotoUri} onPress={handleMockPhotoSelect} />
-
-        <AuthTextField
-          label="Date of birth (optional)"
-          value={form.dateOfBirth}
-          onChangeText={(value) => updateForm('dateOfBirth', value)}
-          onFocus={() => setFocusedField('dateOfBirth')}
-          onBlur={() => setFocusedField((current) => (current === 'dateOfBirth' ? null : current))}
-          placeholder="DD/MM/YYYY"
-          keyboardType="numbers-and-punctuation"
-          returnKeyType="next"
-          onSubmitEditing={() => addressRef.current?.focus()}
-          focused={focusedField === 'dateOfBirth'}
-        />
-
-        <AuthTextField
-          label="Address"
-          value={form.address}
-          onChangeText={(value) => updateForm('address', value)}
-          onFocus={() => setFocusedField('address')}
-          onBlur={() => setFocusedField((current) => (current === 'address' ? null : current))}
-          placeholder="Street, suburb, state, postcode"
-          autoCapitalize="words"
-          returnKeyType="next"
-          onSubmitEditing={() => emergencyNameRef.current?.focus()}
-          focused={focusedField === 'address'}
-          ref={addressRef}
-        />
-
-        <AuthTextField
-          label="Emergency contact name"
-          value={form.emergencyContactName}
-          onChangeText={(value) => updateForm('emergencyContactName', value)}
-          onFocus={() => setFocusedField('emergencyContactName')}
-          onBlur={() =>
-            setFocusedField((current) => (current === 'emergencyContactName' ? null : current))
-          }
-          placeholder="Full name"
-          autoCapitalize="words"
-          returnKeyType="next"
-          onSubmitEditing={() => emergencyPhoneRef.current?.focus()}
-          focused={focusedField === 'emergencyContactName'}
-          ref={emergencyNameRef}
-        />
-
-        <AuthTextField
-          label="Emergency contact phone"
-          value={form.emergencyContactPhone}
-          onChangeText={(value) => updateForm('emergencyContactPhone', value)}
-          onFocus={() => setFocusedField('emergencyContactPhone')}
-          onBlur={() =>
-            setFocusedField((current) => (current === 'emergencyContactPhone' ? null : current))
-          }
-          placeholder="Phone number"
-          keyboardType="phone-pad"
-          textContentType="telephoneNumber"
-          returnKeyType="done"
-          focused={focusedField === 'emergencyContactPhone'}
-          ref={emergencyPhoneRef}
-        />
-      </>
+      <PersonalInfoStep
+        form={form}
+        focusedField={focusedField}
+        onFocusField={handleFocusField}
+        onBlurField={handleBlurField}
+        onUpdateField={updateForm}
+        onUpdateAddress={updateAddress}
+        onSelectPhoto={handlePhotoSelect}
+        onRemovePhoto={handlePhotoRemove}
+      />
     );
   }
 
@@ -585,13 +612,23 @@ export default function OnboardingScreen() {
 
             <Pressable
               onPress={handleNext}
+              disabled={isContinuing}
               android_ripple={ANDROID_RIPPLE}
               style={({ pressed, hovered }: PressableState) => [
                 styles.primaryButton,
-                hovered && !pressed && styles.primaryButtonHovered,
-                pressed && styles.buttonPressed,
+                isContinuing && styles.primaryButtonDisabled,
+                hovered && !isContinuing && !pressed && styles.primaryButtonHovered,
+                pressed && !isContinuing && styles.buttonPressed,
               ]}>
-              <Text style={styles.primaryButtonText}>{isLastStep ? 'Complete setup' : 'Continue'}</Text>
+              <Text style={styles.primaryButtonText}>
+                {isContinuing
+                  ? isLastStep
+                    ? 'Completing....'
+                    : 'Continuing....'
+                  : isLastStep
+                    ? 'Complete setup'
+                    : 'Continue'}
+              </Text>
             </Pressable>
           </View>
         </ScrollView>
@@ -687,6 +724,9 @@ const styles = StyleSheet.create({
   },
   primaryButtonHovered: {
     backgroundColor: colors.primaryHover,
+  },
+  primaryButtonDisabled: {
+    opacity: 0.85,
   },
   primaryButtonText: {
     color: colors.white,

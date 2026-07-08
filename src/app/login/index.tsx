@@ -54,6 +54,8 @@ const STEP_SUBTITLES: Partial<Record<LoginStep, string>> = {
 const ANDROID_RIPPLE =
   Platform.OS === 'android' ? { color: 'rgba(0, 94, 255, 0.14)' } : undefined;
 
+const CONTINUING_MS = 2000;
+
 export default function LoginScreen() {
   const passwordRef = useRef<TextInput>(null);
   const codeRef = useRef<TextInput>(null);
@@ -68,11 +70,12 @@ export default function LoginScreen() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isContinuing, setIsContinuing] = useState(false);
   const [oauthLoading, setOauthLoading] = useState<'apple' | 'google' | null>(null);
   const [focusedField, setFocusedField] = useState<FocusedField | null>(null);
 
   const trimmedIdentifier = normalizeIdentifier(identifier);
-  const isBusy = isSubmitting || oauthLoading !== null;
+  const isBusy = isSubmitting || isContinuing || oauthLoading !== null;
   const showSocialLogin = step === 'identifier';
   const identifierEditable = step === 'identifier' || step === 'forgot-password';
   const showPasswordField = step === 'password';
@@ -114,15 +117,12 @@ export default function LoginScreen() {
     setFocusedField(null);
   }
 
-  function handleRequestVerification() {
-    if (!password.trim()) {
-      setError('Enter your password.');
-      return;
-    }
-
-    clearMessages();
-    setVerificationCode('');
-    setStep('verify-code');
+  function runAfterContinuing(action: () => void) {
+    setIsContinuing(true);
+    setTimeout(() => {
+      setIsContinuing(false);
+      action();
+    }, CONTINUING_MS);
   }
 
   async function handleVerifyAndSignIn() {
@@ -149,6 +149,10 @@ export default function LoginScreen() {
   }
 
   async function handleContinue() {
+    if (isContinuing || isSubmitting) {
+      return;
+    }
+
     if (step === 'identifier') {
       if (!isValidIdentifier(trimmedIdentifier)) {
         setError('Enter a valid mobile number or email address.');
@@ -156,13 +160,24 @@ export default function LoginScreen() {
       }
 
       clearMessages();
-      setStep('password');
-      setTimeout(() => passwordRef.current?.focus(), 100);
+      runAfterContinuing(() => {
+        setStep('password');
+        setTimeout(() => passwordRef.current?.focus(), 100);
+      });
       return;
     }
 
     if (step === 'password') {
-      handleRequestVerification();
+      if (!password.trim()) {
+        setError('Enter your password.');
+        return;
+      }
+
+      clearMessages();
+      setVerificationCode('');
+      runAfterContinuing(() => {
+        setStep('verify-code');
+      });
       return;
     }
 
@@ -173,11 +188,13 @@ export default function LoginScreen() {
       }
 
       clearMessages();
-      setResetCode('');
-      setNewPassword('');
-      setConfirmPassword('');
-      setStep('reset-password');
-      setTimeout(() => codeRef.current?.focus(), 100);
+      runAfterContinuing(() => {
+        setResetCode('');
+        setNewPassword('');
+        setConfirmPassword('');
+        setStep('reset-password');
+        setTimeout(() => codeRef.current?.focus(), 100);
+      });
       return;
     }
 
@@ -243,6 +260,23 @@ export default function LoginScreen() {
   }
 
   function getPrimaryButtonLabel() {
+    if (isContinuing) {
+      switch (step) {
+        case 'identifier':
+          return 'Continuing....';
+        case 'password':
+          return 'Signing in....';
+        case 'forgot-password':
+          return 'Sending....';
+        case 'reset-password':
+          return 'Resetting....';
+      }
+    }
+
+    if (isSubmitting) {
+      return 'Resetting....';
+    }
+
     switch (step) {
       case 'identifier':
         return 'Continue';
@@ -511,11 +545,7 @@ export default function LoginScreen() {
                 hovered && !isBusy && !pressed && styles.primaryButtonHovered,
                 pressed && !isBusy && styles.buttonPressed,
               ]}>
-              {isSubmitting ? (
-                <ActivityIndicator color={colors.white} />
-              ) : (
-                <Text style={styles.primaryButtonText}>{getPrimaryButtonLabel()}</Text>
-              )}
+              <Text style={styles.primaryButtonText}>{getPrimaryButtonLabel()}</Text>
             </Pressable>
 
             {showForgotPasswordLink ? (

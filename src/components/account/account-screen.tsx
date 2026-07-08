@@ -1,5 +1,6 @@
 import { router } from 'expo-router';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 
 import { CloseIcon } from '../icons/lesson-detail-icons';
 import {
@@ -22,9 +23,11 @@ import {
   VehiclesIcon,
 } from './account-icons';
 import { AccountMenuRow } from './account-menu-row';
+import { StarIcon } from './hub-account-icons';
 
 type AccountScreenProps = {
   onClose?: () => void;
+  onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
 };
 
 const ANDROID_RIPPLE =
@@ -49,9 +52,18 @@ const SECTION_3_ICONS = {
   about: AboutIcon,
 } as const;
 
+function formatRating(rating: number) {
+  return Number.isInteger(rating) ? String(rating) : rating.toFixed(1);
+}
+
 function handleMenuPress(itemId: string) {
   if (itemId === 'vehicles') {
     router.push('/dashboard/account/vehicles');
+    return;
+  }
+
+  if (itemId === 'documents') {
+    router.push('/dashboard/account/documents');
     return;
   }
 
@@ -62,6 +74,11 @@ function handleMenuPress(itemId: string) {
 
   if (itemId === 'availability') {
     router.push('/dashboard/account/availability');
+    return;
+  }
+
+  if (itemId === 'payment') {
+    router.push('/dashboard/account/payment');
     return;
   }
 
@@ -79,7 +96,7 @@ function handleSignOut() {
   router.replace('/login');
 }
 
-export function AccountScreen({ onClose }: AccountScreenProps) {
+export function AccountScreen({ onClose, onScroll }: AccountScreenProps) {
   const profile = MOCK_INSTRUCTOR_PROFILE;
 
   return (
@@ -87,7 +104,9 @@ export function AccountScreen({ onClose }: AccountScreenProps) {
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}>
+        showsVerticalScrollIndicator={false}
+        onScroll={onScroll}
+        scrollEventThrottle={8}>
         {onClose ? (
           <Pressable
             onPress={onClose}
@@ -105,12 +124,17 @@ export function AccountScreen({ onClose }: AccountScreenProps) {
           </View>
 
           <View style={styles.profileText}>
-            <Text style={styles.profileName}>{profile.name}</Text>
+            <View style={styles.nameRow}>
+              <Text style={styles.profileName}>{profile.name}</Text>
+              <View style={styles.ratingBadge}>
+                <StarIcon size={11} />
+                <Text style={styles.ratingText}>{formatRating(profile.rating)}</Text>
+              </View>
+            </View>
             <Text style={styles.profileSubtitle}>{profile.subtitle}</Text>
+            <Text style={styles.profileEmail}>{profile.email}</Text>
           </View>
         </View>
-
-        <Text style={styles.pageTitle}>Account</Text>
 
         <View style={styles.menuSection}>
           {ACCOUNT_MENU_SECTION_1.map((item, index) => {
@@ -204,21 +228,27 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xl,
   },
   avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     backgroundColor: '#e8f1ff',
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarText: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '700',
     color: colors.primary,
   },
   profileText: {
     flex: 1,
-    gap: 4,
+    gap: 3,
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    flexWrap: 'wrap',
   },
   profileName: {
     fontSize: 22,
@@ -226,17 +256,23 @@ const styles = StyleSheet.create({
     color: colors.text,
     letterSpacing: -0.2,
   },
+  ratingBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  ratingText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.text,
+  },
   profileSubtitle: {
     fontSize: 14,
     color: colors.textSecondary,
   },
-  pageTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: colors.text,
-    letterSpacing: -0.3,
-    paddingHorizontal: spacing.xl,
-    marginBottom: spacing.lg,
+  profileEmail: {
+    fontSize: 13,
+    color: colors.textMuted,
   },
   menuSection: {
     backgroundColor: colors.background,

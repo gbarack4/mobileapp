@@ -2,13 +2,17 @@ export type InstructorProfile = {
   name: string;
   initials: string;
   subtitle: string;
+  email: string;
+  rating: number;
   vehicleSummary: string;
 };
 
 export const MOCK_INSTRUCTOR_PROFILE: InstructorProfile = {
-  name: 'Hb',
-  initials: 'H',
+  name: 'George',
+  initials: 'G',
   subtitle: 'Driving Instructor · ADI Certified',
+  email: 'georged@outlook.com.au',
+  rating: 4.8,
   vehicleSummary: 'Ford Focus · AB21 XYZ',
 };
 

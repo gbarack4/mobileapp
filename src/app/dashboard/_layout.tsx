@@ -13,9 +13,11 @@ export default function DashboardLayout() {
       <Stack.Screen name="school/[id]" />
       <Stack.Screen name="lesson/[id]" />
       <Stack.Screen name="account/vehicles" />
+      <Stack.Screen name="account/documents" />
       <Stack.Screen name="account/edit-address" />
       <Stack.Screen name="account/work-locations" />
       <Stack.Screen name="account/availability" />
+      <Stack.Screen name="account/payment" />
       <Stack.Screen name="account/hub" />
     </Stack>
   );

@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { ConfirmedPopup } from '../confirmed-popup';
 import { CarIcon } from '../icons/dashboard-icons';
 import { InfoIcon, SheetCloseIcon } from '../icons/cancel-lesson-icons';
 import { MonthCalendar } from './month-calendar';
@@ -28,7 +29,8 @@ type RescheduleLessonSheetProps = {
   visible: boolean;
   lesson: Lesson;
   onClose: () => void;
-  onConfirm: (selection: RescheduleSelection) => void;
+  onConfirmedClose?: () => void;
+  onConfirm: (selection: RescheduleSelection) => void | Promise<void>;
 };
 
 const TIME_SLOTS = [
@@ -47,6 +49,9 @@ const TIME_SLOTS = [
 const SHEET_SLIDE_DISTANCE = 720;
 const FADE_DURATION = 220;
 const SLIDE_DURATION = 320;
+const RESCHEDULING_MS = 2000;
+
+type SheetPhase = 'form' | 'submitting' | 'confirmed';
 
 type PressableState = {
   pressed: boolean;
@@ -78,6 +83,7 @@ export function RescheduleLessonSheet({
   visible,
   lesson,
   onClose,
+  onConfirmedClose,
   onConfirm,
 }: RescheduleLessonSheetProps) {
   const insets = useSafeAreaInsets();
@@ -85,12 +91,13 @@ export function RescheduleLessonSheet({
   const [visibleMonth, setVisibleMonth] = useState(() => getDefaultDate(lesson));
   const [selectedDate, setSelectedDate] = useState(() => getDefaultDate(lesson));
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [phase, setPhase] = useState<SheetPhase>('form');
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(SHEET_SLIDE_DISTANCE)).current;
 
   const today = useMemo(() => startOfDay(new Date()), []);
   const unavailableSlots = useMemo(() => getUnavailableSlots(selectedDate), [selectedDate]);
-  const canConfirm = selectedTime !== null;
+  const canConfirm = selectedTime !== null && phase === 'form';
 
   useEffect(() => {
     if (visible) {
@@ -99,6 +106,7 @@ export function RescheduleLessonSheet({
       setVisibleMonth(new Date(defaultDate.getFullYear(), defaultDate.getMonth(), 1));
       setSelectedDate(defaultDate);
       setSelectedTime(null);
+      setPhase('form');
       fadeAnim.setValue(0);
       slideAnim.setValue(SHEET_SLIDE_DISTANCE);
 
@@ -148,15 +156,56 @@ export function RescheduleLessonSheet({
   }
 
   function handleSelectDate(date: Date) {
+    if (phase !== 'form') {
+      return;
+    }
+
     setSelectedDate(date);
     setSelectedTime(null);
   }
 
+  async function handleConfirmPress() {
+    if (!selectedTime || phase !== 'form') {
+      return;
+    }
+
+    setPhase('submitting');
+    const startedAt = Date.now();
+    const selection = { date: selectedDate, time: selectedTime };
+
+    try {
+      await Promise.resolve(onConfirm(selection));
+
+      const remaining = RESCHEDULING_MS - (Date.now() - startedAt);
+      if (remaining > 0) {
+        await new Promise<void>((resolve) => {
+          setTimeout(resolve, remaining);
+        });
+      }
+
+      setPhase('confirmed');
+    } catch {
+      setPhase('form');
+    }
+  }
+
+  function handleConfirmedClose() {
+    (onConfirmedClose ?? onClose)();
+  }
+
+  function handleClose() {
+    if (phase === 'submitting') {
+      return;
+    }
+
+    onClose();
+  }
+
   return (
-    <Modal visible={mounted} transparent animationType="none" onRequestClose={onClose}>
+    <Modal visible={mounted} transparent animationType="none" onRequestClose={handleClose}>
       <View style={styles.overlay}>
         <Animated.View style={[styles.backdrop, { opacity: fadeAnim }]}>
-          <Pressable style={styles.backdropPressable} onPress={onClose} accessibilityLabel="Close" />
+          <Pressable style={styles.backdropPressable} onPress={handleClose} accessibilityLabel="Close" />
         </Animated.View>
 
         <Animated.View
@@ -170,7 +219,8 @@ export function RescheduleLessonSheet({
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Reschedule lesson</Text>
             <Pressable
-              onPress={onClose}
+              onPress={handleClose}
+              disabled={phase === 'submitting'}
               hitSlop={12}
               android_ripple={ANDROID_RIPPLE}
               accessibilityLabel="Close"
@@ -179,7 +229,10 @@ export function RescheduleLessonSheet({
             </Pressable>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContent}
+            scrollEnabled={phase === 'form'}>
             <View style={styles.lessonCard}>
               <View style={styles.lessonIconWrap}>
                 <CarIcon size={18} color={colors.primary} />
@@ -204,8 +257,16 @@ export function RescheduleLessonSheet({
               lessonCounts={new Map()}
               minSelectableDate={today}
               onSelectDate={handleSelectDate}
-              onPreviousMonth={() => setVisibleMonth((current) => shiftMonth(current, -1))}
-              onNextMonth={() => setVisibleMonth((current) => shiftMonth(current, 1))}
+              onPreviousMonth={() => {
+                if (phase === 'form') {
+                  setVisibleMonth((current) => shiftMonth(current, -1));
+                }
+              }}
+              onNextMonth={() => {
+                if (phase === 'form') {
+                  setVisibleMonth((current) => shiftMonth(current, 1));
+                }
+              }}
             />
 
             <Text style={styles.sectionLabel}>Available times · {formatSelectedDayLabel(selectedDate)}</Text>
@@ -218,11 +279,11 @@ export function RescheduleLessonSheet({
                   <Pressable
                     key={slot}
                     onPress={() => {
-                      if (!unavailable) {
+                      if (!unavailable && phase === 'form') {
                         setSelectedTime(slot);
                       }
                     }}
-                    disabled={unavailable}
+                    disabled={unavailable || phase !== 'form'}
                     android_ripple={unavailable ? undefined : ANDROID_RIPPLE}
                     style={[
                       styles.timeSlot,
@@ -244,27 +305,31 @@ export function RescheduleLessonSheet({
           </ScrollView>
 
           <Pressable
-            onPress={() => {
-              if (selectedTime) {
-                onConfirm({ date: selectedDate, time: selectedTime });
-              }
-            }}
-            disabled={!canConfirm}
+            onPress={handleConfirmPress}
+            disabled={!selectedTime || phase !== 'form'}
             android_ripple={canConfirm ? ANDROID_RIPPLE : undefined}
             style={({ pressed }: PressableState) => [
               styles.confirmButton,
-              canConfirm ? styles.confirmButtonActive : styles.confirmButtonDisabled,
+              selectedTime ? styles.confirmButtonActive : styles.confirmButtonDisabled,
               canConfirm && pressed && styles.pressed,
             ]}>
             <Text
               style={[
                 styles.confirmButtonText,
-                !canConfirm && styles.confirmButtonTextDisabled,
+                !selectedTime && styles.confirmButtonTextDisabled,
               ]}>
-              Confirm reschedule
+              {phase === 'submitting' ? 'Rescheduling......' : 'Confirm reschedule'}
             </Text>
           </Pressable>
         </Animated.View>
+
+        {phase === 'confirmed' && selectedTime ? (
+          <ConfirmedPopup
+            title="Reschedule confirmed"
+            message={`Your lesson is now scheduled for ${formatSelectedDayLabel(selectedDate)} at ${selectedTime}.`}
+            onClose={handleConfirmedClose}
+          />
+        ) : null}
       </View>
     </Modal>
   );
