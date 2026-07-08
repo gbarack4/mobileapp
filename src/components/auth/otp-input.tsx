@@ -1,9 +1,16 @@
-import { useEffect, useRef } from 'react';
-import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useRef } from "react";
+import {
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 
-import { colors, radius, spacing } from '../../constants/theme';
+import { colors, radius, spacing } from "../../constants/theme";
 
-const CODE_LENGTH = 4;
+const CODE_LENGTH = 6;
 
 type OtpInputProps = {
   value: string;
@@ -12,9 +19,14 @@ type OtpInputProps = {
   disabled?: boolean;
 };
 
-export function OtpInput({ value, onChange, length = CODE_LENGTH, disabled = false }: OtpInputProps) {
+export function OtpInput({
+  value,
+  onChange,
+  length = CODE_LENGTH,
+  disabled = false,
+}: Readonly<OtpInputProps>) {
   const inputRef = useRef<TextInput>(null);
-  const digits = value.padEnd(length, ' ').slice(0, length).split('');
+  const digits = value.padEnd(length, " ").slice(0, length).split("");
   const activeIndex = value.length < length ? value.length : -1;
 
   useEffect(() => {
@@ -23,7 +35,7 @@ export function OtpInput({ value, onChange, length = CODE_LENGTH, disabled = fal
   }, []);
 
   function handleChange(text: string) {
-    onChange(text.replace(/\D/g, '').slice(0, length));
+    onChange(text.replace(/\D/g, "").slice(0, length));
   }
 
   return (
@@ -34,7 +46,7 @@ export function OtpInput({ value, onChange, length = CODE_LENGTH, disabled = fal
         onChangeText={handleChange}
         keyboardType="number-pad"
         textContentType="oneTimeCode"
-        autoComplete={Platform.OS === 'android' ? 'sms-otp' : 'one-time-code'}
+        autoComplete={Platform.OS === "android" ? "sms-otp" : "one-time-code"}
         maxLength={length}
         editable={!disabled}
         caretHidden
@@ -44,7 +56,8 @@ export function OtpInput({ value, onChange, length = CODE_LENGTH, disabled = fal
 
       <View style={styles.boxRow}>
         {digits.map((digit, index) => {
-          const isFocused = !disabled && value.length < length && index === activeIndex;
+          const isFocused =
+            !disabled && value.length < length && index === activeIndex;
           const isFilled = digit.trim().length > 0;
 
           return (
@@ -55,7 +68,8 @@ export function OtpInput({ value, onChange, length = CODE_LENGTH, disabled = fal
                 styles.box,
                 isFocused && styles.boxFocused,
                 isFilled && styles.boxFilled,
-              ]}>
+              ]}
+            >
               <Text style={styles.boxDigit}>{digit.trim()}</Text>
             </Pressable>
           );
@@ -67,14 +81,14 @@ export function OtpInput({ value, onChange, length = CODE_LENGTH, disabled = fal
 
 const styles = StyleSheet.create({
   container: {
-    position: 'relative',
+    position: "relative",
   },
   hiddenInput: {
     ...StyleSheet.absoluteFill,
     opacity: 0,
   },
   boxRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: spacing.md,
   },
   box: {
@@ -83,10 +97,10 @@ const styles = StyleSheet.create({
     maxWidth: 72,
     backgroundColor: colors.inputBackground,
     borderRadius: radius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 2,
-    borderColor: 'transparent',
+    borderColor: "transparent",
   },
   boxFocused: {
     borderColor: colors.primary,
@@ -96,7 +110,7 @@ const styles = StyleSheet.create({
   },
   boxDigit: {
     fontSize: 24,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text,
   },
 });

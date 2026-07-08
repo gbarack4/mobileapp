@@ -43,7 +43,7 @@ const SITE_LOADER_CSS = `
 
 const SITE_LOADER_BARS = Array.from({ length: 12 }, (_, index) => index);
 
-export default function Root({ children }: PropsWithChildren) {
+export default function Root({ children }: Readonly<PropsWithChildren>) {
   return (
     <html lang="en">
       <head>

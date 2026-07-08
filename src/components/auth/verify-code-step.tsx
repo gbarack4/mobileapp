@@ -1,12 +1,19 @@
-import { useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useState } from "react";
+import {
+  ActivityIndicator,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
-import { OtpInput } from './otp-input';
+import { OtpInput } from "./otp-input";
 import {
   VerificationMethod,
   VerificationOptionsSheet,
-} from './verification-options-sheet';
-import { colors, radius, spacing } from '../../constants/theme';
+} from "./verification-options-sheet";
+import { colors, spacing } from "../../constants/theme";
 
 type PressableState = {
   pressed: boolean;
@@ -14,7 +21,7 @@ type PressableState = {
 };
 
 const ANDROID_RIPPLE =
-  Platform.OS === 'android' ? { color: 'rgba(0, 94, 255, 0.14)' } : undefined;
+  Platform.OS === "android" ? { color: "rgba(0, 94, 255, 0.14)" } : undefined;
 
 type VerifyCodeStepProps = {
   identifier: string;
@@ -29,21 +36,21 @@ type VerifyCodeStepProps = {
 };
 
 function getDisplayName(identifier: string): string {
-  if (!identifier.includes('@')) {
-    return 'there';
+  if (!identifier.includes("@")) {
+    return "there";
   }
 
-  const localPart = identifier.split('@')[0] ?? '';
+  const localPart = identifier.split("@")[0] ?? "";
   const namePart = localPart.split(/[._-]/)[0] ?? localPart;
   if (!namePart) {
-    return 'there';
+    return "there";
   }
 
   return namePart.charAt(0).toUpperCase() + namePart.slice(1);
 }
 
 function isEmail(identifier: string): boolean {
-  return identifier.includes('@');
+  return identifier.includes("@");
 }
 
 export function VerifyCodeStep({
@@ -56,26 +63,33 @@ export function VerifyCodeStep({
   onBack,
   onNext,
   onSelectVerificationMethod,
-}: VerifyCodeStepProps) {
+}: Readonly<VerifyCodeStepProps>) {
   const [showOptionsSheet, setShowOptionsSheet] = useState(false);
   const displayName = getDisplayName(identifier);
-  const canContinue = code.length === 4 && !isSubmitting;
+
+  const canContinue = code.length === 6 && !isSubmitting;
 
   return (
     <View style={styles.container}>
       <View style={styles.content}>
         <Text style={styles.greeting}>Welcome back, {displayName}.</Text>
 
-        <Text style={styles.instruction}>Enter the 4-digit code sent to you at:</Text>
+        <Text style={styles.instruction}>
+          Enter the 6-digit code sent to you at:
+        </Text>
         <Text style={styles.identifier}>{identifier}</Text>
 
-        <OtpInput value={code} onChange={onChangeCode} disabled={isSubmitting} />
+        <OtpInput
+          value={code}
+          onChange={onChangeCode}
+          disabled={isSubmitting}
+        />
 
         <Text style={styles.tip}>
-          Tip:{' '}
+          Tip:{" "}
           {isEmail(identifier)
-            ? 'Be sure to check your inbox and spam folders'
-            : 'Be sure to check your text messages'}
+            ? "Be sure to check your inbox and spam folders"
+            : "Be sure to check your text messages"}
         </Text>
 
         {success ? <Text style={styles.success}>{success}</Text> : null}
@@ -88,7 +102,8 @@ export function VerifyCodeStep({
           style={({ pressed }: PressableState) => [
             styles.tryDifferentWayButton,
             pressed && styles.buttonPressed,
-          ]}>
+          ]}
+        >
           <Text style={styles.tryDifferentWayText}>Try a different way</Text>
         </Pressable>
       </View>
@@ -111,7 +126,8 @@ export function VerifyCodeStep({
           style={({ pressed }: PressableState) => [
             styles.backButton,
             pressed && styles.buttonPressed,
-          ]}>
+          ]}
+        >
           <Text style={styles.backButtonIcon}>←</Text>
         </Pressable>
 
@@ -123,15 +139,26 @@ export function VerifyCodeStep({
             styles.nextButton,
             !canContinue && styles.nextButtonDisabled,
             pressed && canContinue && styles.buttonPressed,
-          ]}>
+          ]}
+        >
           {isSubmitting ? (
             <ActivityIndicator color={colors.textSecondary} />
           ) : (
             <>
-              <Text style={[styles.nextButtonText, !canContinue && styles.nextButtonTextDisabled]}>
+              <Text
+                style={[
+                  styles.nextButtonText,
+                  !canContinue && styles.nextButtonTextDisabled,
+                ]}
+              >
                 Next
               </Text>
-              <Text style={[styles.nextButtonArrow, !canContinue && styles.nextButtonTextDisabled]}>
+              <Text
+                style={[
+                  styles.nextButtonArrow,
+                  !canContinue && styles.nextButtonTextDisabled,
+                ]}
+              >
                 →
               </Text>
             </>
@@ -145,7 +172,7 @@ export function VerifyCodeStep({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'space-between',
+    justifyContent: "space-between",
     paddingHorizontal: spacing.xl,
   },
   content: {
@@ -155,7 +182,7 @@ const styles = StyleSheet.create({
   greeting: {
     fontSize: 34,
     lineHeight: 40,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
     letterSpacing: -0.5,
   },
@@ -167,7 +194,7 @@ const styles = StyleSheet.create({
   identifier: {
     fontSize: 17,
     lineHeight: 24,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
     marginBottom: spacing.sm,
   },
@@ -182,24 +209,24 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   success: {
-    color: '#15803d',
+    color: "#15803d",
     fontSize: 14,
     lineHeight: 20,
   },
   tryDifferentWayButton: {
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
     marginTop: spacing.sm,
     paddingVertical: spacing.xs,
   },
   tryDifferentWayText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.primary,
   },
   footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingBottom: spacing.md,
   },
   backButton: {
@@ -207,36 +234,36 @@ const styles = StyleSheet.create({
     height: 52,
     borderRadius: 26,
     backgroundColor: colors.inputBackground,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   backButtonIcon: {
     fontSize: 22,
     color: colors.text,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   nextButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.sm,
     backgroundColor: colors.inputBackground,
     borderRadius: 999,
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.lg,
     minWidth: 120,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   nextButtonDisabled: {
     opacity: 0.55,
   },
   nextButtonText: {
     fontSize: 17,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text,
   },
   nextButtonArrow: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text,
   },
   nextButtonTextDisabled: {
