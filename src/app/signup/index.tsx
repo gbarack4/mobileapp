@@ -1,5 +1,6 @@
-import { router } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useSignUp } from "@clerk/clerk-expo";
+import { router } from "expo-router";
+import { useRef, useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -9,22 +10,23 @@ import {
   Text,
   TextInput,
   View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import { AuthTextField } from '../../components/auth/auth-text-field';
-import { ConfirmedPopup } from '../../components/confirmed-popup';
-import { LockIcon } from '../../components/icons/auth-icons';
-import { Logo } from '../../components/logo';
-import { colors, radius, spacing } from '../../constants/theme';
-import { isValidPassword } from '../../utils/validation';
+import { AuthTextField } from "../../components/auth/auth-text-field";
+import { ConfirmedPopup } from "../../components/confirmed-popup";
+import { LockIcon } from "../../components/icons/auth-icons";
+import { Logo } from "../../components/logo";
+import { colors, radius, spacing } from "../../constants/theme";
+import { isValidPassword } from "../../utils/validation";
 
 type SignUpField =
-  | 'firstName'
-  | 'lastName'
-  | 'email'
-  | 'phone'
-  | 'password';
+  | "firstName"
+  | "lastName"
+  | "email"
+  | "phone"
+  | "password"
+  | "code";
 
 type PressableState = {
   pressed: boolean;
@@ -32,28 +34,40 @@ type PressableState = {
 };
 
 const ANDROID_RIPPLE =
-  Platform.OS === 'android' ? { color: 'rgba(0, 94, 255, 0.14)' } : undefined;
+  Platform.OS === "android" ? { color: "rgba(0, 94, 255, 0.14)" } : undefined;
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const CREATING_ACCOUNT_MS = 2000;
 
-type SignUpPhase = 'form' | 'submitting' | 'confirmed';
+type SignUpPhase =
+  | "form"
+  | "submitting"
+  | "verifying"
+  | "verifying_submitting"
+  | "confirmed";
+
+function handleSuccessClose() {
+  router.push("/onboarding");
+}
 
 export default function SignUpScreen() {
+  const { isLoaded, signUp, setActive } = useSignUp();
+
   const lastNameRef = useRef<TextInput>(null);
   const emailRef = useRef<TextInput>(null);
   const phoneRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
 
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [password, setPassword] = useState('');
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
+
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [focusedField, setFocusedField] = useState<SignUpField | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [phase, setPhase] = useState<SignUpPhase>('form');
+  const [phase, setPhase] = useState<SignUpPhase>("form");
 
   function clearError() {
     if (error) {
@@ -62,7 +76,7 @@ export default function SignUpScreen() {
   }
 
   async function handleSignUp() {
-    if (phase !== 'form') {
+    if (phase !== "form") {
       return;
     }
 
@@ -72,55 +86,91 @@ export default function SignUpScreen() {
     const trimmedPhone = phone.trim();
 
     if (!trimmedFirstName) {
-      setError('Enter your first name.');
+      setError("Enter your first name.");
       return;
     }
 
     if (!trimmedLastName) {
-      setError('Enter your last name.');
+      setError("Enter your last name.");
       return;
     }
 
     if (!EMAIL_REGEX.test(trimmedEmail)) {
-      setError('Enter a valid email address.');
+      setError("Enter a valid email address.");
       return;
     }
 
-    if (trimmedPhone.replace(/\D/g, '').length < 7) {
-      setError('Enter a valid phone number.');
+    if (trimmedPhone.replace(/\D/g, "").length < 7) {
+      setError("Enter a valid phone number.");
       return;
     }
 
     if (!isValidPassword(password)) {
-      setError('Password must be at least 8 characters.');
+      setError("Password must be at least 8 characters.");
       return;
     }
 
     if (!agreedToTerms) {
-      setError('You must agree to the Terms and Privacy Policy.');
+      setError("You must agree to the Terms and Privacy Policy.");
       return;
     }
 
+    if (!isLoaded) return;
+
     setError(null);
-    setPhase('submitting');
+    setPhase("submitting");
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, CREATING_ACCOUNT_MS));
-      // TODO: connect to NestJS sign-up API
-      setPhase('confirmed');
-    } catch {
-      setPhase('form');
-      setError('Unable to create account. Please try again.');
+      await signUp.create({
+        emailAddress: trimmedEmail,
+        password,
+        firstName: trimmedFirstName,
+        lastName: trimmedLastName,
+        unsafeMetadata: {
+          phone_number: trimmedPhone,
+          role: "instructor",
+        },
+      });
+
+      await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
+
+      setPhase("verifying");
+    } catch (err: any) {
+      setPhase("form");
+      setError(
+        err.errors?.[0]?.longMessage ||
+          "Unable to create account. Please try again.",
+      );
     }
   }
 
-  function handleSuccessClose() {
-    router.push('/onboarding');
+  async function handleVerify() {
+    if (!isLoaded) return;
+
+    setError(null);
+    setPhase("verifying_submitting");
+
+    try {
+      const completeSignUp = await signUp.attemptEmailAddressVerification({
+        code,
+      });
+
+      if (completeSignUp.status === "complete") {
+        await setActive({ session: completeSignUp.createdSessionId });
+        setPhase("confirmed");
+      } else {
+        setPhase("verifying");
+        setError("Verification failed. Please try again.");
+      }
+    } catch (err: any) {
+      setPhase("verifying");
+      setError(err.errors?.[0]?.longMessage || "Invalid verification code.");
+    }
   }
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-      {phase === 'confirmed' ? (
+    <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
+      {phase === "confirmed" ? (
         <ConfirmedPopup
           title="Account created"
           message="Your InstructorHub account is ready. Let's finish setting up your instructor profile."
@@ -131,151 +181,250 @@ export default function SignUpScreen() {
 
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}>
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+      >
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}>
+          showsVerticalScrollIndicator={false}
+        >
           <View style={styles.header}>
             <Logo size={64} />
-            <Text style={styles.title}>Create your InstructorHub account</Text>
+            <Text style={styles.title}>
+              {phase === "verifying" || phase === "verifying_submitting"
+                ? "Verify your email"
+                : "Create your InstructorHub account"}
+            </Text>
           </View>
 
           <View style={styles.form}>
-            <AuthTextField
-              label="First name"
-              value={firstName}
-              onChangeText={(value) => {
-                setFirstName(value);
-                clearError();
-              }}
-              onFocus={() => setFocusedField('firstName')}
-              onBlur={() => setFocusedField((current) => (current === 'firstName' ? null : current))}
-              placeholder="First name"
-              autoCapitalize="words"
-              autoCorrect={false}
-              textContentType="givenName"
-              autoComplete="given-name"
-              returnKeyType="next"
-              onSubmitEditing={() => lastNameRef.current?.focus()}
-              focused={focusedField === 'firstName'}
-            />
+            {phase === "verifying" || phase === "verifying_submitting" ? (
+              <>
+                <Text style={styles.termsText}>
+                  We sent a verification code to{" "}
+                  <Text style={{ fontWeight: "600" }}>{email}</Text>. Please
+                  enter it below.
+                </Text>
 
-            <AuthTextField
-              label="Last name"
-              value={lastName}
-              onChangeText={(value) => {
-                setLastName(value);
-                clearError();
-              }}
-              onFocus={() => setFocusedField('lastName')}
-              onBlur={() => setFocusedField((current) => (current === 'lastName' ? null : current))}
-              placeholder="Last name"
-              autoCapitalize="words"
-              autoCorrect={false}
-              textContentType="familyName"
-              autoComplete="family-name"
-              returnKeyType="next"
-              onSubmitEditing={() => emailRef.current?.focus()}
-              focused={focusedField === 'lastName'}
-              ref={lastNameRef}
-            />
+                <AuthTextField
+                  label="Verification Code"
+                  value={code}
+                  onChangeText={(value) => {
+                    setCode(value);
+                    clearError();
+                  }}
+                  onFocus={() => setFocusedField("code")}
+                  onBlur={() => setFocusedField(null)}
+                  placeholder="Enter 6-digit code"
+                  keyboardType="number-pad"
+                  returnKeyType="done"
+                  onSubmitEditing={handleVerify}
+                  focused={focusedField === "code"}
+                />
 
-            <AuthTextField
-              label="Email"
-              value={email}
-              onChangeText={(value) => {
-                setEmail(value);
-                clearError();
-              }}
-              onFocus={() => setFocusedField('email')}
-              onBlur={() => setFocusedField((current) => (current === 'email' ? null : current))}
-              placeholder="Email"
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="email-address"
-              textContentType="emailAddress"
-              autoComplete="email"
-              returnKeyType="next"
-              onSubmitEditing={() => phoneRef.current?.focus()}
-              focused={focusedField === 'email'}
-              ref={emailRef}
-            />
+                {error ? <Text style={styles.error}>{error}</Text> : null}
 
-            <AuthTextField
-              label="Phone number"
-              value={phone}
-              onChangeText={(value) => {
-                setPhone(value);
-                clearError();
-              }}
-              onFocus={() => setFocusedField('phone')}
-              onBlur={() => setFocusedField((current) => (current === 'phone' ? null : current))}
-              placeholder="Phone number"
-              keyboardType="phone-pad"
-              textContentType="telephoneNumber"
-              autoComplete="tel"
-              returnKeyType="next"
-              onSubmitEditing={() => passwordRef.current?.focus()}
-              focused={focusedField === 'phone'}
-              ref={phoneRef}
-            />
+                <Pressable
+                  onPress={handleVerify}
+                  disabled={phase === "verifying_submitting"}
+                  android_ripple={ANDROID_RIPPLE}
+                  style={({ pressed, hovered }: PressableState) => [
+                    styles.primaryButton,
+                    phase === "verifying_submitting" &&
+                      styles.primaryButtonDisabled,
+                    hovered &&
+                      phase === "verifying" &&
+                      !pressed &&
+                      styles.primaryButtonHovered,
+                    pressed && phase === "verifying" && styles.buttonPressed,
+                  ]}
+                >
+                  <Text style={styles.primaryButtonText}>
+                    {phase === "verifying_submitting"
+                      ? "Verifying..."
+                      : "Verify Email"}
+                  </Text>
+                </Pressable>
 
-            <AuthTextField
-              label="Password"
-              value={password}
-              onChangeText={(value) => {
-                setPassword(value);
-                clearError();
-              }}
-              onFocus={() => setFocusedField('password')}
-              onBlur={() => setFocusedField((current) => (current === 'password' ? null : current))}
-              placeholder="Password"
-              secureTextEntry
-              autoCapitalize="none"
-              autoCorrect={false}
-              textContentType="newPassword"
-              autoComplete="new-password"
-              returnKeyType="done"
-              onSubmitEditing={handleSignUp}
-              focused={focusedField === 'password'}
-              icon={<LockIcon />}
-              ref={passwordRef}
-            />
+                <Pressable
+                  onPress={() => setPhase("form")}
+                  style={{ alignItems: "center", marginTop: spacing.md }}
+                >
+                  <Text style={styles.termsLink}>Back to Sign Up</Text>
+                </Pressable>
+              </>
+            ) : (
+              <>
+                <AuthTextField
+                  label="First name"
+                  value={firstName}
+                  onChangeText={(value) => {
+                    setFirstName(value);
+                    clearError();
+                  }}
+                  onFocus={() => setFocusedField("firstName")}
+                  onBlur={() =>
+                    setFocusedField((current) =>
+                      current === "firstName" ? null : current,
+                    )
+                  }
+                  placeholder="First name"
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                  textContentType="givenName"
+                  autoComplete="given-name"
+                  returnKeyType="next"
+                  onSubmitEditing={() => lastNameRef.current?.focus()}
+                  focused={focusedField === "firstName"}
+                />
 
-            <Pressable
-              onPress={() => {
-                setAgreedToTerms((current) => !current);
-                clearError();
-              }}
-              android_ripple={ANDROID_RIPPLE}
-              style={styles.termsRow}>
-              <View style={[styles.checkbox, agreedToTerms && styles.checkboxChecked]}>
-                {agreedToTerms ? <Text style={styles.checkmark}>✓</Text> : null}
-              </View>
-              <Text style={styles.termsText}>
-                I agree to the <Text style={styles.termsLink}>Terms</Text> &{' '}
-                <Text style={styles.termsLink}>Privacy Policy</Text>
-              </Text>
-            </Pressable>
+                <AuthTextField
+                  label="Last name"
+                  value={lastName}
+                  onChangeText={(value) => {
+                    setLastName(value);
+                    clearError();
+                  }}
+                  onFocus={() => setFocusedField("lastName")}
+                  onBlur={() =>
+                    setFocusedField((current) =>
+                      current === "lastName" ? null : current,
+                    )
+                  }
+                  placeholder="Last name"
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                  textContentType="familyName"
+                  autoComplete="family-name"
+                  returnKeyType="next"
+                  onSubmitEditing={() => emailRef.current?.focus()}
+                  focused={focusedField === "lastName"}
+                  ref={lastNameRef}
+                />
 
-            {error ? <Text style={styles.error}>{error}</Text> : null}
+                <AuthTextField
+                  label="Email"
+                  value={email}
+                  onChangeText={(value) => {
+                    setEmail(value);
+                    clearError();
+                  }}
+                  onFocus={() => setFocusedField("email")}
+                  onBlur={() =>
+                    setFocusedField((current) =>
+                      current === "email" ? null : current,
+                    )
+                  }
+                  placeholder="Email"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="email-address"
+                  textContentType="emailAddress"
+                  autoComplete="email"
+                  returnKeyType="next"
+                  onSubmitEditing={() => phoneRef.current?.focus()}
+                  focused={focusedField === "email"}
+                  ref={emailRef}
+                />
 
-            <Pressable
-              onPress={handleSignUp}
-              disabled={phase === 'submitting'}
-              android_ripple={ANDROID_RIPPLE}
-              style={({ pressed, hovered }: PressableState) => [
-                styles.primaryButton,
-                phase === 'submitting' && styles.primaryButtonDisabled,
-                hovered && phase === 'form' && !pressed && styles.primaryButtonHovered,
-                pressed && phase === 'form' && styles.buttonPressed,
-              ]}>
-              <Text style={styles.primaryButtonText}>
-                {phase === 'submitting' ? 'Creating account....' : 'Create account'}
-              </Text>
-            </Pressable>
+                <AuthTextField
+                  label="Phone number"
+                  value={phone}
+                  onChangeText={(value) => {
+                    setPhone(value);
+                    clearError();
+                  }}
+                  onFocus={() => setFocusedField("phone")}
+                  onBlur={() =>
+                    setFocusedField((current) =>
+                      current === "phone" ? null : current,
+                    )
+                  }
+                  placeholder="Phone number"
+                  keyboardType="phone-pad"
+                  textContentType="telephoneNumber"
+                  autoComplete="tel"
+                  returnKeyType="next"
+                  onSubmitEditing={() => passwordRef.current?.focus()}
+                  focused={focusedField === "phone"}
+                  ref={phoneRef}
+                />
+
+                <AuthTextField
+                  label="Password"
+                  value={password}
+                  onChangeText={(value) => {
+                    setPassword(value);
+                    clearError();
+                  }}
+                  onFocus={() => setFocusedField("password")}
+                  onBlur={() =>
+                    setFocusedField((current) =>
+                      current === "password" ? null : current,
+                    )
+                  }
+                  placeholder="Password"
+                  secureTextEntry
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  textContentType="newPassword"
+                  autoComplete="new-password"
+                  returnKeyType="done"
+                  onSubmitEditing={handleSignUp}
+                  focused={focusedField === "password"}
+                  icon={<LockIcon />}
+                  ref={passwordRef}
+                />
+
+                <Pressable
+                  onPress={() => {
+                    setAgreedToTerms((current) => !current);
+                    clearError();
+                  }}
+                  android_ripple={ANDROID_RIPPLE}
+                  style={styles.termsRow}
+                >
+                  <View
+                    style={[
+                      styles.checkbox,
+                      agreedToTerms && styles.checkboxChecked,
+                    ]}
+                  >
+                    {agreedToTerms ? (
+                      <Text style={styles.checkmark}>✓</Text>
+                    ) : null}
+                  </View>
+                  <Text style={styles.termsText}>
+                    I agree to the <Text style={styles.termsLink}>Terms</Text> &{" "}
+                    <Text style={styles.termsLink}>Privacy Policy</Text>
+                  </Text>
+                </Pressable>
+
+                {error ? <Text style={styles.error}>{error}</Text> : null}
+
+                <Pressable
+                  onPress={handleSignUp}
+                  disabled={phase === "submitting"}
+                  android_ripple={ANDROID_RIPPLE}
+                  style={({ pressed, hovered }: PressableState) => [
+                    styles.primaryButton,
+                    phase === "submitting" && styles.primaryButtonDisabled,
+                    hovered &&
+                      phase === "form" &&
+                      !pressed &&
+                      styles.primaryButtonHovered,
+                    pressed && phase === "form" && styles.buttonPressed,
+                  ]}
+                >
+                  <Text style={styles.primaryButtonText}>
+                    {phase === "submitting"
+                      ? "Creating account...."
+                      : "Create account"}
+                  </Text>
+                </Pressable>
+              </>
+            )}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -298,24 +447,24 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xl,
   },
   header: {
-    alignItems: 'center',
+    alignItems: "center",
     gap: spacing.xl,
     marginBottom: spacing.xxl,
   },
   title: {
     fontSize: 22,
     lineHeight: 28,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
-    textAlign: 'center',
+    textAlign: "center",
     letterSpacing: -0.2,
   },
   form: {
     gap: spacing.lg,
   },
   termsRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
     gap: spacing.md,
     marginTop: spacing.xs,
   },
@@ -326,8 +475,8 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.border,
     backgroundColor: colors.background,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginTop: 1,
   },
   checkboxChecked: {
@@ -337,7 +486,7 @@ const styles = StyleSheet.create({
   checkmark: {
     color: colors.white,
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: "700",
     lineHeight: 16,
   },
   termsText: {
@@ -348,7 +497,7 @@ const styles = StyleSheet.create({
   },
   termsLink: {
     color: colors.primary,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   error: {
     color: colors.error,
@@ -360,10 +509,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     borderRadius: radius.md,
     minHeight: 54,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...(Platform.OS === 'web'
-      ? ({ outlineStyle: 'none', transition: 'background-color 0.15s ease' } as object)
+    alignItems: "center",
+    justifyContent: "center",
+    ...(Platform.OS === "web"
+      ? ({
+          outlineStyle: "none",
+          transition: "background-color 0.15s ease",
+        } as object)
       : {}),
   },
   primaryButtonHovered: {
@@ -375,7 +527,7 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     color: colors.white,
     fontSize: 17,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   buttonPressed: {
     opacity: 0.85,

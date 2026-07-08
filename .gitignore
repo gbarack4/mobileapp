@@ -3,6 +3,8 @@
 # Cursor
 .cursor/
 
+.env
+
 # dependencies
 node_modules/
 
