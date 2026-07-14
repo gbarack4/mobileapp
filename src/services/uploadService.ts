@@ -48,3 +48,49 @@ export async function uploadAvatarToBackend(
     throw error;
   }
 }
+
+export async function uploadDocumentToBackend(
+  localUri: string,
+  fileName: string,
+  mimeType: string,
+  token: string,
+): Promise<string> {
+  const formData = new FormData();
+
+  if (Platform.OS === "web") {
+    const fileResponse = await fetch(localUri);
+    const blob = await fileResponse.blob();
+    formData.append("file", blob, fileName);
+  } else {
+    formData.append("file", {
+      uri: localUri,
+      name: fileName,
+      type: mimeType,
+    } as any);
+  }
+
+  const baseUrl = process.env.EXPO_PUBLIC_API_URL;
+  if (!baseUrl) {
+    throw new Error("EXPO_PUBLIC_API_URL is not defined");
+  }
+
+  const response = await fetch(`${baseUrl}/instructors/upload-document`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Document upload failed: ${errorText}`);
+  }
+
+  const data = (await response.json()) as {
+    success: boolean;
+    fileUrl: string;
+    key: string;
+  };
+  return data.fileUrl;
+}

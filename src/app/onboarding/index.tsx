@@ -1,3 +1,5 @@
+import { useAuth } from "@clerk/clerk-expo";
+import * as DocumentPicker from "expo-document-picker";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import {
@@ -11,8 +13,11 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useAuth } from "@clerk/clerk-expo";
 
+import {
+  uploadAvatarToBackend,
+  uploadDocumentToBackend,
+} from "@/services/uploadService";
 import { AuthTextField } from "../../components/auth/auth-text-field";
 import { Logo } from "../../components/logo";
 import { DocumentUploadField } from "../../components/onboarding/document-upload-field";
@@ -32,7 +37,6 @@ import {
   type TransmissionType,
   type YesNo,
 } from "../../types/onboarding";
-import { uploadAvatarToBackend } from "@/services/uploadService";
 
 type OnboardingStep = {
   id: string;
@@ -122,6 +126,9 @@ export default function OnboardingScreen() {
   const [error, setError] = useState<string | null>(null);
   const [isContinuing, setIsContinuing] = useState(false);
   const [isLoadingDraft, setIsLoadingDraft] = useState(true);
+  const [uploadingDocType, setUploadingDocType] = useState<DocumentType | null>(
+    null,
+  );
 
   const currentStep = STEPS[stepIndex];
   const isLastStep = stepIndex === STEPS.length - 1;
@@ -398,13 +405,45 @@ export default function OnboardingScreen() {
     clearError();
   }
 
-  function handleMockDocumentUpload(type: DocumentType) {
-    const fileName = `${type}.pdf`;
-    setForm((current) => ({
-      ...current,
-      documents: { ...current.documents, [type]: fileName },
-    }));
-    clearError();
+  async function handleDocumentUpload(type: DocumentType) {
+    if (uploadingDocType) return;
+
+    try {
+      clearError();
+
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ["application/pdf", "image/jpeg", "image/png"],
+        copyToCacheDirectory: true,
+      });
+
+      if (result.canceled) return;
+
+      const file = result.assets[0];
+      setUploadingDocType(type);
+
+      const token = await getToken();
+      if (!token) throw new Error("No token");
+
+      const s3Url = await uploadDocumentToBackend(
+        file.uri,
+        file.name,
+        file.mimeType || "application/pdf",
+        token,
+      );
+
+      setForm((current) => ({
+        ...current,
+        documents: {
+          ...current.documents,
+          [type]: s3Url,
+        },
+      }));
+    } catch (err) {
+      console.error(`Upload error for ${type}:`, err);
+      setError(`Failed to upload ${type}. Please try again.`);
+    } finally {
+      setUploadingDocType(null);
+    }
   }
 
   function renderPersonalStep() {
@@ -643,15 +682,26 @@ export default function OnboardingScreen() {
   function renderDocumentsStep() {
     return (
       <>
-        {DOCUMENT_FIELDS.map((document) => (
-          <DocumentUploadField
-            key={document.type}
-            label={document.label}
-            hint={document.hint}
-            fileName={form.documents[document.type]}
-            onPress={() => handleMockDocumentUpload(document.type)}
-          />
-        ))}
+        {DOCUMENT_FIELDS.map((document) => {
+          const rawUrl = form.documents[document.type];
+          let displayFileName = null;
+
+          if (rawUrl) {
+            const extension = rawUrl.split(".").pop()?.toLowerCase() || "pdf";
+            const cleanName = document.label.replace(/\s+/g, "_").toLowerCase();
+            displayFileName = `${cleanName}.${extension}`;
+          }
+
+          return (
+            <DocumentUploadField
+              key={document.type}
+              label={document.label}
+              hint={document.hint}
+              fileName={displayFileName}
+              onPress={() => handleDocumentUpload(document.type)}
+            />
+          );
+        })}
       </>
     );
   }
