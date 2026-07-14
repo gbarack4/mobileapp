@@ -1,19 +1,22 @@
+import { useAuth } from "@clerk/clerk-expo";
+import { useRouter, useSegments } from "expo-router";
 import { useEffect, useState } from "react";
-import { View, ActivityIndicator, StyleSheet } from "react-native";
-import { useRouter } from "expo-router";
-import { useAuth, useClerk } from "@clerk/clerk-expo";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { InstructorAccessDenied } from "./instructor-access-denied";
 
 export function RoleGuard({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   const { isLoaded, isSignedIn, getToken } = useAuth();
-  const { signOut } = useClerk();
   const router = useRouter();
+  const segments = useSegments();
 
-  const [isAuthorized, setIsAuthorized] = useState(false);
+  const [accessDenied, setAccessDenied] = useState(false);
+  const [isFetching, setIsFetching] = useState(true);
 
   useEffect(() => {
     if (!isLoaded) return;
+    if (segments[0] !== "dashboard") return;
 
     if (!isSignedIn) {
       router.replace("/login");
@@ -23,8 +26,8 @@ export function RoleGuard({
     const verifyAccess = async () => {
       try {
         const token = await getToken();
-
         const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+
         const res = await fetch(
           `${apiUrl}/auth/verify-access?app=instructor_app`,
           {
@@ -32,39 +35,37 @@ export function RoleGuard({
           },
         );
 
-        const status = res.status;
-        const body = await res.text();
-        console.log(`DEBUG SERVER RESPONSE: Status: ${status}, Body:`, body);
-
-        if (res.ok) {
-          setIsAuthorized(true);
-        } else {
-          await signOut();
-          router.replace("/login");
+        if (!res.ok) {
+          setAccessDenied(true);
         }
       } catch (error) {
         console.error("RoleGuard fetch error:", error);
-        await signOut();
-        router.replace("/login");
+        setAccessDenied(true);
+      } finally {
+        setIsFetching(false);
       }
     };
 
     verifyAccess();
-  }, [isLoaded, isSignedIn, getToken, signOut, router]);
+  }, [isLoaded, isSignedIn, getToken, segments, router]);
 
-  if (!isLoaded || !isAuthorized) {
+  if (!isLoaded || isFetching) {
     return (
-      <View style={styles.container}>
+      <View style={styles.loaderContainer}>
         <ActivityIndicator size="large" color="#2563EB" />
       </View>
     );
+  }
+
+  if (accessDenied) {
+    return <InstructorAccessDenied />;
   }
 
   return <>{children}</>;
 }
 
 const styles = StyleSheet.create({
-  container: {
+  loaderContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",

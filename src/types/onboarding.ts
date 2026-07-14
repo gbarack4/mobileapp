@@ -1,13 +1,14 @@
-export type TransmissionType = 'automatic' | 'manual' | 'both';
-export type YesNo = 'yes' | 'no';
+export type TransmissionType = "automatic" | "manual" | "both";
+
+export type YesNo = "yes" | "no";
 
 export type DocumentType =
-  | 'driverLicence'
-  | 'instructorAccreditation'
-  | 'insuranceCertificate'
-  | 'vehicleRegistration'
-  | 'workingWithChildrenCheck'
-  | 'policeCheck';
+  | "driverLicence"
+  | "instructorAccreditation"
+  | "insuranceCertificate"
+  | "vehicleRegistration"
+  | "workingWithChildrenCheck"
+  | "policeCheck";
 
 export type OnboardingAddress = {
   line1: string;
@@ -18,11 +19,11 @@ export type OnboardingAddress = {
 };
 
 export const EMPTY_ONBOARDING_ADDRESS: OnboardingAddress = {
-  line1: '',
-  line2: '',
-  suburb: '',
-  state: '',
-  postcode: '',
+  line1: "",
+  line2: "",
+  suburb: "",
+  state: "",
+  postcode: "",
 };
 
 export type OnboardingForm = {
@@ -52,22 +53,22 @@ export type OnboardingForm = {
 export const INITIAL_ONBOARDING_FORM: OnboardingForm = {
   profilePhotoUri: null,
   profilePhotoName: null,
-  dateOfBirth: '',
+  dateOfBirth: "",
   address: { ...EMPTY_ONBOARDING_ADDRESS },
-  emergencyContactName: '',
-  emergencyContactPhone: '',
-  driverLicenceNumber: '',
-  driverLicenceExpiry: '',
-  instructorAccreditationNumber: '',
-  accreditationExpiry: '',
-  yearsOfExperience: '',
+  emergencyContactName: "",
+  emergencyContactPhone: "",
+  driverLicenceNumber: "",
+  driverLicenceExpiry: "",
+  instructorAccreditationNumber: "",
+  accreditationExpiry: "",
+  yearsOfExperience: "",
   transmissionType: null,
-  languagesSpoken: '',
-  bio: '',
-  vehicleMake: '',
-  vehicleModel: '',
-  vehicleYear: '',
-  registrationNumber: '',
+  languagesSpoken: "",
+  bio: "",
+  vehicleMake: "",
+  vehicleModel: "",
+  vehicleYear: "",
+  registrationNumber: "",
   vehicleTransmission: null,
   dualControlVehicle: null,
   documents: {

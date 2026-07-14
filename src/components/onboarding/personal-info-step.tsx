@@ -1,24 +1,30 @@
-import { useRef } from 'react';
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { useRef } from "react";
+import { StyleSheet, Text, TextInput, View } from "react-native";
 
-import { AuthTextField } from '../auth/auth-text-field';
-import { colors, spacing } from '../../constants/theme';
-import type { OnboardingAddress, OnboardingForm } from '../../types/onboarding';
-import { ProfilePhotoPicker } from './profile-photo-picker';
+import { AuthTextField } from "../auth/auth-text-field";
+import { colors, spacing } from "../../constants/theme";
+import type { OnboardingAddress, OnboardingForm } from "../../types/onboarding";
+import { ProfilePhotoPicker } from "./profile-photo-picker";
 
 type PersonalInfoStepProps = {
   form: OnboardingForm;
   focusedField: string | null;
   onFocusField: (field: string) => void;
   onBlurField: (field: string) => void;
-  onUpdateField: <K extends keyof OnboardingForm>(key: K, value: OnboardingForm[K]) => void;
-  onUpdateAddress: <K extends keyof OnboardingAddress>(key: K, value: OnboardingAddress[K]) => void;
+  onUpdateField: <K extends keyof OnboardingForm>(
+    key: K,
+    value: OnboardingForm[K],
+  ) => void;
+  onUpdateAddress: <K extends keyof OnboardingAddress>(
+    key: K,
+    value: OnboardingAddress[K],
+  ) => void;
   onSelectPhoto: (uri: string, fileName: string) => void;
   onRemovePhoto: () => void;
 };
 
 function formatDateOfBirthInput(value: string) {
-  const digits = value.replace(/\D/g, '').slice(0, 8);
+  const digits = value.replace(/\D/g, "").slice(0, 8);
 
   if (digits.length <= 2) {
     return digits;
@@ -31,7 +37,13 @@ function formatDateOfBirthInput(value: string) {
   return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
 }
 
-function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }) {
+function SectionHeader({
+  title,
+  subtitle,
+}: Readonly<{
+  title: string;
+  subtitle?: string;
+}>) {
   return (
     <View style={styles.sectionHeader}>
       <Text style={styles.sectionTitle}>{title}</Text>
@@ -49,7 +61,7 @@ export function PersonalInfoStep({
   onUpdateAddress,
   onSelectPhoto,
   onRemovePhoto,
-}: PersonalInfoStepProps) {
+}: Readonly<PersonalInfoStepProps>) {
   const line1Ref = useRef<TextInput>(null);
   const line2Ref = useRef<TextInput>(null);
   const suburbRef = useRef<TextInput>(null);
@@ -75,14 +87,16 @@ export function PersonalInfoStep({
       <AuthTextField
         label="Date of birth (optional)"
         value={form.dateOfBirth}
-        onChangeText={(value) => onUpdateField('dateOfBirth', formatDateOfBirthInput(value))}
-        onFocus={() => onFocusField('dateOfBirth')}
-        onBlur={() => onBlurField('dateOfBirth')}
+        onChangeText={(value) =>
+          onUpdateField("dateOfBirth", formatDateOfBirthInput(value))
+        }
+        onFocus={() => onFocusField("dateOfBirth")}
+        onBlur={() => onBlurField("dateOfBirth")}
         placeholder="DD/MM/YYYY"
         keyboardType="numbers-and-punctuation"
         returnKeyType="next"
         onSubmitEditing={() => line1Ref.current?.focus()}
-        focused={focusedField === 'dateOfBirth'}
+        focused={focusedField === "dateOfBirth"}
         maxLength={10}
       />
 
@@ -94,28 +108,28 @@ export function PersonalInfoStep({
       <AuthTextField
         label="Street address"
         value={form.address.line1}
-        onChangeText={(value) => onUpdateAddress('line1', value)}
-        onFocus={() => onFocusField('address.line1')}
-        onBlur={() => onBlurField('address.line1')}
+        onChangeText={(value) => onUpdateAddress("line1", value)}
+        onFocus={() => onFocusField("address.line1")}
+        onBlur={() => onBlurField("address.line1")}
         placeholder="12 Park Road"
         autoCapitalize="words"
         returnKeyType="next"
         onSubmitEditing={() => line2Ref.current?.focus()}
-        focused={focusedField === 'address.line1'}
+        focused={focusedField === "address.line1"}
         ref={line1Ref}
       />
 
       <AuthTextField
         label="Unit / apartment (optional)"
         value={form.address.line2}
-        onChangeText={(value) => onUpdateAddress('line2', value)}
-        onFocus={() => onFocusField('address.line2')}
-        onBlur={() => onBlurField('address.line2')}
+        onChangeText={(value) => onUpdateAddress("line2", value)}
+        onFocus={() => onFocusField("address.line2")}
+        onBlur={() => onBlurField("address.line2")}
         placeholder="Unit 4"
         autoCapitalize="words"
         returnKeyType="next"
         onSubmitEditing={() => suburbRef.current?.focus()}
-        focused={focusedField === 'address.line2'}
+        focused={focusedField === "address.line2"}
         ref={line2Ref}
       />
 
@@ -124,14 +138,14 @@ export function PersonalInfoStep({
           <AuthTextField
             label="Suburb"
             value={form.address.suburb}
-            onChangeText={(value) => onUpdateAddress('suburb', value)}
-            onFocus={() => onFocusField('address.suburb')}
-            onBlur={() => onBlurField('address.suburb')}
+            onChangeText={(value) => onUpdateAddress("suburb", value)}
+            onFocus={() => onFocusField("address.suburb")}
+            onBlur={() => onBlurField("address.suburb")}
             placeholder="Brisbane"
             autoCapitalize="words"
             returnKeyType="next"
             onSubmitEditing={() => stateRef.current?.focus()}
-            focused={focusedField === 'address.suburb'}
+            focused={focusedField === "address.suburb"}
             ref={suburbRef}
           />
         </View>
@@ -140,14 +154,16 @@ export function PersonalInfoStep({
           <AuthTextField
             label="State"
             value={form.address.state}
-            onChangeText={(value) => onUpdateAddress('state', value.toUpperCase())}
-            onFocus={() => onFocusField('address.state')}
-            onBlur={() => onBlurField('address.state')}
+            onChangeText={(value) =>
+              onUpdateAddress("state", value.toUpperCase())
+            }
+            onFocus={() => onFocusField("address.state")}
+            onBlur={() => onBlurField("address.state")}
             placeholder="QLD"
             autoCapitalize="characters"
             returnKeyType="next"
             onSubmitEditing={() => postcodeRef.current?.focus()}
-            focused={focusedField === 'address.state'}
+            focused={focusedField === "address.state"}
             maxLength={3}
             ref={stateRef}
           />
@@ -157,14 +173,16 @@ export function PersonalInfoStep({
       <AuthTextField
         label="Postcode"
         value={form.address.postcode}
-        onChangeText={(value) => onUpdateAddress('postcode', value.replace(/\D/g, '').slice(0, 4))}
-        onFocus={() => onFocusField('address.postcode')}
-        onBlur={() => onBlurField('address.postcode')}
+        onChangeText={(value) =>
+          onUpdateAddress("postcode", value.replace(/\D/g, "").slice(0, 4))
+        }
+        onFocus={() => onFocusField("address.postcode")}
+        onBlur={() => onBlurField("address.postcode")}
         placeholder="4000"
         keyboardType="number-pad"
         returnKeyType="next"
         onSubmitEditing={() => emergencyNameRef.current?.focus()}
-        focused={focusedField === 'address.postcode'}
+        focused={focusedField === "address.postcode"}
         maxLength={4}
         ref={postcodeRef}
       />
@@ -177,28 +195,28 @@ export function PersonalInfoStep({
       <AuthTextField
         label="Contact name"
         value={form.emergencyContactName}
-        onChangeText={(value) => onUpdateField('emergencyContactName', value)}
-        onFocus={() => onFocusField('emergencyContactName')}
-        onBlur={() => onBlurField('emergencyContactName')}
+        onChangeText={(value) => onUpdateField("emergencyContactName", value)}
+        onFocus={() => onFocusField("emergencyContactName")}
+        onBlur={() => onBlurField("emergencyContactName")}
         placeholder="Full name"
         autoCapitalize="words"
         returnKeyType="next"
         onSubmitEditing={() => emergencyPhoneRef.current?.focus()}
-        focused={focusedField === 'emergencyContactName'}
+        focused={focusedField === "emergencyContactName"}
         ref={emergencyNameRef}
       />
 
       <AuthTextField
         label="Contact phone"
         value={form.emergencyContactPhone}
-        onChangeText={(value) => onUpdateField('emergencyContactPhone', value)}
-        onFocus={() => onFocusField('emergencyContactPhone')}
-        onBlur={() => onBlurField('emergencyContactPhone')}
+        onChangeText={(value) => onUpdateField("emergencyContactPhone", value)}
+        onFocus={() => onFocusField("emergencyContactPhone")}
+        onBlur={() => onBlurField("emergencyContactPhone")}
         placeholder="04XX XXX XXX"
         keyboardType="phone-pad"
         textContentType="telephoneNumber"
         returnKeyType="done"
-        focused={focusedField === 'emergencyContactPhone'}
+        focused={focusedField === "emergencyContactPhone"}
         ref={emergencyPhoneRef}
       />
     </View>
@@ -215,10 +233,10 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.textMuted,
     letterSpacing: 0.6,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
   },
   sectionSubtitle: {
     fontSize: 13,
@@ -226,7 +244,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   addressRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: spacing.md,
   },
   addressSuburb: {

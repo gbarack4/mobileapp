@@ -1,19 +1,64 @@
-import type { OnboardingAddress } from '../types/onboarding';
+const baseUrl = process.env.EXPO_PUBLIC_API_URL;
 
-export type SavePersonalInfoPayload = {
-  profilePhotoUri: string | null;
-  profilePhotoName: string | null;
-  dateOfBirth: string | null;
-  address: OnboardingAddress;
-  emergencyContactName: string;
-  emergencyContactPhone: string;
+if (!baseUrl) {
+  throw new Error("EXPO_PUBLIC_API_URL is not defined");
+}
+
+export type OnboardingDraft = {
+  currentStepIndex: number;
+  formData: Record<string, any>;
 };
 
-export async function savePersonalInfo(payload: SavePersonalInfoPayload): Promise<void> {
-  // TODO: POST /instructors/onboarding/personal — upload photo + persist fields via NestJS API
-  await new Promise((resolve) => setTimeout(resolve, 400));
+export async function getOnboardingDraft(
+  token: string,
+): Promise<OnboardingDraft> {
+  const response = await fetch(`${baseUrl}/instructors/onboarding/draft`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
 
-  if (__DEV__) {
-    console.info('[onboarding] savePersonalInfo', payload);
+  if (!response.ok) {
+    throw new Error("Failed to fetch onboarding draft");
+  }
+
+  return response.json();
+}
+
+export async function saveOnboardingDraft(
+  payload: { currentStepIndex: number; formData: Record<string, any> },
+  token: string,
+): Promise<void> {
+  const response = await fetch(`${baseUrl}/instructors/onboarding/draft`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to autosave onboarding draft");
+  }
+}
+
+export async function submitFinalOnboarding(
+  payload: Record<string, any>,
+  token: string,
+): Promise<void> {
+  const response = await fetch(`${baseUrl}/instructors/onboard`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.message || "Failed to complete onboarding");
   }
 }

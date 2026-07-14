@@ -13,9 +13,9 @@ import type {
   ResetPasswordResponse,
   VerifyLoginCodeRequest,
   VerifyLoginCodeResponse,
-} from '../types/auth';
+} from "../types/auth";
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL;
 
 export class AuthApiError extends Error {
   constructor(
@@ -23,7 +23,7 @@ export class AuthApiError extends Error {
     public statusCode: number,
   ) {
     super(message);
-    this.name = 'AuthApiError';
+    this.name = "AuthApiError";
   }
 }
 
@@ -31,7 +31,7 @@ async function request<T>(path: string, init: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       ...init.headers,
     },
   });
@@ -39,11 +39,11 @@ async function request<T>(path: string, init: RequestInit): Promise<T> {
   if (!response.ok) {
     const body = await response.json().catch(() => null);
     const message =
-      typeof body?.message === 'string'
+      typeof body?.message === "string"
         ? body.message
         : Array.isArray(body?.message)
-          ? body.message.join(', ')
-          : 'Something went wrong. Please try again.';
+          ? body.message.join(", ")
+          : "Something went wrong. Please try again.";
 
     throw new AuthApiError(message, response.status);
   }
@@ -58,8 +58,8 @@ async function request<T>(path: string, init: RequestInit): Promise<T> {
 export async function continueWithIdentifier(
   payload: ContinueWithIdentifierRequest,
 ): Promise<ContinueWithIdentifierResponse> {
-  return request<ContinueWithIdentifierResponse>('/auth/continue', {
-    method: 'POST',
+  return request<ContinueWithIdentifierResponse>("/auth/continue", {
+    method: "POST",
     body: JSON.stringify(payload),
   });
 }
@@ -67,8 +67,8 @@ export async function continueWithIdentifier(
 export async function loginWithPassword(
   payload: LoginWithPasswordRequest,
 ): Promise<LoginWithPasswordResponse> {
-  return request<LoginWithPasswordResponse>('/auth/login', {
-    method: 'POST',
+  return request<LoginWithPasswordResponse>("/auth/login", {
+    method: "POST",
     body: JSON.stringify(payload),
   });
 }
@@ -76,17 +76,20 @@ export async function loginWithPassword(
 export async function requestLoginVerification(
   payload: RequestLoginVerificationRequest,
 ): Promise<RequestLoginVerificationResponse> {
-  return request<RequestLoginVerificationResponse>('/auth/login/verify-request', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
+  return request<RequestLoginVerificationResponse>(
+    "/auth/login/verify-request",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
 }
 
 export async function verifyLoginCode(
   payload: VerifyLoginCodeRequest,
 ): Promise<VerifyLoginCodeResponse> {
-  return request<VerifyLoginCodeResponse>('/auth/login/verify', {
-    method: 'POST',
+  return request<VerifyLoginCodeResponse>("/auth/login/verify", {
+    method: "POST",
     body: JSON.stringify(payload),
   });
 }
@@ -94,8 +97,8 @@ export async function verifyLoginCode(
 export async function forgotPassword(
   payload: ForgotPasswordRequest,
 ): Promise<ForgotPasswordResponse> {
-  return request<ForgotPasswordResponse>('/auth/forgot-password', {
-    method: 'POST',
+  return request<ForgotPasswordResponse>("/auth/forgot-password", {
+    method: "POST",
     body: JSON.stringify(payload),
   });
 }
@@ -103,8 +106,8 @@ export async function forgotPassword(
 export async function resetPassword(
   payload: ResetPasswordRequest,
 ): Promise<ResetPasswordResponse> {
-  return request<ResetPasswordResponse>('/auth/reset-password', {
-    method: 'POST',
+  return request<ResetPasswordResponse>("/auth/reset-password", {
+    method: "POST",
     body: JSON.stringify(payload),
   });
 }
@@ -113,7 +116,7 @@ export async function continueWithOAuth(
   payload: OAuthContinueRequest,
 ): Promise<OAuthContinueResponse> {
   return request<OAuthContinueResponse>(`/auth/oauth/${payload.provider}`, {
-    method: 'POST',
+    method: "POST",
     body: JSON.stringify({ idToken: payload.idToken }),
   });
 }

@@ -1,61 +1,85 @@
-import { Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-
-import { colors, radius, spacing } from '../../constants/theme';
+import * as ImagePicker from "expo-image-picker";
+import {
+  Alert,
+  Image,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { colors, radius, spacing } from "../../constants/theme";
 
 type ProfilePhotoPickerProps = {
   photoUri: string | null;
   photoName?: string | null;
-  onSelect: (uri: string, fileName: string) => void;
+  onSelect: (uri: string, fileName: string, mimeType?: string) => void;
   onRemove: () => void;
 };
 
 const ANDROID_RIPPLE =
-  Platform.OS === 'android' ? { color: 'rgba(0, 94, 255, 0.14)' } : undefined;
-
-function pickPhotoWeb(onSelect: (uri: string, fileName: string) => void) {
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = 'image/jpeg,image/png,image/webp';
-  input.onchange = () => {
-    const file = input.files?.[0];
-    if (!file) {
-      return;
-    }
-
-    const uri = URL.createObjectURL(file);
-    onSelect(uri, file.name);
-  };
-  input.click();
-}
+  Platform.OS === "android" ? { color: "rgba(0, 94, 255, 0.14)" } : undefined;
 
 export function ProfilePhotoPicker({
   photoUri,
   photoName,
   onSelect,
   onRemove,
-}: ProfilePhotoPickerProps) {
-  function handlePickPhoto() {
-    if (Platform.OS === 'web') {
-      pickPhotoWeb(onSelect);
-      return;
+}: Readonly<ProfilePhotoPickerProps>) {
+  async function handlePickPhoto() {
+    if (Platform.OS !== "web") {
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission Required",
+          "Sorry, we need camera roll permissions to upload a photo.",
+        );
+        return;
+      }
     }
 
-    // TODO: use expo-image-picker on native
-    onSelect('profile-photo.jpg', 'profile-photo.jpg');
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      const asset = result.assets[0];
+
+      const uri = asset.uri;
+      const fileName =
+        asset.fileName || uri.split("/").pop() || "profile-photo.jpg";
+      const mimeType = asset.mimeType || "image/jpeg";
+
+      onSelect(uri, fileName, mimeType);
+    }
   }
 
   return (
     <View style={styles.container}>
       <Text style={styles.label}>Profile photo</Text>
-      <Text style={styles.hint}>A clear headshot helps schools recognise you. JPG or PNG, max 5 MB.</Text>
+      <Text style={styles.hint}>
+        A clear headshot helps schools recognise you. JPG or PNG, max 5 MB.
+      </Text>
 
       <View style={styles.card}>
         <Pressable
           onPress={handlePickPhoto}
           android_ripple={ANDROID_RIPPLE}
-          accessibilityLabel={photoUri ? 'Change profile photo' : 'Add profile photo'}
-          style={({ pressed }) => [styles.previewButton, pressed && styles.pressed]}>
-          <View style={[styles.photoCircle, photoUri && styles.photoCircleFilled]}>
+          accessibilityLabel={
+            photoUri ? "Change profile photo" : "Add profile photo"
+          }
+          style={({ pressed }) => [
+            styles.previewButton,
+            pressed && styles.pressed,
+          ]}
+        >
+          <View
+            style={[styles.photoCircle, photoUri && styles.photoCircleFilled]}
+          >
             {photoUri ? (
               <Image source={{ uri: photoUri }} style={styles.photoImage} />
             ) : (
@@ -64,9 +88,12 @@ export function ProfilePhotoPicker({
           </View>
 
           <View style={styles.photoTextWrap}>
-            <Text style={styles.photoTitle}>{photoUri ? 'Photo added' : 'Add profile photo'}</Text>
+            <Text style={styles.photoTitle}>
+              {photoUri ? "Photo added" : "Add profile photo"}
+            </Text>
             <Text style={styles.photoSubtitle}>
-              {photoName ?? (photoUri ? 'Tap to change' : 'Tap to upload from your device')}
+              {photoName ??
+                (photoUri ? "Tap to change" : "Tap to upload from your device")}
             </Text>
           </View>
         </Pressable>
@@ -76,13 +103,21 @@ export function ProfilePhotoPicker({
             <Pressable
               onPress={handlePickPhoto}
               android_ripple={ANDROID_RIPPLE}
-              style={({ pressed }) => [styles.actionButton, pressed && styles.pressed]}>
+              style={({ pressed }) => [
+                styles.actionButton,
+                pressed && styles.pressed,
+              ]}
+            >
               <Text style={styles.actionButtonText}>Change photo</Text>
             </Pressable>
             <Pressable
               onPress={onRemove}
               android_ripple={ANDROID_RIPPLE}
-              style={({ pressed }) => [styles.actionButton, pressed && styles.pressed]}>
+              style={({ pressed }) => [
+                styles.actionButton,
+                pressed && styles.pressed,
+              ]}
+            >
               <Text style={styles.removeButtonText}>Remove</Text>
             </Pressable>
           </View>
@@ -99,7 +134,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 15,
     lineHeight: 20,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text,
   },
   hint: {
@@ -108,14 +143,14 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
   },
   card: {
-    backgroundColor: '#f9f9f9',
+    backgroundColor: "#f9f9f9",
     borderRadius: radius.md,
     padding: spacing.lg,
     gap: spacing.md,
   },
   previewButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.lg,
   },
   photoCircle: {
@@ -125,23 +160,23 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     borderWidth: 2,
     borderColor: colors.border,
-    borderStyle: 'dashed',
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
+    borderStyle: "dashed",
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
   },
   photoCircleFilled: {
-    borderStyle: 'solid',
+    borderStyle: "solid",
     borderColor: colors.primary,
   },
   photoImage: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
   },
   photoPlaceholder: {
     fontSize: 28,
     color: colors.primary,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   photoTextWrap: {
     flex: 1,
@@ -149,7 +184,7 @@ const styles = StyleSheet.create({
   },
   photoTitle: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text,
   },
   photoSubtitle: {
@@ -158,23 +193,23 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   actionsRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: spacing.md,
     paddingTop: spacing.xs,
     borderTopWidth: 1,
-    borderTopColor: '#ececec',
+    borderTopColor: "#ececec",
   },
   actionButton: {
     paddingVertical: spacing.xs,
   },
   actionButtonText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.primary,
   },
   removeButtonText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.error,
   },
   pressed: {
