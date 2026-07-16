@@ -1,5 +1,15 @@
+import { useAuth, useClerk, useUser } from '@clerk/clerk-expo';
 import { router } from 'expo-router';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 
 import { CloseIcon } from '../icons/lesson-detail-icons';
@@ -7,9 +17,12 @@ import {
   ACCOUNT_MENU_SECTION_1,
   ACCOUNT_MENU_SECTION_2,
   ACCOUNT_MENU_SECTION_3,
+  type InstructorProfile,
   MOCK_INSTRUCTOR_PROFILE,
 } from '../../data/mock-account';
 import { colors, spacing } from '../../constants/theme';
+import { getMyProfile } from '../../services/profile';
+import { clearSession, getSessionEmail, setSessionEmail } from '../../services/session';
 import {
   AboutIcon,
   AppSettingsIcon,
@@ -91,13 +104,88 @@ function handleMenuPress(itemId: string) {
   void itemId;
 }
 
-function handleSignOut() {
-  // TODO: connect to NestJS sign-out API
-  router.replace('/login');
+function buildFallbackProfile(email?: string | null): InstructorProfile {
+  const resolvedEmail = email || getSessionEmail();
+  if (!resolvedEmail) {
+    return {
+      name: 'Instructor',
+      initials: '?',
+      subtitle: 'Sign in to load your profile',
+      email: '',
+      rating: 0,
+      vehicleSummary: MOCK_INSTRUCTOR_PROFILE.vehicleSummary,
+    };
+  }
+
+  return {
+    name: resolvedEmail.split('@')[0] || 'Instructor',
+    initials: (resolvedEmail[0] ?? '?').toUpperCase(),
+    subtitle: 'Complete your profile',
+    email: resolvedEmail,
+    rating: 0,
+    vehicleSummary: '',
+  };
 }
 
 export function AccountScreen({ onClose, onScroll }: AccountScreenProps) {
-  const profile = MOCK_INSTRUCTOR_PROFILE;
+  const { getToken } = useAuth();
+  const { user } = useUser();
+  const { signOut } = useClerk();
+  const userEmail = user?.primaryEmailAddress?.emailAddress ?? null;
+  const [profile, setProfile] = useState<InstructorProfile>(() =>
+    buildFallbackProfile(userEmail),
+  );
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+
+  useEffect(() => {
+    if (userEmail) {
+      setSessionEmail(userEmail);
+    }
+  }, [userEmail]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadProfile() {
+      setIsLoadingProfile(true);
+
+      try {
+        const token = await getToken();
+        const remoteProfile = await getMyProfile(token);
+        if (!cancelled && remoteProfile) {
+          setProfile(remoteProfile);
+          return;
+        }
+
+        if (!cancelled) {
+          setProfile(buildFallbackProfile(userEmail));
+        }
+      } catch {
+        if (!cancelled) {
+          setProfile(buildFallbackProfile(userEmail));
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingProfile(false);
+        }
+      }
+    }
+
+    void loadProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [getToken, userEmail]);
+
+  async function handleSignOut() {
+    clearSession();
+    try {
+      await signOut();
+    } finally {
+      router.replace('/login');
+    }
+  }
 
   return (
     <View style={styles.screen}>
@@ -120,16 +208,22 @@ export function AccountScreen({ onClose, onScroll }: AccountScreenProps) {
 
         <View style={styles.profileRow}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{profile.initials}</Text>
+            {isLoadingProfile ? (
+              <ActivityIndicator color={colors.white} size="small" />
+            ) : (
+              <Text style={styles.avatarText}>{profile.initials}</Text>
+            )}
           </View>
 
           <View style={styles.profileText}>
             <View style={styles.nameRow}>
               <Text style={styles.profileName}>{profile.name}</Text>
-              <View style={styles.ratingBadge}>
-                <StarIcon size={11} />
-                <Text style={styles.ratingText}>{formatRating(profile.rating)}</Text>
-              </View>
+              {profile.rating > 0 ? (
+                <View style={styles.ratingBadge}>
+                  <StarIcon size={11} />
+                  <Text style={styles.ratingText}>{formatRating(profile.rating)}</Text>
+                </View>
+              ) : null}
             </View>
             <Text style={styles.profileSubtitle}>{profile.subtitle}</Text>
             <Text style={styles.profileEmail}>{profile.email}</Text>
@@ -190,7 +284,9 @@ export function AccountScreen({ onClose, onScroll }: AccountScreenProps) {
         </View>
 
         <Pressable
-          onPress={handleSignOut}
+          onPress={() => {
+            void handleSignOut();
+          }}
           android_ripple={ANDROID_RIPPLE}
           style={({ pressed }) => [styles.signOutButton, pressed && styles.pressed]}>
           <Text style={styles.signOutText}>Sign out</Text>
@@ -209,7 +305,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: spacing.xl,
+    paddingBottom: spacing.xxxl,
   },
   closeButton: {
     width: 40,

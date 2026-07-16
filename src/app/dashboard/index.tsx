@@ -31,36 +31,25 @@ const SECTION_TITLES: Record<LessonTab, string> = {
   cancelled: 'Cancelled lessons',
 };
 
-const DASHBOARD_TAB_TITLES: Record<DashboardTab, string> = {
-  school: 'School',
-  bookings: 'Bookings',
-  earnings: 'Earnings',
-  profile: 'Account',
-};
-
 const ANDROID_RIPPLE =
   Platform.OS === 'android' ? { color: 'rgba(0, 94, 255, 0.08)' } : undefined;
 
-const TAB_FADE_DURATION = 220;
+const FADE_OUT_MS = 120;
+const FADE_IN_MS = 160;
 
 export default function DashboardScreen() {
   const [lessonTab, setLessonTab] = useState<LessonTab>('upcoming');
-  const [dashboardTab, setDashboardTab] = useState<DashboardTab>('bookings');
+  const [activeTab, setActiveTab] = useState<DashboardTab>('bookings');
+  const [displayedTab, setDisplayedTab] = useState<DashboardTab>('bookings');
   const [searchQuery, setSearchQuery] = useState('');
-  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const contentOpacity = useRef(new Animated.Value(1)).current;
+  const contentTranslateY = useRef(new Animated.Value(0)).current;
+  const animationRef = useRef<Animated.CompositeAnimation | null>(null);
+  const isAnimatingRef = useRef(false);
+  const pendingTabRef = useRef<DashboardTab | null>(null);
+  const displayedTabRef = useRef<DashboardTab>('bookings');
   const { translateY: bottomNavTranslateY, onScroll: onBottomNavScroll, resetNav } =
     useBottomNavScroll();
-
-  useEffect(() => {
-    fadeAnim.setValue(0);
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: TAB_FADE_DURATION,
-      easing: Easing.out(Easing.quad),
-      useNativeDriver: true,
-    }).start();
-    resetNav();
-  }, [dashboardTab, fadeAnim, resetNav]);
 
   const lessons = useMemo(() => {
     const tabLessons = MOCK_LESSONS.filter((lesson) => lesson.status === lessonTab);
@@ -88,30 +77,87 @@ export default function DashboardScreen() {
     });
   }, [lessonTab, searchQuery]);
 
-  if (dashboardTab === 'profile') {
-    return (
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <Animated.View style={[styles.fadeContainer, { opacity: fadeAnim }]}>
-          <AccountScreen
-            onClose={() => setDashboardTab('bookings')}
-            onScroll={onBottomNavScroll}
-          />
-        </Animated.View>
-        <DashboardBottomNav
-          activeTab={dashboardTab}
-          onTabChange={setDashboardTab}
-          translateY={bottomNavTranslateY}
-        />
-      </SafeAreaView>
-    );
+  useEffect(() => {
+    return () => {
+      animationRef.current?.stop();
+    };
+  }, []);
+
+  function runFadeIn() {
+    contentTranslateY.setValue(6);
+    animationRef.current = Animated.parallel([
+      Animated.timing(contentOpacity, {
+        toValue: 1,
+        duration: FADE_IN_MS,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(contentTranslateY, {
+        toValue: 0,
+        duration: FADE_IN_MS,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]);
+    animationRef.current.start(({ finished }) => {
+      if (!finished) {
+        return;
+      }
+
+      isAnimatingRef.current = false;
+      const pending = pendingTabRef.current;
+      pendingTabRef.current = null;
+      if (pending && pending !== displayedTabRef.current) {
+        transitionToTab(pending);
+      }
+    });
   }
 
-  return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <Animated.View style={[styles.fadeContainer, { opacity: fadeAnim }]}>
-        {dashboardTab === 'school' ? (
-          <SchoolsScreen onScroll={onBottomNavScroll} />
-        ) : dashboardTab === 'bookings' ? (
+  function transitionToTab(nextTab: DashboardTab) {
+    if (nextTab === displayedTabRef.current && !isAnimatingRef.current) {
+      setActiveTab(nextTab);
+      return;
+    }
+
+    if (isAnimatingRef.current) {
+      pendingTabRef.current = nextTab;
+      setActiveTab(nextTab);
+      return;
+    }
+
+    isAnimatingRef.current = true;
+    setActiveTab(nextTab);
+    resetNav();
+    animationRef.current?.stop();
+
+    animationRef.current = Animated.timing(contentOpacity, {
+      toValue: 0,
+      duration: FADE_OUT_MS,
+      easing: Easing.in(Easing.cubic),
+      useNativeDriver: true,
+    });
+
+    animationRef.current.start(({ finished }) => {
+      if (!finished) {
+        return;
+      }
+
+      const tabToShow = pendingTabRef.current ?? nextTab;
+      pendingTabRef.current = null;
+      displayedTabRef.current = tabToShow;
+      setDisplayedTab(tabToShow);
+      setActiveTab(tabToShow);
+      resetNav();
+      runFadeIn();
+    });
+  }
+
+  function renderTab(tab: DashboardTab) {
+    switch (tab) {
+      case 'school':
+        return <SchoolsScreen onScroll={onBottomNavScroll} />;
+      case 'bookings':
+        return (
           <View style={styles.screen}>
             <View style={styles.header}>
               <SearchBar value={searchQuery} onChangeText={setSearchQuery} />
@@ -153,23 +199,36 @@ export default function DashboardScreen() {
               )}
             </ScrollView>
           </View>
-        ) : dashboardTab === 'earnings' ? (
-          <WeeklyEarningsScreen onScroll={onBottomNavScroll} />
-        ) : (
-          <View style={styles.placeholderScreen}>
-            <Text style={styles.placeholderTitle}>
-              {DASHBOARD_TAB_TITLES[dashboardTab]}
-            </Text>
-            <Text style={styles.placeholderSubtitle}>Coming soon</Text>
-          </View>
-        )}
-      </Animated.View>
+        );
+      case 'earnings':
+        return <WeeklyEarningsScreen onScroll={onBottomNavScroll} />;
+      case 'profile':
+        return <AccountScreen onClose={() => transitionToTab('bookings')} />;
+    }
+  }
 
-      <DashboardBottomNav
-        activeTab={dashboardTab}
-        onTabChange={setDashboardTab}
-        translateY={bottomNavTranslateY}
-      />
+  return (
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <View style={styles.content}>
+        <Animated.View
+          style={[
+            styles.animatedContent,
+            {
+              opacity: contentOpacity,
+              transform: [{ translateY: contentTranslateY }],
+            },
+          ]}>
+          {renderTab(displayedTab)}
+        </Animated.View>
+      </View>
+
+      {activeTab !== 'profile' && displayedTab !== 'profile' ? (
+        <DashboardBottomNav
+          activeTab={activeTab}
+          onTabChange={transitionToTab}
+          translateY={bottomNavTranslateY}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -179,7 +238,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  fadeContainer: {
+  content: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  animatedContent: {
     flex: 1,
   },
   screen: {
@@ -241,21 +304,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
     textAlign: 'center',
-  },
-  placeholderScreen: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.xl,
-  },
-  placeholderTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  placeholderSubtitle: {
-    fontSize: 15,
-    color: colors.textSecondary,
   },
 });

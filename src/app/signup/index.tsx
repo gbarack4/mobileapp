@@ -18,6 +18,7 @@ import { ConfirmedPopup } from "../../components/confirmed-popup";
 import { LockIcon } from "../../components/icons/auth-icons";
 import { Logo } from "../../components/logo";
 import { colors, radius, spacing } from "../../constants/theme";
+import { setSessionEmail } from "../../services/session";
 import { isValidPassword } from "../../utils/validation";
 
 type SignUpField =
@@ -157,6 +158,7 @@ export default function SignUpScreen() {
 
       if (completeSignUp.status === "complete") {
         await setActive({ session: completeSignUp.createdSessionId });
+        setSessionEmail(email.trim());
         setPhase("confirmed");
       } else {
         setPhase("verifying");

@@ -24,6 +24,7 @@ import {
 } from "../../components/icons/auth-icons";
 import { Logo } from "../../components/logo";
 import { colors, radius, spacing } from "../../constants/theme";
+import { setSessionEmail } from "../../services/session";
 import {
   isValidIdentifier,
   isValidPassword,
@@ -163,6 +164,9 @@ export default function LoginScreen() {
 
       if (completeSignIn.status === "complete") {
         await setActive({ session: completeSignIn.createdSessionId });
+        if (trimmedIdentifier.includes("@")) {
+          setSessionEmail(trimmedIdentifier);
+        }
         router.replace("/dashboard");
       } else {
         setError("Verification failed.");
@@ -212,6 +216,9 @@ export default function LoginScreen() {
 
         if (completeSignIn.status === "complete") {
           await setActive({ session: completeSignIn.createdSessionId });
+          if (trimmedIdentifier.includes("@")) {
+            setSessionEmail(trimmedIdentifier);
+          }
           router.replace("/dashboard");
         } else if (completeSignIn.status === "needs_second_factor") {
           await signIn.prepareSecondFactor({ strategy: "email_code" });

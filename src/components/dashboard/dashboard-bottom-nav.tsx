@@ -106,6 +106,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 2,
     paddingVertical: 2,
+    ...(Platform.OS === 'web'
+      ? ({ transition: 'opacity 0.15s ease' } as object)
+      : {}),
   },
   itemPressed: {
     opacity: 0.8,
@@ -116,6 +119,9 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
+    ...(Platform.OS === 'web'
+      ? ({ transition: 'background-color 0.15s ease' } as object)
+      : {}),
   },
   iconWrapActive: {
     backgroundColor: '#f3f4f6',
@@ -124,6 +130,9 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '500',
     color: colors.textMuted,
+    ...(Platform.OS === 'web'
+      ? ({ transition: 'color 0.15s ease' } as object)
+      : {}),
   },
   labelActive: {
     color: colors.text,
