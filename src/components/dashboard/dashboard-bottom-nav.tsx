@@ -58,8 +58,12 @@ export function DashboardBottomNav({
               key={item.id}
               onPress={() => onTabChange(item.id)}
               android_ripple={ANDROID_RIPPLE}
-              style={({ pressed }) => [styles.item, pressed && styles.itemPressed]}>
-              <View style={[styles.iconWrap, active && styles.iconWrapActive]}>
+              style={({ pressed }) => [
+                styles.item,
+                active && styles.itemActive,
+                pressed && styles.itemPressed,
+              ]}>
+              <View style={styles.iconWrap}>
                 <Icon color={iconColor} size={NAV_ICON_SIZE} />
               </View>
               <Text style={[styles.label, active && styles.labelActive]}>{item.label}</Text>
@@ -105,10 +109,15 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     gap: 2,
-    paddingVertical: 2,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    borderRadius: 16,
     ...(Platform.OS === 'web'
-      ? ({ transition: 'opacity 0.15s ease' } as object)
+      ? ({ transition: 'background-color 0.15s ease, opacity 0.15s ease' } as object)
       : {}),
+  },
+  itemActive: {
+    backgroundColor: colors.inputBackground,
   },
   itemPressed: {
     opacity: 0.8,
@@ -119,12 +128,6 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
-    ...(Platform.OS === 'web'
-      ? ({ transition: 'background-color 0.15s ease' } as object)
-      : {}),
-  },
-  iconWrapActive: {
-    backgroundColor: '#f3f4f6',
   },
   label: {
     fontSize: 11,
