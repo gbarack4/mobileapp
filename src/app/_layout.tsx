@@ -42,7 +42,10 @@ function RootLayoutNav() {
     if (DEV_BYPASS_AUTH) return;
     if (!isLoaded) return;
 
-    const inPublicGroup = segments[0] === "login" || segments[0] === "signup";
+    const inPublicGroup =
+      segments[0] === "login" ||
+      segments[0] === "signup" ||
+      segments[0] === "sso-callback";
 
     if (!isSignedIn && !inPublicGroup) {
       router.replace("/login");
