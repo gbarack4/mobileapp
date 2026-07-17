@@ -1,13 +1,20 @@
 import { router } from 'expo-router';
-import { useMemo, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 
 import { FoldedMapIcon } from '../icons/school-icons';
-import { MOCK_SCHOOLS } from '../../data/mock-schools';
 import { colors, spacing } from '../../constants/theme';
+import { searchSchools } from '../../services/schools';
 import type { School } from '../../types/school';
-import { filterSchools } from '../../utils/schools';
 import { SchoolCard } from './school-card';
 import { SchoolSearchBar } from './school-search-bar';
 
@@ -21,14 +28,38 @@ export function SchoolsScreen({
 }) {
   const [searchInput, setSearchInput] = useState('');
   const [submittedQuery, setSubmittedQuery] = useState('');
+  const [schools, setSchools] = useState<School[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const schools = useMemo(
-    () => filterSchools(MOCK_SCHOOLS, submittedQuery),
-    [submittedQuery],
-  );
+  const loadSchools = useCallback(async (query: string) => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const results = await searchSchools(query);
+      setSchools(results);
+    } catch (err) {
+      setSchools([]);
+      setError(
+        err instanceof Error ? err.message : 'Unable to load schools from the database.',
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadSchools(submittedQuery);
+  }, [loadSchools, submittedQuery]);
 
   function handleSearch() {
     setSubmittedQuery(searchInput.trim());
+  }
+
+  function handleSelectSuggestion(school: School) {
+    setSearchInput(school.name);
+    setSubmittedQuery(school.name);
   }
 
   function handleJoin(school: School) {
@@ -43,6 +74,7 @@ export function SchoolsScreen({
           value={searchInput}
           onChangeText={setSearchInput}
           onSearch={handleSearch}
+          onSelectSuggestion={handleSelectSuggestion}
         />
 
         <Pressable
@@ -66,7 +98,22 @@ export function SchoolsScreen({
         keyboardShouldPersistTaps="handled"
         onScroll={onScroll}
         scrollEventThrottle={8}>
-        {schools.length > 0 ? (
+        {isLoading ? (
+          <View style={styles.emptyState}>
+            <ActivityIndicator color={colors.primary} />
+            <Text style={styles.emptySubtitle}>Loading schools…</Text>
+          </View>
+        ) : error ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyTitle}>Couldn’t load schools</Text>
+            <Text style={styles.emptySubtitle}>{error}</Text>
+            <Pressable
+              onPress={() => void loadSchools(submittedQuery)}
+              style={styles.retryButton}>
+              <Text style={styles.retryButtonText}>Try again</Text>
+            </Pressable>
+          </View>
+        ) : schools.length > 0 ? (
           schools.map((school) => (
             <SchoolCard key={school.id} school={school} onJoin={handleJoin} />
           ))
@@ -74,7 +121,9 @@ export function SchoolsScreen({
           <View style={styles.emptyState}>
             <Text style={styles.emptyTitle}>No schools found</Text>
             <Text style={styles.emptySubtitle}>
-              Try a different suburb or postcode.
+              {submittedQuery
+                ? 'Try a different school name.'
+                : 'No active schools in the database yet.'}
             </Text>
           </View>
         )}
@@ -132,7 +181,16 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: 'center',
   },
-  pressed: {
-    opacity: 0.85,
+  retryButton: {
+    marginTop: spacing.sm,
+    backgroundColor: colors.primary,
+    borderRadius: 10,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+  },
+  retryButtonText: {
+    color: colors.white,
+    fontWeight: '600',
+    fontSize: 14,
   },
 });

@@ -147,10 +147,6 @@ function HubQuickLinkSettingsScreen({ screen, onBack }: HubQuickLinkScreenProps)
   );
 }
 
-export function HubPersonalInfoScreen({ onBack }: { onBack: () => void }) {
-  return <HubQuickLinkSettingsScreen screen="personal-info" onBack={onBack} />;
-}
-
 export function HubSecurityScreen({ onBack }: { onBack: () => void }) {
   return <HubQuickLinkSettingsScreen screen="security" onBack={onBack} />;
 }

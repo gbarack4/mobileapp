@@ -2,6 +2,13 @@ import type { InstructorProfile } from '../data/mock-account';
 import { getSessionEmail } from './session';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL;
+const DEV_PROFILE_EMAIL = __DEV__
+  ? process.env.EXPO_PUBLIC_DEV_PROFILE_EMAIL?.trim().toLowerCase() || null
+  : null;
+
+function resolveSessionEmail() {
+  return getSessionEmail() || DEV_PROFILE_EMAIL;
+}
 
 export type AccountProfileResponse = {
   exists: boolean;
@@ -13,9 +20,17 @@ export type AccountProfileResponse = {
   firstName: string | null;
   lastName: string | null;
   phone: string | null;
+  address: string | null;
   rating: number | null;
   subtitle: string;
   role: string;
+};
+
+export type UpdatePersonalInfoPayload = {
+  firstName?: string;
+  lastName?: string;
+  phoneNumber?: string;
+  address?: string;
 };
 
 export class ProfileApiError extends Error {
@@ -39,7 +54,7 @@ function mapProfile(data: AccountProfileResponse): InstructorProfile {
   };
 }
 
-async function fetchProfile(
+async function requestProfile(
   path: string,
   init?: RequestInit,
 ): Promise<AccountProfileResponse | null> {
@@ -75,23 +90,21 @@ async function fetchProfile(
 }
 
 /**
- * Loads the signed-in instructor profile from the NestJS API / database.
- * Prefers authenticated `/users/me` with a Clerk token, then falls back to
- * email lookup when a session email is available.
+ * Loads the full account profile from the NestJS API / database.
  */
-export async function getMyProfile(
+export async function getMyAccountProfile(
   accessToken?: string | null,
-): Promise<InstructorProfile | null> {
+): Promise<AccountProfileResponse | null> {
   if (accessToken) {
     try {
-      const profile = await fetchProfile('/users/me', {
+      const profile = await requestProfile('/users/me', {
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },
       });
 
       if (profile?.exists) {
-        return mapProfile(profile);
+        return profile;
       }
     } catch (error) {
       if (!(error instanceof ProfileApiError) || error.statusCode !== 401) {
@@ -100,12 +113,12 @@ export async function getMyProfile(
     }
   }
 
-  const email = getSessionEmail();
+  const email = resolveSessionEmail();
   if (!email) {
     return null;
   }
 
-  const profile = await fetchProfile(
+  const profile = await requestProfile(
     `/users/account-profile?email=${encodeURIComponent(email)}`,
   );
 
@@ -113,5 +126,57 @@ export async function getMyProfile(
     return null;
   }
 
-  return mapProfile(profile);
+  return profile;
+}
+
+export async function updateMyAccountProfile(
+  payload: UpdatePersonalInfoPayload,
+  accessToken?: string | null,
+): Promise<AccountProfileResponse> {
+  if (accessToken) {
+    const profile = await requestProfile('/users/me', {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!profile) {
+      throw new ProfileApiError('Profile not found', 404);
+    }
+
+    return profile;
+  }
+
+  const email = resolveSessionEmail();
+  if (!email) {
+    throw new ProfileApiError('Sign in to save your profile.', 401);
+  }
+
+  const profile = await requestProfile(
+    `/users/account-profile?email=${encodeURIComponent(email)}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    },
+  );
+
+  if (!profile) {
+    throw new ProfileApiError('Profile not found', 404);
+  }
+
+  return profile;
+}
+
+/**
+ * Loads the signed-in instructor profile from the NestJS API / database.
+ * Prefers authenticated `/users/me` with a Clerk token, then falls back to
+ * email lookup when a session email is available.
+ */
+export async function getMyProfile(
+  accessToken?: string | null,
+): Promise<InstructorProfile | null> {
+  const profile = await getMyAccountProfile(accessToken);
+  return profile ? mapProfile(profile) : null;
 }

@@ -1,3 +1,4 @@
+import { DEV_BYPASS_AUTH } from "@/constants/dev";
 import { useAuth } from "@clerk/clerk-expo";
 import { useRouter, useSegments } from "expo-router";
 import { useEffect, useState } from "react";
@@ -12,9 +13,15 @@ export function RoleGuard({
   const segments = useSegments();
 
   const [accessDenied, setAccessDenied] = useState(false);
-  const [isFetching, setIsFetching] = useState(true);
+  const [isFetching, setIsFetching] = useState(!DEV_BYPASS_AUTH);
 
   useEffect(() => {
+    if (DEV_BYPASS_AUTH) {
+      setAccessDenied(false);
+      setIsFetching(false);
+      return;
+    }
+
     if (!isLoaded) return;
     if (segments[0] !== "dashboard") return;
 
@@ -48,6 +55,10 @@ export function RoleGuard({
 
     verifyAccess();
   }, [isLoaded, isSignedIn, getToken, segments, router]);
+
+  if (DEV_BYPASS_AUTH) {
+    return <>{children}</>;
+  }
 
   if (!isLoaded || isFetching) {
     return (

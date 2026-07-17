@@ -1,14 +1,28 @@
-import { useMemo, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useAuth } from '@clerk/clerk-expo';
+import * as DocumentPicker from 'expo-document-picker';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 import { ChevronLeftIcon } from '../icons/dashboard-icons';
 import { colors, spacing } from '../../constants/theme';
 import {
   getHubDocumentsNeedingAction,
-  MOCK_HUB_DOCUMENTS,
   type HubDocumentItem,
   type HubDocumentStatus,
 } from '../../data/mock-hub-account';
+import {
+  DocumentsApiError,
+  listInstructorDocuments,
+  uploadInstructorDocument,
+} from '../../services/documents';
 
 type DocumentsScreenProps = {
   onClose: () => void;
@@ -37,10 +51,11 @@ function getStatusTextColor(status: HubDocumentStatus) {
 
 type DocumentCardProps = {
   document: HubDocumentItem;
+  isUploading: boolean;
   onUpload: (documentId: string) => void;
 };
 
-function DocumentCard({ document, onUpload }: DocumentCardProps) {
+function DocumentCard({ document, isUploading, onUpload }: DocumentCardProps) {
   const statusTextColor = getStatusTextColor(document.status);
   const hasFile = Boolean(document.fileName);
 
@@ -61,33 +76,99 @@ function DocumentCard({ document, onUpload }: DocumentCardProps) {
 
       <Pressable
         onPress={() => onUpload(document.id)}
+        disabled={isUploading}
         android_ripple={ANDROID_RIPPLE}
-        style={({ pressed }) => [styles.uploadButton, pressed && styles.pressed]}>
-        <Text style={styles.uploadButtonText}>{hasFile ? 'Replace document' : 'Upload document'}</Text>
+        style={({ pressed }) => [
+          styles.uploadButton,
+          (pressed || isUploading) && styles.pressed,
+        ]}>
+        {isUploading ? (
+          <ActivityIndicator size="small" color={colors.primary} />
+        ) : (
+          <Text style={styles.uploadButtonText}>
+            {hasFile ? 'Replace document' : 'Upload document'}
+          </Text>
+        )}
       </Pressable>
     </View>
   );
 }
 
 export function DocumentsScreen({ onClose }: DocumentsScreenProps) {
-  const [documents, setDocuments] = useState(MOCK_HUB_DOCUMENTS);
-  const actionCount = useMemo(() => getHubDocumentsNeedingAction(documents).length, [documents]);
-  const upToDateCount = documents.length - actionCount;
+  const { getToken } = useAuth();
+  const [documents, setDocuments] = useState<HubDocumentItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  function handleUpload(documentId: string) {
-    // TODO: connect to document picker and NestJS upload API
-    setDocuments((current) =>
-      current.map((document) =>
-        document.id === documentId
-          ? {
-              ...document,
-              status: 'uploaded',
-              fileName: `${document.id}-upload.pdf`,
-              detail: undefined,
-            }
-          : document,
-      ),
-    );
+  const actionCount = useMemo(
+    () => getHubDocumentsNeedingAction(documents).length,
+    [documents],
+  );
+  const upToDateCount = Math.max(documents.length - actionCount, 0);
+
+  const loadDocuments = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const token = await getToken();
+      const items = await listInstructorDocuments(token);
+      setDocuments(items);
+    } catch (err) {
+      setDocuments([]);
+      setError(
+        err instanceof DocumentsApiError
+          ? err.message
+          : 'Unable to load documents from the database.',
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, [getToken]);
+
+  useEffect(() => {
+    void loadDocuments();
+  }, [loadDocuments]);
+
+  async function handleUpload(documentId: string) {
+    if (uploadingId) {
+      return;
+    }
+
+    try {
+      setError(null);
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'image/jpeg', 'image/png'],
+        copyToCacheDirectory: true,
+      });
+
+      if (result.canceled) {
+        return;
+      }
+
+      const file = result.assets[0];
+      setUploadingId(documentId);
+
+      const token = await getToken();
+      await uploadInstructorDocument({
+        localUri: file.uri,
+        fileName: file.name,
+        mimeType: file.mimeType || 'application/pdf',
+        documentType: documentId,
+        accessToken: token,
+      });
+
+      await loadDocuments();
+    } catch (err) {
+      setError(
+        err instanceof DocumentsApiError
+          ? err.message
+          : 'Failed to upload document. Please try again.',
+      );
+    } finally {
+      setUploadingId(null);
+    }
   }
 
   return (
@@ -116,20 +197,48 @@ export function DocumentsScreen({ onClose }: DocumentsScreenProps) {
           assigning lessons.
         </Text>
 
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryValue}>
-            {upToDateCount} of {documents.length}
-          </Text>
-          <Text style={styles.summaryLabel}>documents up to date</Text>
-        </View>
+        {isLoading ? (
+          <View style={styles.centered}>
+            <ActivityIndicator color={colors.primary} />
+            <Text style={styles.metaText}>Loading documents…</Text>
+          </View>
+        ) : (
+          <>
+            <View style={styles.summaryCard}>
+              <Text style={styles.summaryValue}>
+                {upToDateCount} of {documents.length}
+              </Text>
+              <Text style={styles.summaryLabel}>documents up to date</Text>
+            </View>
 
-        <Text style={styles.sectionLabel}>Your documents</Text>
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-        <View style={styles.documentList}>
-          {documents.map((document) => (
-            <DocumentCard key={document.id} document={document} onUpload={handleUpload} />
-          ))}
-        </View>
+            <Text style={styles.sectionLabel}>Your documents</Text>
+
+            <View style={styles.documentList}>
+              {documents.map((document) => (
+                <DocumentCard
+                  key={document.id}
+                  document={document}
+                  isUploading={uploadingId === document.id}
+                  onUpload={(id) => {
+                    void handleUpload(id);
+                  }}
+                />
+              ))}
+            </View>
+
+            {error ? (
+              <Pressable
+                onPress={() => {
+                  void loadDocuments();
+                }}
+                style={({ pressed }) => [styles.retryButton, pressed && styles.pressed]}>
+                <Text style={styles.retryButtonText}>Try again</Text>
+              </Pressable>
+            ) : null}
+          </>
+        )}
       </ScrollView>
     </View>
   );
@@ -242,6 +351,10 @@ const styles = StyleSheet.create({
   },
   uploadButton: {
     alignSelf: 'flex-start',
+    minWidth: 120,
+    minHeight: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: 999,
@@ -254,6 +367,31 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: colors.primary,
+  },
+  centered: {
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.xl,
+  },
+  metaText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  errorText: {
+    fontSize: 14,
+    color: colors.error,
+  },
+  retryButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.primary,
+    borderRadius: 10,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+  },
+  retryButtonText: {
+    color: colors.white,
+    fontWeight: '600',
+    fontSize: 14,
   },
   pressed: {
     opacity: 0.85,

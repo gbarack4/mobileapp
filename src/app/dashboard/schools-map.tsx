@@ -1,23 +1,64 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useMemo, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SchoolsMapChrome } from '../../components/schools/schools-map-chrome';
 import { SchoolsMapView } from '../../components/schools/schools-map-view';
-import { MOCK_SCHOOLS } from '../../data/mock-schools';
 import { colors, spacing } from '../../constants/theme';
-import { filterSchools } from '../../utils/schools';
+import { searchSchools } from '../../services/schools';
+import type { School } from '../../types/school';
 import { goBackOr } from '../../utils/navigation';
 
 export default function SchoolsMapScreen() {
   const { q } = useLocalSearchParams<{ q?: string }>();
-  const schools = useMemo(() => filterSchools(MOCK_SCHOOLS, q ?? ''), [q]);
+  const [schools, setSchools] = useState<School[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [selectedSchoolId, setSelectedSchoolId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      setIsLoading(true);
+      try {
+        const results = await searchSchools(q ?? '');
+        if (!cancelled) {
+          setSchools(results);
+        }
+      } catch {
+        if (!cancelled) {
+          setSchools([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [q]);
 
   function handleSchoolPress(schoolId: string) {
     setSelectedSchoolId(schoolId);
     router.push(`/dashboard/school/${schoolId}`);
+  }
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.emptySafeArea} edges={['top', 'bottom']}>
+        <SchoolsMapChrome onBack={() => goBackOr('/dashboard')} />
+        <View style={styles.emptyState}>
+          <ActivityIndicator color={colors.primary} />
+          <Text style={styles.emptySubtitle}>Loading schools…</Text>
+        </View>
+      </SafeAreaView>
+    );
   }
 
   return (
@@ -37,7 +78,7 @@ export default function SchoolsMapScreen() {
           <View style={styles.emptyState}>
             <Text style={styles.emptyTitle}>No schools on map</Text>
             <Text style={styles.emptySubtitle}>
-              Try a different suburb or postcode in search.
+              Try a different school name in search.
             </Text>
           </View>
         </SafeAreaView>

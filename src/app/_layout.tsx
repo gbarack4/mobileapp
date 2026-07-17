@@ -1,4 +1,5 @@
 import { SiteLoaderGate } from "@/components/site-loader/site-loader-gate";
+import { DEV_BYPASS_AUTH } from "@/constants/dev";
 import { ClerkProvider, useAuth } from "@clerk/clerk-expo";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SecureStore from "expo-secure-store";
@@ -38,6 +39,7 @@ function RootLayoutNav() {
   const router = useRouter();
 
   useEffect(() => {
+    if (DEV_BYPASS_AUTH) return;
     if (!isLoaded) return;
 
     const inPublicGroup = segments[0] === "login" || segments[0] === "signup";
@@ -47,7 +49,7 @@ function RootLayoutNav() {
     } else if (isSignedIn && inPublicGroup) {
       router.replace("/dashboard");
     }
-  }, [isSignedIn, isLoaded, segments]);
+  }, [isSignedIn, isLoaded, segments, router]);
 
   return (
     <>
