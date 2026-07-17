@@ -1,6 +1,6 @@
-import { useAuth, useClerk, useUser } from '@clerk/clerk-expo';
-import { router } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useAuth, useClerk, useUser } from "@clerk/clerk-expo";
+import { router } from "expo-router";
+import { useEffect, useRef, useState } from "react";
 import {
   Image,
   Platform,
@@ -9,24 +9,26 @@ import {
   StyleSheet,
   Text,
   View,
-} from 'react-native';
-import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
+} from "react-native";
+import type { NativeScrollEvent, NativeSyntheticEvent } from "react-native";
 
-import { CloseIcon } from '../icons/lesson-detail-icons';
+import { CloseIcon } from "../icons/lesson-detail-icons";
 import {
   ACCOUNT_MENU_SECTION_1,
   ACCOUNT_MENU_SECTION_2,
   ACCOUNT_MENU_SECTION_3,
-  type InstructorProfile,
-  MOCK_INSTRUCTOR_PROFILE,
-} from '../../data/mock-account';
-import { colors, spacing } from '../../constants/theme';
-import { getMyProfile, getOfflineAccountProfile } from '../../services/profile';
+} from "../../data/mock-account";
+import { colors, spacing } from "../../constants/theme";
+import { getMyProfile, type InstructorProfile } from "../../services/profile";
 import {
   getProfilePhotoUri,
   subscribeProfilePhoto,
-} from '../../services/profile-photo';
-import { clearSession, getSessionEmail, setSessionEmail } from '../../services/session';
+} from "../../services/profile-photo";
+import {
+  clearSession,
+  getSessionEmail,
+  setSessionEmail,
+} from "../../services/session";
 import {
   AboutIcon,
   AppSettingsIcon,
@@ -38,9 +40,9 @@ import {
   PaymentIcon,
   PrivacyIcon,
   VehiclesIcon,
-} from './account-icons';
-import { AccountMenuRow } from './account-menu-row';
-import { StarIcon } from './hub-account-icons';
+} from "./account-icons";
+import { AccountMenuRow } from "./account-menu-row";
+import { StarIcon } from "./hub-account-icons";
 
 type AccountScreenProps = {
   onClose?: () => void;
@@ -48,7 +50,7 @@ type AccountScreenProps = {
 };
 
 const ANDROID_RIPPLE =
-  Platform.OS === 'android' ? { color: 'rgba(0, 0, 0, 0.06)' } : undefined;
+  Platform.OS === "android" ? { color: "rgba(0, 0, 0, 0.06)" } : undefined;
 
 const SECTION_1_ICONS = {
   vehicles: VehiclesIcon,
@@ -58,14 +60,14 @@ const SECTION_1_ICONS = {
 } as const;
 
 const SECTION_2_ICONS = {
-  'manage-account': ManageAccountIcon,
-  'edit-address': EditAddressIcon,
+  "manage-account": ManageAccountIcon,
+  "edit-address": EditAddressIcon,
   insurance: InsuranceIcon,
 } as const;
 
 const SECTION_3_ICONS = {
   privacy: PrivacyIcon,
-  'app-settings': AppSettingsIcon,
+  "app-settings": AppSettingsIcon,
   about: AboutIcon,
 } as const;
 
@@ -74,33 +76,33 @@ function formatRating(rating: number) {
 }
 
 function handleMenuPress(itemId: string) {
-  if (itemId === 'vehicles') {
-    router.push('/dashboard/account/vehicles');
+  if (itemId === "vehicles") {
+    router.push("/dashboard/account/vehicles");
     return;
   }
 
-  if (itemId === 'documents') {
-    router.push('/dashboard/account/documents');
+  if (itemId === "documents") {
+    router.push("/dashboard/account/documents");
     return;
   }
 
-  if (itemId === 'manage-account') {
-    router.push('/dashboard/account/hub');
+  if (itemId === "manage-account") {
+    router.push("/dashboard/account/hub");
     return;
   }
 
-  if (itemId === 'availability') {
-    router.push('/dashboard/account/availability');
+  if (itemId === "availability") {
+    router.push("/dashboard/account/availability");
     return;
   }
 
-  if (itemId === 'payment') {
-    router.push('/dashboard/account/payment');
+  if (itemId === "payment") {
+    router.push("/dashboard/account/payment");
     return;
   }
 
-  if (itemId === 'edit-address') {
-    router.push('/dashboard/account/edit-address');
+  if (itemId === "edit-address") {
+    router.push("/dashboard/account/edit-address");
     return;
   }
 
@@ -108,30 +110,28 @@ function handleMenuPress(itemId: string) {
   void itemId;
 }
 
-function buildFallbackProfile(email?: string | null): InstructorProfile {
-  const offline = getOfflineAccountProfile();
-  const resolvedEmail = email || getSessionEmail() || offline.email;
-
-  return {
-    name: offline.name || resolvedEmail.split('@')[0] || 'Instructor',
-    initials: offline.initials || (resolvedEmail[0] ?? '?').toUpperCase(),
-    subtitle: offline.subtitle || MOCK_INSTRUCTOR_PROFILE.subtitle,
-    phone: offline.phone?.trim() || MOCK_INSTRUCTOR_PROFILE.phone,
-    email: resolvedEmail,
-    rating: offline.rating ?? MOCK_INSTRUCTOR_PROFILE.rating,
-    vehicleSummary: MOCK_INSTRUCTOR_PROFILE.vehicleSummary,
-  };
-}
-
-export function AccountScreen({ onClose, onScroll }: AccountScreenProps) {
+export function AccountScreen({
+  onClose,
+  onScroll,
+}: Readonly<AccountScreenProps>) {
   const { getToken } = useAuth();
   const { user } = useUser();
   const { signOut } = useClerk();
   const userEmail = user?.primaryEmailAddress?.emailAddress ?? null;
-  const [profile, setProfile] = useState<InstructorProfile>(() =>
-    buildFallbackProfile(userEmail),
+
+  const [profile, setProfile] = useState<InstructorProfile>({
+    name: "Loading...",
+    initials: "",
+    subtitle: "",
+    phone: "",
+    email: userEmail || getSessionEmail() || "",
+    rating: 0,
+    vehicleSummary: "",
+  });
+
+  const [photoUri, setPhotoUri] = useState<string | null>(() =>
+    getProfilePhotoUri(),
   );
-  const [photoUri, setPhotoUri] = useState<string | null>(() => getProfilePhotoUri());
   const [isSigningOut, setIsSigningOut] = useState(false);
   const isSigningOutRef = useRef(false);
 
@@ -158,8 +158,8 @@ export function AccountScreen({ onClose, onScroll }: AccountScreenProps) {
         if (!cancelled && remoteProfile) {
           setProfile(remoteProfile);
         }
-      } catch {
-        // Keep the offline profile already painted on screen.
+      } catch (error) {
+        console.error("Failed to load profile", error);
       }
     }
 
@@ -171,17 +171,15 @@ export function AccountScreen({ onClose, onScroll }: AccountScreenProps) {
   }, [getToken, userEmail]);
 
   function goToLogin() {
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      window.location.assign('/login');
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      window.location.assign("/login");
       return;
     }
 
     try {
       router.dismissAll();
-    } catch {
-      // Root stack may not support dismissAll.
-    }
-    router.replace('/login');
+    } catch {}
+    router.replace("/login");
   }
 
   function handleSignOut() {
@@ -193,7 +191,6 @@ export function AccountScreen({ onClose, onScroll }: AccountScreenProps) {
     setIsSigningOut(true);
     clearSession();
 
-    // Keep "Signing out..." visible for 2s, then leave the dashboard.
     setTimeout(() => {
       void (async () => {
         try {
@@ -202,7 +199,6 @@ export function AccountScreen({ onClose, onScroll }: AccountScreenProps) {
             new Promise((resolve) => setTimeout(resolve, 1000)),
           ]);
         } catch {
-          // Ignore Clerk errors (common with auth bypass / unsigned sessions).
         } finally {
           goToLogin();
         }
@@ -217,22 +213,30 @@ export function AccountScreen({ onClose, onScroll }: AccountScreenProps) {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         onScroll={onScroll}
-        scrollEventThrottle={8}>
+        scrollEventThrottle={8}
+      >
         {onClose ? (
           <Pressable
             onPress={onClose}
             hitSlop={8}
             android_ripple={ANDROID_RIPPLE}
             accessibilityLabel="Close"
-            style={({ pressed }) => [styles.closeButton, pressed && styles.pressed]}>
+            style={({ pressed }) => [
+              styles.closeButton,
+              pressed && styles.pressed,
+            ]}
+          >
             <CloseIcon size={22} />
           </Pressable>
         ) : null}
 
         <View style={styles.profileRow}>
           <View style={styles.avatar}>
-            {photoUri ? (
-              <Image source={{ uri: photoUri }} style={styles.avatarImage} />
+            {profile.avatarUrl || photoUri ? (
+              <Image
+                source={{ uri: profile.avatarUrl || photoUri || "" }}
+                style={styles.avatarImage}
+              />
             ) : (
               <Text style={styles.avatarText}>{profile.initials}</Text>
             )}
@@ -244,7 +248,9 @@ export function AccountScreen({ onClose, onScroll }: AccountScreenProps) {
               {profile.rating > 0 ? (
                 <View style={styles.ratingBadge}>
                   <StarIcon size={11} />
-                  <Text style={styles.ratingText}>{formatRating(profile.rating)}</Text>
+                  <Text style={styles.ratingText}>
+                    {formatRating(profile.rating)}
+                  </Text>
                 </View>
               ) : null}
             </View>
@@ -255,13 +261,16 @@ export function AccountScreen({ onClose, onScroll }: AccountScreenProps) {
 
         <View style={styles.menuSection}>
           {ACCOUNT_MENU_SECTION_1.map((item, index) => {
-            const Icon = SECTION_1_ICONS[item.id as keyof typeof SECTION_1_ICONS];
+            const Icon =
+              SECTION_1_ICONS[item.id as keyof typeof SECTION_1_ICONS];
+            const subtitle =
+              item.id === "vehicles" ? profile.vehicleSummary : item.subtitle;
 
             return (
               <AccountMenuRow
                 key={item.id}
                 label={item.label}
-                subtitle={item.subtitle}
+                subtitle={subtitle}
                 icon={<Icon />}
                 onPress={() => handleMenuPress(item.id)}
                 showDivider={index < ACCOUNT_MENU_SECTION_1.length - 1}
@@ -274,7 +283,8 @@ export function AccountScreen({ onClose, onScroll }: AccountScreenProps) {
 
         <View style={styles.menuSection}>
           {ACCOUNT_MENU_SECTION_2.map((item, index) => {
-            const Icon = SECTION_2_ICONS[item.id as keyof typeof SECTION_2_ICONS];
+            const Icon =
+              SECTION_2_ICONS[item.id as keyof typeof SECTION_2_ICONS];
 
             return (
               <AccountMenuRow
@@ -292,7 +302,8 @@ export function AccountScreen({ onClose, onScroll }: AccountScreenProps) {
 
         <View style={styles.menuSection}>
           {ACCOUNT_MENU_SECTION_3.map((item, index) => {
-            const Icon = SECTION_3_ICONS[item.id as keyof typeof SECTION_3_ICONS];
+            const Icon =
+              SECTION_3_ICONS[item.id as keyof typeof SECTION_3_ICONS];
 
             return (
               <AccountMenuRow
@@ -310,15 +321,16 @@ export function AccountScreen({ onClose, onScroll }: AccountScreenProps) {
           onPress={handleSignOut}
           disabled={isSigningOut}
           accessibilityRole="button"
-          accessibilityLabel={isSigningOut ? 'Signing out' : 'Sign out'}
+          accessibilityLabel={isSigningOut ? "Signing out" : "Sign out"}
           android_ripple={ANDROID_RIPPLE}
           style={({ pressed }) => [
             styles.signOutButton,
             (pressed || isSigningOut) && styles.pressed,
             isSigningOut && styles.signOutButtonBusy,
-          ]}>
+          ]}
+        >
           <Text style={styles.signOutText}>
-            {isSigningOut ? 'Signing out...' : 'Sign out'}
+            {isSigningOut ? "Signing out..." : "Sign out"}
           </Text>
         </Pressable>
       </ScrollView>
@@ -340,15 +352,15 @@ const styles = StyleSheet.create({
   closeButton: {
     width: 40,
     height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginLeft: spacing.xl - 8,
     marginTop: spacing.sm,
     marginBottom: spacing.md,
   },
   profileRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.lg,
     paddingHorizontal: spacing.xl,
     marginBottom: spacing.xl,
@@ -357,18 +369,18 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#e8f1ff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
+    backgroundColor: "#e8f1ff",
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
   },
   avatarImage: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
   },
   avatarText: {
     fontSize: 24,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.primary,
   },
   profileText: {
@@ -376,25 +388,25 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.sm,
-    flexWrap: 'wrap',
+    flexWrap: "wrap",
   },
   profileName: {
     fontSize: 22,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
     letterSpacing: -0.2,
   },
   ratingBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 3,
   },
   ratingText: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
   },
   profileSubtitle: {
@@ -410,7 +422,7 @@ const styles = StyleSheet.create({
   },
   sectionSeparator: {
     height: 10,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: "#f3f4f6",
     marginVertical: spacing.sm,
   },
   signOutButton: {
@@ -421,23 +433,23 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...(Platform.OS === 'web'
+    alignItems: "center",
+    justifyContent: "center",
+    ...(Platform.OS === "web"
       ? ({
-          outlineStyle: 'none',
-          transition: 'opacity 0.15s ease',
-          cursor: 'pointer',
+          outlineStyle: "none",
+          transition: "opacity 0.15s ease",
+          cursor: "pointer",
         } as object)
       : {}),
   },
   signOutButtonBusy: {
     opacity: 0.7,
-    ...(Platform.OS === 'web' ? ({ cursor: 'default' } as object) : {}),
+    ...(Platform.OS === "web" ? ({ cursor: "default" } as object) : {}),
   },
   signOutText: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.error,
   },
   pressed: {
