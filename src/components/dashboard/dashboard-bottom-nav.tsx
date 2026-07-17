@@ -43,7 +43,7 @@ export function DashboardBottomNav({
     <Animated.View
       style={[
         styles.wrapper,
-        { paddingBottom: Math.max(insets.bottom, 12) },
+        { paddingBottom: insets.bottom },
         translateY ? { transform: [{ translateY }] } : null,
       ]}
     >
@@ -81,29 +81,18 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    paddingHorizontal: 24,
-    paddingTop: 6,
-    backgroundColor: 'transparent',
+    backgroundColor: colors.white,
+    borderTopWidth: 1,
+    borderTopColor: '#eef2f7',
   },
   bar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: colors.white,
-    borderRadius: 22,
-    paddingHorizontal: 6,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: '#eef2f7',
-    ...(Platform.OS === 'web'
-      ? ({ boxShadow: '0 6px 18px rgba(15, 23, 42, 0.07)' } as object)
-      : {
-          shadowColor: '#0f172a',
-          shadowOffset: { width: 0, height: 6 },
-          shadowOpacity: 0.07,
-          shadowRadius: 18,
-          elevation: 6,
-        }),
+    paddingHorizontal: 4,
+    paddingTop: 8,
+    paddingBottom: 8,
   },
   item: {
     flex: 1,
@@ -111,7 +100,7 @@ const styles = StyleSheet.create({
     gap: 2,
     paddingVertical: 6,
     paddingHorizontal: 4,
-    borderRadius: 16,
+    borderRadius: 12,
     ...(Platform.OS === 'web'
       ? ({ transition: 'background-color 0.15s ease, opacity 0.15s ease' } as object)
       : {}),

@@ -1,8 +1,8 @@
 import { useAuth, useClerk, useUser } from '@clerk/clerk-expo';
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
+  Image,
   Platform,
   Pressable,
   ScrollView,
@@ -21,7 +21,11 @@ import {
   MOCK_INSTRUCTOR_PROFILE,
 } from '../../data/mock-account';
 import { colors, spacing } from '../../constants/theme';
-import { getMyProfile } from '../../services/profile';
+import { getMyProfile, getOfflineAccountProfile } from '../../services/profile';
+import {
+  getProfilePhotoUri,
+  subscribeProfilePhoto,
+} from '../../services/profile-photo';
 import { clearSession, getSessionEmail, setSessionEmail } from '../../services/session';
 import {
   AboutIcon,
@@ -105,25 +109,17 @@ function handleMenuPress(itemId: string) {
 }
 
 function buildFallbackProfile(email?: string | null): InstructorProfile {
-  const resolvedEmail = email || getSessionEmail();
-  if (!resolvedEmail) {
-    return {
-      name: 'Instructor',
-      initials: '?',
-      subtitle: 'Sign in to load your profile',
-      email: '',
-      rating: 0,
-      vehicleSummary: MOCK_INSTRUCTOR_PROFILE.vehicleSummary,
-    };
-  }
+  const offline = getOfflineAccountProfile();
+  const resolvedEmail = email || getSessionEmail() || offline.email;
 
   return {
-    name: resolvedEmail.split('@')[0] || 'Instructor',
-    initials: (resolvedEmail[0] ?? '?').toUpperCase(),
-    subtitle: 'Complete your profile',
+    name: offline.name || resolvedEmail.split('@')[0] || 'Instructor',
+    initials: offline.initials || (resolvedEmail[0] ?? '?').toUpperCase(),
+    subtitle: offline.subtitle || MOCK_INSTRUCTOR_PROFILE.subtitle,
+    phone: offline.phone?.trim() || MOCK_INSTRUCTOR_PROFILE.phone,
     email: resolvedEmail,
-    rating: 0,
-    vehicleSummary: '',
+    rating: offline.rating ?? MOCK_INSTRUCTOR_PROFILE.rating,
+    vehicleSummary: MOCK_INSTRUCTOR_PROFILE.vehicleSummary,
   };
 }
 
@@ -135,7 +131,9 @@ export function AccountScreen({ onClose, onScroll }: AccountScreenProps) {
   const [profile, setProfile] = useState<InstructorProfile>(() =>
     buildFallbackProfile(userEmail),
   );
-  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const [photoUri, setPhotoUri] = useState<string | null>(() => getProfilePhotoUri());
+  const [isSigningOut, setIsSigningOut] = useState(false);
+  const isSigningOutRef = useRef(false);
 
   useEffect(() => {
     if (userEmail) {
@@ -144,30 +142,24 @@ export function AccountScreen({ onClose, onScroll }: AccountScreenProps) {
   }, [userEmail]);
 
   useEffect(() => {
+    setPhotoUri(getProfilePhotoUri());
+    return subscribeProfilePhoto(() => {
+      setPhotoUri(getProfilePhotoUri());
+    });
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
 
     async function loadProfile() {
-      setIsLoadingProfile(true);
-
       try {
-        const token = await getToken();
+        const token = await getToken().catch(() => null);
         const remoteProfile = await getMyProfile(token);
         if (!cancelled && remoteProfile) {
           setProfile(remoteProfile);
-          return;
-        }
-
-        if (!cancelled) {
-          setProfile(buildFallbackProfile(userEmail));
         }
       } catch {
-        if (!cancelled) {
-          setProfile(buildFallbackProfile(userEmail));
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoadingProfile(false);
-        }
+        // Keep the offline profile already painted on screen.
       }
     }
 
@@ -178,13 +170,44 @@ export function AccountScreen({ onClose, onScroll }: AccountScreenProps) {
     };
   }, [getToken, userEmail]);
 
-  async function handleSignOut() {
-    clearSession();
-    try {
-      await signOut();
-    } finally {
-      router.replace('/login');
+  function goToLogin() {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.location.assign('/login');
+      return;
     }
+
+    try {
+      router.dismissAll();
+    } catch {
+      // Root stack may not support dismissAll.
+    }
+    router.replace('/login');
+  }
+
+  function handleSignOut() {
+    if (isSigningOutRef.current) {
+      return;
+    }
+
+    isSigningOutRef.current = true;
+    setIsSigningOut(true);
+    clearSession();
+
+    // Keep "Signing out..." visible for 2s, then leave the dashboard.
+    setTimeout(() => {
+      void (async () => {
+        try {
+          await Promise.race([
+            signOut().catch(() => undefined),
+            new Promise((resolve) => setTimeout(resolve, 1000)),
+          ]);
+        } catch {
+          // Ignore Clerk errors (common with auth bypass / unsigned sessions).
+        } finally {
+          goToLogin();
+        }
+      })();
+    }, 2000);
   }
 
   return (
@@ -208,8 +231,8 @@ export function AccountScreen({ onClose, onScroll }: AccountScreenProps) {
 
         <View style={styles.profileRow}>
           <View style={styles.avatar}>
-            {isLoadingProfile ? (
-              <ActivityIndicator color={colors.white} size="small" />
+            {photoUri ? (
+              <Image source={{ uri: photoUri }} style={styles.avatarImage} />
             ) : (
               <Text style={styles.avatarText}>{profile.initials}</Text>
             )}
@@ -225,7 +248,7 @@ export function AccountScreen({ onClose, onScroll }: AccountScreenProps) {
                 </View>
               ) : null}
             </View>
-            <Text style={styles.profileSubtitle}>{profile.subtitle}</Text>
+            <Text style={styles.profileSubtitle}>{profile.phone}</Text>
             <Text style={styles.profileEmail}>{profile.email}</Text>
           </View>
         </View>
@@ -284,12 +307,19 @@ export function AccountScreen({ onClose, onScroll }: AccountScreenProps) {
         </View>
 
         <Pressable
-          onPress={() => {
-            void handleSignOut();
-          }}
+          onPress={handleSignOut}
+          disabled={isSigningOut}
+          accessibilityRole="button"
+          accessibilityLabel={isSigningOut ? 'Signing out' : 'Sign out'}
           android_ripple={ANDROID_RIPPLE}
-          style={({ pressed }) => [styles.signOutButton, pressed && styles.pressed]}>
-          <Text style={styles.signOutText}>Sign out</Text>
+          style={({ pressed }) => [
+            styles.signOutButton,
+            (pressed || isSigningOut) && styles.pressed,
+            isSigningOut && styles.signOutButtonBusy,
+          ]}>
+          <Text style={styles.signOutText}>
+            {isSigningOut ? 'Signing out...' : 'Sign out'}
+          </Text>
         </Pressable>
       </ScrollView>
     </View>
@@ -330,6 +360,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#e8f1ff',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
   },
   avatarText: {
     fontSize: 24,
@@ -389,8 +424,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     ...(Platform.OS === 'web'
-      ? ({ outlineStyle: 'none', transition: 'opacity 0.15s ease' } as object)
+      ? ({
+          outlineStyle: 'none',
+          transition: 'opacity 0.15s ease',
+          cursor: 'pointer',
+        } as object)
       : {}),
+  },
+  signOutButtonBusy: {
+    opacity: 0.7,
+    ...(Platform.OS === 'web' ? ({ cursor: 'default' } as object) : {}),
   },
   signOutText: {
     fontSize: 16,

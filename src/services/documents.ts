@@ -1,6 +1,9 @@
 import { Platform } from 'react-native';
 
-import type { HubDocumentItem } from '../data/mock-hub-account';
+import {
+  MOCK_HUB_DOCUMENTS,
+  type HubDocumentItem,
+} from '../data/mock-hub-account';
 import { getSessionEmail } from './session';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL;
@@ -8,8 +11,21 @@ const DEV_PROFILE_EMAIL = __DEV__
   ? process.env.EXPO_PUBLIC_DEV_PROFILE_EMAIL?.trim().toLowerCase() || null
   : null;
 
+/** In-memory mock so uploads work while the backend is offline. */
+let mockDocumentsDraft: HubDocumentItem[] | null = null;
+
 function resolveSessionEmail() {
   return getSessionEmail() || DEV_PROFILE_EMAIL;
+}
+
+function cloneMockDocuments(): HubDocumentItem[] {
+  return (mockDocumentsDraft ?? MOCK_HUB_DOCUMENTS).map((document) => ({
+    ...document,
+  }));
+}
+
+export function getOfflineDocuments(): HubDocumentItem[] {
+  return cloneMockDocuments();
 }
 
 export class DocumentsApiError extends Error {
@@ -46,22 +62,26 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
 export async function listInstructorDocuments(
   accessToken?: string | null,
 ): Promise<HubDocumentItem[]> {
-  if (accessToken) {
-    return requestJson<HubDocumentItem[]>('/instructors/documents', {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    });
-  }
+  try {
+    if (accessToken) {
+      return await requestJson<HubDocumentItem[]>('/instructors/documents', {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+    }
 
-  const email = resolveSessionEmail();
-  if (!email) {
-    throw new DocumentsApiError('Sign in to load documents.', 401);
-  }
+    const email = resolveSessionEmail();
+    if (!email) {
+      return getOfflineDocuments();
+    }
 
-  return requestJson<HubDocumentItem[]>(
-    `/instructors/documents-by-email?email=${encodeURIComponent(email)}`,
-  );
+    return await requestJson<HubDocumentItem[]>(
+      `/instructors/documents-by-email?email=${encodeURIComponent(email)}`,
+    );
+  } catch {
+    return getOfflineDocuments();
+  }
 }
 
 export async function uploadInstructorDocument(params: {
@@ -71,61 +91,81 @@ export async function uploadInstructorDocument(params: {
   documentType: string;
   accessToken?: string | null;
 }): Promise<{ fileUrl: string; fileName: string; documentType: string }> {
-  if (!API_BASE_URL) {
-    throw new DocumentsApiError('EXPO_PUBLIC_API_URL is not defined', 0);
-  }
-
-  const formData = new FormData();
-
-  if (Platform.OS === 'web') {
-    const fileResponse = await fetch(params.localUri);
-    const blob = await fileResponse.blob();
-    formData.append('file', blob, params.fileName);
-  } else {
-    formData.append('file', {
-      uri: params.localUri,
-      name: params.fileName,
-      type: params.mimeType,
-    } as unknown as Blob);
-  }
-
-  formData.append('documentType', params.documentType);
-
-  const query = new URLSearchParams({
-    documentType: params.documentType,
-  });
-
-  let path = `/instructors/upload-document?${query.toString()}`;
-  const headers: Record<string, string> = {};
-
-  if (params.accessToken) {
-    headers.Authorization = `Bearer ${params.accessToken}`;
-  } else {
-    const email = resolveSessionEmail();
-    if (!email) {
-      throw new DocumentsApiError('Sign in to upload documents.', 401);
+  try {
+    if (!API_BASE_URL) {
+      throw new DocumentsApiError('EXPO_PUBLIC_API_URL is not defined', 0);
     }
-    query.set('email', email);
-    path = `/instructors/upload-document-by-email?${query.toString()}`;
-  }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: 'POST',
-    headers,
-    body: formData,
-  });
+    const formData = new FormData();
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new DocumentsApiError(
-      errorText || 'Document upload failed.',
-      response.status,
+    if (Platform.OS === 'web') {
+      const fileResponse = await fetch(params.localUri);
+      const blob = await fileResponse.blob();
+      formData.append('file', blob, params.fileName);
+    } else {
+      formData.append('file', {
+        uri: params.localUri,
+        name: params.fileName,
+        type: params.mimeType,
+      } as unknown as Blob);
+    }
+
+    formData.append('documentType', params.documentType);
+
+    const query = new URLSearchParams({
+      documentType: params.documentType,
+    });
+
+    let path = `/instructors/upload-document?${query.toString()}`;
+    const headers: Record<string, string> = {};
+
+    if (params.accessToken) {
+      headers.Authorization = `Bearer ${params.accessToken}`;
+    } else {
+      const email = resolveSessionEmail();
+      if (!email) {
+        throw new DocumentsApiError('Sign in to upload documents.', 401);
+      }
+      query.set('email', email);
+      path = `/instructors/upload-document-by-email?${query.toString()}`;
+    }
+
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new DocumentsApiError(
+        errorText || 'Document upload failed.',
+        response.status,
+      );
+    }
+
+    return response.json() as Promise<{
+      fileUrl: string;
+      fileName: string;
+      documentType: string;
+    }>;
+  } catch {
+    const next = cloneMockDocuments().map((document) =>
+      document.id === params.documentType
+        ? {
+            ...document,
+            status: 'uploaded' as const,
+            detail: undefined,
+            fileName: params.fileName,
+          }
+        : document,
     );
-  }
+    mockDocumentsDraft = next;
 
-  return response.json() as Promise<{
-    fileUrl: string;
-    fileName: string;
-    documentType: string;
-  }>;
+    return {
+      fileUrl: params.localUri,
+      fileName: params.fileName,
+      documentType: params.documentType,
+    };
+  }
 }

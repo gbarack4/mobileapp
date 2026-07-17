@@ -15,6 +15,7 @@ import { ChevronLeftIcon } from '../icons/dashboard-icons';
 import { colors, spacing } from '../../constants/theme';
 import {
   getMyAccountProfile,
+  getOfflineAccountProfile,
   ProfileApiError,
   updateMyAccountProfile,
 } from '../../services/profile';
@@ -29,18 +30,50 @@ type FocusedField = 'firstName' | 'lastName' | 'phone' | 'address' | null;
 const ANDROID_RIPPLE =
   Platform.OS === 'android' ? { color: 'rgba(0, 0, 0, 0.06)' } : undefined;
 
+function applyProfileToForm(
+  profile: {
+    email: string;
+    firstName: string | null;
+    lastName: string | null;
+    phone: string | null;
+    address: string | null;
+  },
+  setters: {
+    setEmail: (value: string) => void;
+    setFirstName: (value: string) => void;
+    setLastName: (value: string) => void;
+    setPhone: (value: string) => void;
+    setAddress: (value: string) => void;
+  },
+) {
+  setters.setEmail(profile.email);
+  setters.setFirstName(profile.firstName ?? '');
+  setters.setLastName(profile.lastName ?? '');
+  setters.setPhone(profile.phone ?? '');
+  setters.setAddress(profile.address ?? '');
+  setSessionEmail(profile.email);
+}
+
 export function HubPersonalInfoScreen({ onBack }: HubPersonalInfoScreenProps) {
   const { getToken } = useAuth();
   const { user } = useUser();
   const clerkEmail = user?.primaryEmailAddress?.emailAddress ?? null;
 
-  const [email, setEmail] = useState(clerkEmail || getSessionEmail() || '');
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [address, setAddress] = useState('');
+  const [email, setEmail] = useState(() => {
+    const offline = getOfflineAccountProfile();
+    return clerkEmail || getSessionEmail() || offline.email;
+  });
+  const [firstName, setFirstName] = useState(
+    () => getOfflineAccountProfile().firstName ?? '',
+  );
+  const [lastName, setLastName] = useState(
+    () => getOfflineAccountProfile().lastName ?? '',
+  );
+  const [phone, setPhone] = useState(() => getOfflineAccountProfile().phone ?? '');
+  const [address, setAddress] = useState(
+    () => getOfflineAccountProfile().address ?? '',
+  );
   const [focusedField, setFocusedField] = useState<FocusedField>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -56,40 +89,23 @@ export function HubPersonalInfoScreen({ onBack }: HubPersonalInfoScreenProps) {
     let cancelled = false;
 
     async function load() {
-      setIsLoading(true);
-      setError(null);
-
       try {
         const token = await getToken();
         const profile = await getMyAccountProfile(token);
 
-        if (cancelled) {
+        if (cancelled || !profile) {
           return;
         }
 
-        if (!profile) {
-          setError('No profile found in the database yet. Sign in with an existing account email.');
-          return;
-        }
-
-        setEmail(profile.email);
-        setFirstName(profile.firstName ?? '');
-        setLastName(profile.lastName ?? '');
-        setPhone(profile.phone ?? '');
-        setAddress(profile.address ?? '');
-        setSessionEmail(profile.email);
-      } catch (err) {
-        if (!cancelled) {
-          setError(
-            err instanceof ProfileApiError
-              ? err.message
-              : 'Unable to load personal info from the database.',
-          );
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
+        applyProfileToForm(profile, {
+          setEmail,
+          setFirstName,
+          setLastName,
+          setPhone,
+          setAddress,
+        });
+      } catch {
+        // Keep the offline/mock values already on screen.
       }
     }
 
@@ -165,91 +181,84 @@ export function HubPersonalInfoScreen({ onBack }: HubPersonalInfoScreenProps) {
           visible to schools you work with.
         </Text>
 
-        {isLoading ? (
-          <View style={styles.centered}>
-            <ActivityIndicator color={colors.primary} />
-            <Text style={styles.metaText}>Loading from database…</Text>
-          </View>
-        ) : (
-          <View style={styles.form}>
-            <Text style={styles.sectionTitle}>Basic info</Text>
+        <View style={styles.form}>
+          <Text style={styles.sectionTitle}>Basic info</Text>
 
-            <AuthTextField
-              label="First name"
-              value={firstName}
-              onChangeText={setFirstName}
-              onFocus={() => setFocusedField('firstName')}
-              onBlur={() => setFocusedField(null)}
-              focused={focusedField === 'firstName'}
-              autoCapitalize="words"
-              editable={!isSaving}
-            />
+          <AuthTextField
+            label="First name"
+            value={firstName}
+            onChangeText={setFirstName}
+            onFocus={() => setFocusedField('firstName')}
+            onBlur={() => setFocusedField(null)}
+            focused={focusedField === 'firstName'}
+            autoCapitalize="words"
+            editable={!isSaving}
+          />
 
-            <AuthTextField
-              label="Last name"
-              value={lastName}
-              onChangeText={setLastName}
-              onFocus={() => setFocusedField('lastName')}
-              onBlur={() => setFocusedField(null)}
-              focused={focusedField === 'lastName'}
-              autoCapitalize="words"
-              editable={!isSaving}
-            />
+          <AuthTextField
+            label="Last name"
+            value={lastName}
+            onChangeText={setLastName}
+            onFocus={() => setFocusedField('lastName')}
+            onBlur={() => setFocusedField(null)}
+            focused={focusedField === 'lastName'}
+            autoCapitalize="words"
+            editable={!isSaving}
+          />
 
-            <AuthTextField
-              label="Email"
-              value={email}
-              focused={false}
-              editable={false}
-              autoCapitalize="none"
-            />
+          <AuthTextField
+            label="Email"
+            value={email}
+            focused={false}
+            editable={false}
+            autoCapitalize="none"
+          />
 
-            <AuthTextField
-              label="Phone"
-              value={phone}
-              onChangeText={setPhone}
-              onFocus={() => setFocusedField('phone')}
-              onBlur={() => setFocusedField(null)}
-              focused={focusedField === 'phone'}
-              keyboardType="phone-pad"
-              editable={!isSaving}
-            />
+          <AuthTextField
+            label="Phone"
+            value={phone}
+            onChangeText={setPhone}
+            onFocus={() => setFocusedField('phone')}
+            onBlur={() => setFocusedField(null)}
+            focused={focusedField === 'phone'}
+            keyboardType="phone-pad"
+            editable={!isSaving}
+          />
 
-            <Text style={styles.sectionTitle}>Contact info</Text>
+          <Text style={styles.sectionTitle}>Contact info</Text>
 
-            <AuthTextField
-              label="Address"
-              value={address}
-              onChangeText={setAddress}
-              onFocus={() => setFocusedField('address')}
-              onBlur={() => setFocusedField(null)}
-              focused={focusedField === 'address'}
-              autoCapitalize="words"
-              editable={!isSaving}
-            />
+          <AuthTextField
+            label="Address"
+            value={address}
+            onChangeText={setAddress}
+            onFocus={() => setFocusedField('address')}
+            onBlur={() => setFocusedField(null)}
+            focused={focusedField === 'address'}
+            autoCapitalize="words"
+            editable={!isSaving}
+          />
 
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
-            {success ? <Text style={styles.successText}>{success}</Text> : null}
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          {success ? <Text style={styles.successText}>{success}</Text> : null}
 
-            <Pressable
-              onPress={() => {
-                void handleSave();
-              }}
-              disabled={isSaving}
-              android_ripple={ANDROID_RIPPLE}
-              style={({ pressed }) => [
-                styles.saveButton,
-                (pressed || isSaving) && styles.pressed,
-                isSaving && styles.saveButtonDisabled,
-              ]}>
-              {isSaving ? (
-                <ActivityIndicator color={colors.white} />
-              ) : (
-                <Text style={styles.saveButtonText}>Save changes</Text>
-              )}
-            </Pressable>
-          </View>
-        )}
+          <Pressable
+            onPress={() => {
+              void handleSave();
+            }}
+            disabled={isSaving}
+            android_ripple={ANDROID_RIPPLE}
+            style={({ pressed }) => [
+              styles.saveButton,
+              (pressed || isSaving) && styles.pressed,
+              isSaving && styles.saveButtonDisabled,
+            ]}>
+            {isSaving ? (
+              <ActivityIndicator color={colors.white} />
+            ) : (
+              <Text style={styles.saveButtonText}>Save changes</Text>
+            )}
+          </Pressable>
+        </View>
       </ScrollView>
     </View>
   );
@@ -306,15 +315,6 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.4,
     marginTop: spacing.sm,
-  },
-  centered: {
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingVertical: spacing.xxl,
-  },
-  metaText: {
-    fontSize: 14,
-    color: colors.textSecondary,
   },
   errorText: {
     fontSize: 14,

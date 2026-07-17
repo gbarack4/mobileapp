@@ -47,26 +47,26 @@ export type HubDocumentItem = {
 
 export const MOCK_HUB_DOCUMENTS: HubDocumentItem[] = [
   {
-    id: 'licence',
+    id: 'driverLicence',
     label: 'Driver licence',
     status: 'uploaded',
     fileName: 'driver-licence.pdf',
   },
   {
-    id: 'wwcc',
+    id: 'workingWithChildrenCheck',
     label: 'Working with children check',
     status: 'expiring',
     detail: 'Expires in 30 days',
     fileName: 'wwcc-certificate.pdf',
   },
   {
-    id: 'police-check',
+    id: 'policeCheck',
     label: 'Police check',
     status: 'required',
     detail: 'Upload required',
   },
   {
-    id: 'insurance',
+    id: 'insuranceCertificate',
     label: 'Insurance certificate',
     status: 'uploaded',
     fileName: 'insurance-2026.pdf',

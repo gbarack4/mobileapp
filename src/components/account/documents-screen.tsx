@@ -20,6 +20,7 @@ import {
 } from '../../data/mock-hub-account';
 import {
   DocumentsApiError,
+  getOfflineDocuments,
   listInstructorDocuments,
   uploadInstructorDocument,
 } from '../../services/documents';
@@ -96,8 +97,9 @@ function DocumentCard({ document, isUploading, onUpload }: DocumentCardProps) {
 
 export function DocumentsScreen({ onClose }: DocumentsScreenProps) {
   const { getToken } = useAuth();
-  const [documents, setDocuments] = useState<HubDocumentItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [documents, setDocuments] = useState<HubDocumentItem[]>(() =>
+    getOfflineDocuments(),
+  );
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -108,22 +110,14 @@ export function DocumentsScreen({ onClose }: DocumentsScreenProps) {
   const upToDateCount = Math.max(documents.length - actionCount, 0);
 
   const loadDocuments = useCallback(async () => {
-    setIsLoading(true);
     setError(null);
 
     try {
-      const token = await getToken();
+      const token = await getToken().catch(() => null);
       const items = await listInstructorDocuments(token);
       setDocuments(items);
-    } catch (err) {
-      setDocuments([]);
-      setError(
-        err instanceof DocumentsApiError
-          ? err.message
-          : 'Unable to load documents from the database.',
-      );
-    } finally {
-      setIsLoading(false);
+    } catch {
+      setDocuments(getOfflineDocuments());
     }
   }, [getToken]);
 
@@ -150,7 +144,7 @@ export function DocumentsScreen({ onClose }: DocumentsScreenProps) {
       const file = result.assets[0];
       setUploadingId(documentId);
 
-      const token = await getToken();
+      const token = await getToken().catch(() => null);
       await uploadInstructorDocument({
         localUri: file.uri,
         fileName: file.name,
@@ -197,48 +191,29 @@ export function DocumentsScreen({ onClose }: DocumentsScreenProps) {
           assigning lessons.
         </Text>
 
-        {isLoading ? (
-          <View style={styles.centered}>
-            <ActivityIndicator color={colors.primary} />
-            <Text style={styles.metaText}>Loading documents…</Text>
-          </View>
-        ) : (
-          <>
-            <View style={styles.summaryCard}>
-              <Text style={styles.summaryValue}>
-                {upToDateCount} of {documents.length}
-              </Text>
-              <Text style={styles.summaryLabel}>documents up to date</Text>
-            </View>
+        <View style={styles.summaryCard}>
+          <Text style={styles.summaryValue}>
+            {upToDateCount} of {documents.length}
+          </Text>
+          <Text style={styles.summaryLabel}>documents up to date</Text>
+        </View>
 
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-            <Text style={styles.sectionLabel}>Your documents</Text>
+        <Text style={styles.sectionLabel}>Your documents</Text>
 
-            <View style={styles.documentList}>
-              {documents.map((document) => (
-                <DocumentCard
-                  key={document.id}
-                  document={document}
-                  isUploading={uploadingId === document.id}
-                  onUpload={(id) => {
-                    void handleUpload(id);
-                  }}
-                />
-              ))}
-            </View>
-
-            {error ? (
-              <Pressable
-                onPress={() => {
-                  void loadDocuments();
-                }}
-                style={({ pressed }) => [styles.retryButton, pressed && styles.pressed]}>
-                <Text style={styles.retryButtonText}>Try again</Text>
-              </Pressable>
-            ) : null}
-          </>
-        )}
+        <View style={styles.documentList}>
+          {documents.map((document) => (
+            <DocumentCard
+              key={document.id}
+              document={document}
+              isUploading={uploadingId === document.id}
+              onUpload={(id) => {
+                void handleUpload(id);
+              }}
+            />
+          ))}
+        </View>
       </ScrollView>
     </View>
   );
@@ -368,30 +343,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.primary,
   },
-  centered: {
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingVertical: spacing.xl,
-  },
-  metaText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-  },
   errorText: {
     fontSize: 14,
     color: colors.error,
-  },
-  retryButton: {
-    alignSelf: 'flex-start',
-    backgroundColor: colors.primary,
-    borderRadius: 10,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-  },
-  retryButtonText: {
-    color: colors.white,
-    fontWeight: '600',
-    fontSize: 14,
   },
   pressed: {
     opacity: 0.85,

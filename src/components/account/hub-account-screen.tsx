@@ -1,6 +1,18 @@
+import { useAuth } from '@clerk/clerk-expo';
 import { router, type Href } from 'expo-router';
-import { type ReactNode } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { type ReactNode, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 import { CloseIcon } from '../icons/lesson-detail-icons';
 import {
@@ -12,6 +24,12 @@ import {
   type HubQuickLinkId,
 } from '../../data/mock-hub-account';
 import { colors, spacing } from '../../constants/theme';
+import {
+  getProfilePhotoUri,
+  persistProfilePhotoUri,
+  setProfilePhotoUri,
+} from '../../services/profile-photo';
+import { uploadAvatarToBackend } from '../../services/uploadService';
 import { DocumentsIcon } from './account-icons';
 import {
   HubPersonalInfoIcon,
@@ -134,13 +152,47 @@ function HubDocumentsCard({ documents }: { documents: HubDocumentItem[] }) {
   );
 }
 
-function HubAccountHomeContent({ profile }: { profile: typeof MOCK_HUB_ACCOUNT }) {
+function HubAccountHomeContent({
+  profile,
+  photoUri,
+  isUploadingPhoto,
+  onPickPhoto,
+}: {
+  profile: typeof MOCK_HUB_ACCOUNT;
+  photoUri: string | null;
+  isUploadingPhoto: boolean;
+  onPickPhoto: () => void;
+}) {
   return (
     <View style={styles.homeContent}>
       <View style={styles.profileSection}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{profile.initials}</Text>
-        </View>
+        <Pressable
+          onPress={onPickPhoto}
+          disabled={isUploadingPhoto}
+          android_ripple={ANDROID_RIPPLE}
+          accessibilityLabel={
+            photoUri ? 'Change profile photo' : 'Upload profile photo'
+          }
+          style={({ pressed }) => [
+            styles.avatarButton,
+            pressed && styles.pressed,
+            isUploadingPhoto && styles.avatarButtonDisabled,
+          ]}>
+          <View style={styles.avatar}>
+            {isUploadingPhoto ? (
+              <ActivityIndicator color={colors.primary} />
+            ) : photoUri ? (
+              <Image source={{ uri: photoUri }} style={styles.avatarImage} />
+            ) : (
+              <Text style={styles.avatarText}>{profile.initials}</Text>
+            )}
+          </View>
+          <View style={styles.avatarBadge}>
+            <Text style={styles.avatarBadgeText}>{photoUri ? 'Edit' : 'Add'}</Text>
+          </View>
+        </Pressable>
+
+        <Text style={styles.photoHint}>Tap to upload a profile photo</Text>
 
         <View style={styles.nameRow}>
           <Text style={styles.profileName}>{profile.name}</Text>
@@ -176,7 +228,69 @@ function HubAccountHomeContent({ profile }: { profile: typeof MOCK_HUB_ACCOUNT }
 }
 
 export function HubAccountScreen({ onClose }: HubAccountScreenProps) {
+  const { getToken } = useAuth();
   const profile = MOCK_HUB_ACCOUNT;
+  const [photoUri, setPhotoUri] = useState<string | null>(() => getProfilePhotoUri());
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+
+  async function handlePickPhoto() {
+    if (isUploadingPhoto) {
+      return;
+    }
+
+    if (Platform.OS !== 'web') {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permission required',
+          'Allow photo library access to upload a profile picture.',
+        );
+        return;
+      }
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (result.canceled || !result.assets?.length) {
+      return;
+    }
+
+    const asset = result.assets[0];
+    const localUri = asset.uri;
+    const fileName = asset.fileName || localUri.split('/').pop() || 'profile-photo.jpg';
+    const mimeType = asset.mimeType || 'image/jpeg';
+
+    setIsUploadingPhoto(true);
+
+    try {
+      // Persist as a data URL so the Account tab can show it after navigation.
+      const persistentUri = await persistProfilePhotoUri(localUri);
+      setPhotoUri(persistentUri);
+
+      const token = await getToken().catch(() => null);
+      if (token) {
+        const remoteUrl = await uploadAvatarToBackend(
+          localUri,
+          fileName,
+          mimeType,
+          token,
+        );
+        if (remoteUrl) {
+          setPhotoUri(remoteUrl);
+          setProfilePhotoUri(remoteUrl);
+        }
+      }
+    } catch {
+      // Keep the local preview when the backend is offline.
+    } finally {
+      setIsUploadingPhoto(false);
+    }
+  }
 
   return (
     <View style={styles.screen}>
@@ -198,7 +312,14 @@ export function HubAccountScreen({ onClose }: HubAccountScreenProps) {
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}>
-        <HubAccountHomeContent profile={profile} />
+        <HubAccountHomeContent
+          profile={profile}
+          photoUri={photoUri}
+          isUploadingPhoto={isUploadingPhoto}
+          onPickPhoto={() => {
+            void handlePickPhoto();
+          }}
+        />
       </ScrollView>
     </View>
   );
@@ -246,6 +367,13 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingHorizontal: spacing.xl,
   },
+  avatarButton: {
+    position: 'relative',
+    marginBottom: spacing.xs,
+  },
+  avatarButtonDisabled: {
+    opacity: 0.75,
+  },
   avatar: {
     width: 88,
     height: 88,
@@ -253,12 +381,37 @@ const styles = StyleSheet.create({
     backgroundColor: '#e8f1ff',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.sm,
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
   },
   avatarText: {
     fontSize: 32,
     fontWeight: '700',
     color: colors.primary,
+  },
+  avatarBadge: {
+    position: 'absolute',
+    right: -2,
+    bottom: -2,
+    backgroundColor: colors.primary,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 2,
+    borderColor: colors.white,
+  },
+  avatarBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.white,
+  },
+  photoHint: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    marginBottom: spacing.xs,
   },
   nameRow: {
     flexDirection: 'row',
