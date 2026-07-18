@@ -1,6 +1,7 @@
 import { useAuth, useClerk, useUser } from "@clerk/clerk-expo";
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
+import type { NativeScrollEvent, NativeSyntheticEvent } from "react-native";
 import {
   Image,
   Platform,
@@ -10,15 +11,13 @@ import {
   Text,
   View,
 } from "react-native";
-import type { NativeScrollEvent, NativeSyntheticEvent } from "react-native";
 
-import { CloseIcon } from "../icons/lesson-detail-icons";
+import { colors, spacing } from "../../constants/theme";
 import {
   ACCOUNT_MENU_SECTION_1,
   ACCOUNT_MENU_SECTION_2,
   ACCOUNT_MENU_SECTION_3,
 } from "../../data/mock-account";
-import { colors, spacing } from "../../constants/theme";
 import { getMyProfile, type InstructorProfile } from "../../services/profile";
 import {
   getProfilePhotoUri,
@@ -29,6 +28,7 @@ import {
   getSessionEmail,
   setSessionEmail,
 } from "../../services/session";
+import { CloseIcon } from "../icons/lesson-detail-icons";
 import {
   AboutIcon,
   AppSettingsIcon,
@@ -110,6 +110,20 @@ function handleMenuPress(itemId: string) {
   void itemId;
 }
 
+function goToLogin() {
+  if (Platform.OS === "web" && typeof window !== "undefined") {
+    window.location.assign("/login");
+    return;
+  }
+
+  try {
+    router.dismissAll();
+  } catch {}
+  router.replace("/login");
+}
+
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export function AccountScreen({
   onClose,
   onScroll,
@@ -127,6 +141,9 @@ export function AccountScreen({
     email: userEmail || getSessionEmail() || "",
     rating: 0,
     vehicleSummary: "",
+    address: null,
+    carDetails: null,
+    documents: null,
   });
 
   const [photoUri, setPhotoUri] = useState<string | null>(() =>
@@ -170,19 +187,7 @@ export function AccountScreen({
     };
   }, [getToken, userEmail]);
 
-  function goToLogin() {
-    if (Platform.OS === "web" && typeof window !== "undefined") {
-      window.location.assign("/login");
-      return;
-    }
-
-    try {
-      router.dismissAll();
-    } catch {}
-    router.replace("/login");
-  }
-
-  function handleSignOut() {
+  async function handleSignOut() {
     if (isSigningOutRef.current) {
       return;
     }
@@ -191,19 +196,14 @@ export function AccountScreen({
     setIsSigningOut(true);
     clearSession();
 
-    setTimeout(() => {
-      void (async () => {
-        try {
-          await Promise.race([
-            signOut().catch(() => undefined),
-            new Promise((resolve) => setTimeout(resolve, 1000)),
-          ]);
-        } catch {
-        } finally {
-          goToLogin();
-        }
-      })();
-    }, 2000);
+    await delay(2000);
+
+    try {
+      await Promise.race([signOut().catch(() => undefined), delay(1000)]);
+    } catch {
+    } finally {
+      goToLogin();
+    }
   }
 
   return (
@@ -318,7 +318,9 @@ export function AccountScreen({
         </View>
 
         <Pressable
-          onPress={handleSignOut}
+          onPress={() => {
+            void handleSignOut();
+          }}
           disabled={isSigningOut}
           accessibilityRole="button"
           accessibilityLabel={isSigningOut ? "Signing out" : "Sign out"}

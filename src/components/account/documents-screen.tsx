@@ -1,6 +1,6 @@
-import { useAuth } from '@clerk/clerk-expo';
-import * as DocumentPicker from 'expo-document-picker';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useAuth } from "@clerk/clerk-expo";
+import * as DocumentPicker from "expo-document-picker";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -9,45 +9,62 @@ import {
   StyleSheet,
   Text,
   View,
-} from 'react-native';
+} from "react-native";
 
-import { ChevronLeftIcon } from '../icons/dashboard-icons';
-import { colors, spacing } from '../../constants/theme';
-import {
-  getHubDocumentsNeedingAction,
-  type HubDocumentItem,
-  type HubDocumentStatus,
-} from '../../data/mock-hub-account';
-import {
-  DocumentsApiError,
-  getOfflineDocuments,
-  listInstructorDocuments,
-  uploadInstructorDocument,
-} from '../../services/documents';
+import { ChevronLeftIcon } from "../icons/dashboard-icons";
+import { colors, spacing } from "../../constants/theme";
+import { getMyProfile } from "../../services/profile";
+
+type DocumentsDto = {
+  driverLicence: string;
+  instructorAccreditation: string;
+  insuranceCertificate: string;
+  vehicleRegistration: string;
+  workingWithChildrenCheck?: string | null;
+  policeCheck?: string | null;
+};
+
+type HubDocumentItem = {
+  id: keyof DocumentsDto;
+  label: string;
+  status: "uploaded" | "required";
+  fileName?: string;
+};
 
 type DocumentsScreenProps = {
   onClose: () => void;
 };
 
 const ANDROID_RIPPLE =
-  Platform.OS === 'android' ? { color: 'rgba(0, 0, 0, 0.06)' } : undefined;
+  Platform.OS === "android" ? { color: "rgba(0, 0, 0, 0.06)" } : undefined;
 
-const STATUS_LABELS: Record<HubDocumentStatus, string> = {
-  uploaded: 'Up to date',
-  expiring: 'Expiring soon',
-  required: 'Upload required',
+const DOC_LABELS: Record<keyof DocumentsDto, string> = {
+  driverLicence: "Driver Licence",
+  instructorAccreditation: "Accreditation",
+  insuranceCertificate: "Insurance Certificate",
+  vehicleRegistration: "Vehicle Registration",
+  workingWithChildrenCheck: "WWCC",
+  policeCheck: "Police Check",
 };
 
-function getStatusTextColor(status: HubDocumentStatus) {
-  if (status === 'uploaded') {
-    return '#16a34a';
-  }
+function mapProfileDocsToItems(docs: DocumentsDto): HubDocumentItem[] {
+  return Object.entries(DOC_LABELS).map(([key, label]) => {
+    const value = docs[key as keyof DocumentsDto];
+    return {
+      id: key as keyof DocumentsDto,
+      label,
+      status: value ? "uploaded" : "required",
+      fileName: value || undefined,
+    };
+  });
+}
 
-  if (status === 'expiring') {
-    return '#d97706';
+function extractFileName(urlOrName?: string | null) {
+  if (!urlOrName) return "No document uploaded yet";
+  if (urlOrName.startsWith("http")) {
+    return urlOrName.split("/").pop() || urlOrName;
   }
-
-  return colors.error;
+  return urlOrName;
 }
 
 type DocumentCardProps = {
@@ -56,8 +73,11 @@ type DocumentCardProps = {
   onUpload: (documentId: string) => void;
 };
 
-function DocumentCard({ document, isUploading, onUpload }: DocumentCardProps) {
-  const statusTextColor = getStatusTextColor(document.status);
+function DocumentCard({
+  document,
+  isUploading,
+  onUpload,
+}: Readonly<DocumentCardProps>) {
   const hasFile = Boolean(document.fileName);
 
   return (
@@ -66,12 +86,19 @@ function DocumentCard({ document, isUploading, onUpload }: DocumentCardProps) {
         <View style={styles.documentInfo}>
           <Text style={styles.documentLabel}>{document.label}</Text>
           <Text style={styles.documentMeta}>
-            {document.detail ?? (hasFile ? document.fileName : 'No document uploaded yet')}
+            {extractFileName(document.fileName)}
           </Text>
         </View>
 
-        <Text style={[styles.statusBadgeText, { color: statusTextColor }]}>
-          {STATUS_LABELS[document.status]}
+        <Text
+          style={[
+            styles.statusBadgeText,
+            {
+              color: document.status === "uploaded" ? "#16a34a" : colors.error,
+            },
+          ]}
+        >
+          {document.status === "uploaded" ? "Up to date" : "Upload required"}
         </Text>
       </View>
 
@@ -82,12 +109,13 @@ function DocumentCard({ document, isUploading, onUpload }: DocumentCardProps) {
         style={({ pressed }) => [
           styles.uploadButton,
           (pressed || isUploading) && styles.pressed,
-        ]}>
+        ]}
+      >
         {isUploading ? (
           <ActivityIndicator size="small" color={colors.primary} />
         ) : (
           <Text style={styles.uploadButtonText}>
-            {hasFile ? 'Replace document' : 'Upload document'}
+            {hasFile ? "Replace document" : "Upload document"}
           </Text>
         )}
       </Pressable>
@@ -95,29 +123,25 @@ function DocumentCard({ document, isUploading, onUpload }: DocumentCardProps) {
   );
 }
 
-export function DocumentsScreen({ onClose }: DocumentsScreenProps) {
+export function DocumentsScreen({ onClose }: Readonly<DocumentsScreenProps>) {
   const { getToken } = useAuth();
-  const [documents, setDocuments] = useState<HubDocumentItem[]>(() =>
-    getOfflineDocuments(),
-  );
+  const [documents, setDocuments] = useState<HubDocumentItem[]>([]);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const actionCount = useMemo(
-    () => getHubDocumentsNeedingAction(documents).length,
-    [documents],
-  );
-  const upToDateCount = Math.max(documents.length - actionCount, 0);
+  const upToDateCount = documents.filter((d) => d.status === "uploaded").length;
 
   const loadDocuments = useCallback(async () => {
     setError(null);
-
     try {
-      const token = await getToken().catch(() => null);
-      const items = await listInstructorDocuments(token);
-      setDocuments(items);
+      const token = await getToken();
+      const profile = await getMyProfile(token);
+
+      if (profile?.documents) {
+        setDocuments(mapProfileDocsToItems(profile.documents as DocumentsDto));
+      }
     } catch {
-      setDocuments(getOfflineDocuments());
+      setError("Failed to load documents from server.");
     }
   }, [getToken]);
 
@@ -126,40 +150,18 @@ export function DocumentsScreen({ onClose }: DocumentsScreenProps) {
   }, [loadDocuments]);
 
   async function handleUpload(documentId: string) {
-    if (uploadingId) {
-      return;
-    }
-
     try {
-      setError(null);
       const result = await DocumentPicker.getDocumentAsync({
-        type: ['application/pdf', 'image/jpeg', 'image/png'],
-        copyToCacheDirectory: true,
+        type: ["application/pdf", "image/jpeg", "image/png"],
       });
 
-      if (result.canceled) {
-        return;
-      }
-
-      const file = result.assets[0];
+      if (result.canceled) return;
+      // const file = result.assets[0];
+      // await updateInstructorDocument(documentId, file);
       setUploadingId(documentId);
-
-      const token = await getToken().catch(() => null);
-      await uploadInstructorDocument({
-        localUri: file.uri,
-        fileName: file.name,
-        mimeType: file.mimeType || 'application/pdf',
-        documentType: documentId,
-        accessToken: token,
-      });
-
       await loadDocuments();
-    } catch (err) {
-      setError(
-        err instanceof DocumentsApiError
-          ? err.message
-          : 'Failed to upload document. Please try again.',
-      );
+    } catch {
+      setError("Failed to upload document.");
     } finally {
       setUploadingId(null);
     }
@@ -168,27 +170,17 @@ export function DocumentsScreen({ onClose }: DocumentsScreenProps) {
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
-        <Pressable
-          onPress={onClose}
-          hitSlop={8}
-          android_ripple={ANDROID_RIPPLE}
-          accessibilityLabel="Back"
-          style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}>
+        <Pressable onPress={onClose} style={styles.backButton}>
           <ChevronLeftIcon size={22} />
         </Pressable>
-
         <Text style={styles.headerTitle}>Documents</Text>
         <View style={styles.headerSpacer} />
       </View>
 
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
         <Text style={styles.introTitle}>Instructor documents</Text>
         <Text style={styles.introText}>
-          Keep your licence, checks, and insurance up to date. Schools may require these before
-          assigning lessons.
+          Keep your licence, checks, and insurance up to date.
         </Text>
 
         <View style={styles.summaryCard}>
@@ -200,17 +192,13 @@ export function DocumentsScreen({ onClose }: DocumentsScreenProps) {
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-        <Text style={styles.sectionLabel}>Your documents</Text>
-
         <View style={styles.documentList}>
-          {documents.map((document) => (
+          {documents.map((doc) => (
             <DocumentCard
-              key={document.id}
-              document={document}
-              isUploading={uploadingId === document.id}
-              onUpload={(id) => {
-                void handleUpload(id);
-              }}
+              key={doc.id}
+              document={doc}
+              isUploading={uploadingId === doc.id}
+              onUpload={handleUpload}
             />
           ))}
         </View>
@@ -225,8 +213,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.md,
     gap: spacing.sm,
@@ -234,16 +222,16 @@ const styles = StyleSheet.create({
   backButton: {
     width: 40,
     height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginLeft: -8,
   },
   headerTitle: {
     flex: 1,
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
-    textAlign: 'center',
+    textAlign: "center",
   },
   headerSpacer: {
     width: 32,
@@ -258,7 +246,7 @@ const styles = StyleSheet.create({
   },
   introTitle: {
     fontSize: 22,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
     letterSpacing: -0.2,
   },
@@ -269,14 +257,14 @@ const styles = StyleSheet.create({
     marginTop: -spacing.sm,
   },
   summaryCard: {
-    backgroundColor: '#f9f9f9',
+    backgroundColor: "#f9f9f9",
     borderRadius: 16,
     padding: spacing.lg,
     gap: 4,
   },
   summaryValue: {
     fontSize: 24,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
     letterSpacing: -0.3,
   },
@@ -286,23 +274,23 @@ const styles = StyleSheet.create({
   },
   sectionLabel: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.textMuted,
     letterSpacing: 0.8,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
   },
   documentList: {
     gap: spacing.sm,
   },
   documentCard: {
-    backgroundColor: '#f9f9f9',
+    backgroundColor: "#f9f9f9",
     borderRadius: 14,
     padding: spacing.md,
     gap: spacing.md,
   },
   documentTopRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
     gap: spacing.sm,
   },
   documentInfo: {
@@ -311,7 +299,7 @@ const styles = StyleSheet.create({
   },
   documentLabel: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
   },
   documentMeta: {
@@ -321,26 +309,26 @@ const styles = StyleSheet.create({
   },
   statusBadgeText: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: "700",
     marginTop: 2,
   },
   uploadButton: {
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
     minWidth: 120,
     minHeight: 34,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: 999,
-    backgroundColor: '#e8f1ff',
-    ...(Platform.OS === 'web'
-      ? ({ outlineStyle: 'none', transition: 'opacity 0.15s ease' } as object)
+    backgroundColor: "#e8f1ff",
+    ...(Platform.OS === "web"
+      ? ({ outlineStyle: "none", transition: "opacity 0.15s ease" } as object)
       : {}),
   },
   uploadButtonText: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.primary,
   },
   errorText: {

@@ -11,6 +11,22 @@ export type InstructorProfile = {
   rating: number;
   vehicleSummary: string;
   avatarUrl?: string | null;
+  address: {
+    line1: string;
+    line2?: string | null;
+    suburb: string;
+    state: string;
+    postcode: string;
+  } | null;
+  carDetails: {
+    make: string;
+    model: string;
+    year: string;
+    registration: string;
+    transmission: string;
+    dualControl: boolean;
+  } | null;
+  documents: any | null;
 };
 
 export type InstructorProfileApiResponse = {
@@ -22,11 +38,19 @@ export type InstructorProfileApiResponse = {
     phone: string | null;
     bio: string | null;
     avatarUrl: string | null;
+    addressLine1: string | null;
+    addressLine2: string | null;
+    suburb: string | null;
+    state: string | null;
+    postcode: string | null;
+    documents: any | null;
     car: {
       make: string;
       model: string;
       year: number;
+      registrationNumber: string;
       transmission: string;
+      dualControl: boolean;
     } | null;
   };
 };
@@ -64,6 +88,26 @@ export async function getMyProfile(
           ? `${data.car.year} ${data.car.make} ${data.car.model}`
           : "No vehicle attached",
         avatarUrl: data.avatarUrl,
+        address: data.addressLine1
+          ? {
+              line1: data.addressLine1,
+              line2: data.addressLine2,
+              suburb: data.suburb || "",
+              state: data.state || "",
+              postcode: data.postcode || "",
+            }
+          : null,
+        carDetails: data.car
+          ? {
+              make: data.car.make,
+              model: data.car.model,
+              year: String(data.car.year),
+              registration: data.car.registrationNumber,
+              transmission: data.car.transmission,
+              dualControl: data.car.dualControl,
+            }
+          : null,
+        documents: data.documents,
       };
     }
 
