@@ -1,7 +1,7 @@
-import { useAuth } from '@clerk/clerk-expo';
-import { router, type Href } from 'expo-router';
-import * as ImagePicker from 'expo-image-picker';
-import { type ReactNode, useState } from 'react';
+import { useAuth } from "@clerk/clerk-expo";
+import { router, type Href } from "expo-router";
+import * as ImagePicker from "expo-image-picker";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -12,31 +12,73 @@ import {
   StyleSheet,
   Text,
   View,
-} from 'react-native';
+} from "react-native";
 
-import { CloseIcon } from '../icons/lesson-detail-icons';
+import { CloseIcon } from "../icons/lesson-detail-icons";
 import {
-  getHubDocumentsNeedingAction,
   HUB_QUICK_LINKS,
-  MOCK_HUB_ACCOUNT,
-  MOCK_HUB_DOCUMENTS,
-  type HubDocumentItem,
   type HubQuickLinkId,
-} from '../../data/mock-hub-account';
-import { colors, spacing } from '../../constants/theme';
+} from "../../data/mock-hub-account";
+import { colors, spacing } from "../../constants/theme";
 import {
   getProfilePhotoUri,
   persistProfilePhotoUri,
   setProfilePhotoUri,
-} from '../../services/profile-photo';
-import { uploadAvatarToBackend } from '../../services/uploadService';
-import { DocumentsIcon } from './account-icons';
+} from "../../services/profile-photo";
+import { uploadAvatarToBackend } from "../../services/uploadService";
+import { getMyProfile, type InstructorProfile } from "../../services/profile";
+import { DocumentsIcon } from "./account-icons";
 import {
   HubPersonalInfoIcon,
   HubPrivacyIcon,
   HubSecurityIcon,
   StarIcon,
-} from './hub-account-icons';
+} from "./hub-account-icons";
+
+type DocumentsDto = {
+  driverLicence: string;
+  instructorAccreditation: string;
+  insuranceCertificate: string;
+  vehicleRegistration: string;
+  workingWithChildrenCheck?: string | null;
+  policeCheck?: string | null;
+};
+
+type HubDocumentStatus = "uploaded" | "expiring" | "required";
+
+type HubDocumentItem = {
+  id: keyof DocumentsDto;
+  label: string;
+  status: HubDocumentStatus;
+  fileName?: string;
+  detail?: string;
+};
+
+const DOC_LABELS: Record<keyof DocumentsDto, string> = {
+  driverLicence: "Driver Licence",
+  instructorAccreditation: "Accreditation",
+  insuranceCertificate: "Insurance Certificate",
+  vehicleRegistration: "Vehicle Registration",
+  workingWithChildrenCheck: "WWCC",
+  policeCheck: "Police Check",
+};
+
+function mapProfileDocsToItems(docs?: any): HubDocumentItem[] {
+  const safeDocs = (docs || {}) as DocumentsDto;
+  return Object.entries(DOC_LABELS).map(([key, label]) => {
+    const value = safeDocs[key as keyof DocumentsDto];
+    return {
+      id: key as keyof DocumentsDto,
+      label,
+      status: value ? "uploaded" : "required",
+      fileName: value || undefined,
+    };
+  });
+}
+
+function getHubDocumentsNeedingAction(documents: HubDocumentItem[]) {
+  return documents.filter((doc) => doc.status !== "uploaded");
+}
 
 type HubAccountScreenProps = {
   onClose: () => void;
@@ -48,12 +90,12 @@ type PressableState = {
 };
 
 const ANDROID_RIPPLE =
-  Platform.OS === 'android' ? { color: 'rgba(0, 0, 0, 0.06)' } : undefined;
+  Platform.OS === "android" ? { color: "rgba(0, 0, 0, 0.06)" } : undefined;
 
 const QUICK_LINK_ICONS = {
-  'personal-info': HubPersonalInfoIcon,
+  "personal-info": HubPersonalInfoIcon,
   security: HubSecurityIcon,
-  'privacy-data': HubPrivacyIcon,
+  "privacy-data": HubPrivacyIcon,
 } as const;
 
 function formatRating(rating: number) {
@@ -66,12 +108,16 @@ type HubQuickCardProps = {
   onPress: () => void;
 };
 
-function HubQuickCard({ label, icon, onPress }: HubQuickCardProps) {
+function HubQuickCard({ label, icon, onPress }: Readonly<HubQuickCardProps>) {
   return (
     <Pressable
       onPress={onPress}
       android_ripple={ANDROID_RIPPLE}
-      style={({ pressed }: PressableState) => [styles.quickCard, pressed && styles.pressed]}>
+      style={({ pressed }: PressableState) => [
+        styles.quickCard,
+        pressed && styles.pressed,
+      ]}
+    >
       <View style={styles.quickCardIcon}>{icon}</View>
       <Text style={styles.quickCardLabel}>{label}</Text>
     </Pressable>
@@ -79,18 +125,20 @@ function HubQuickCard({ label, icon, onPress }: HubQuickCardProps) {
 }
 
 const QUICK_LINK_ROUTES: Record<HubQuickLinkId, Href> = {
-  'personal-info': '/dashboard/account/hub/personal-info',
-  security: '/dashboard/account/hub/security',
-  'privacy-data': '/dashboard/account/hub/privacy-data',
+  "personal-info": "/dashboard/account/hub/personal-info",
+  security: "/dashboard/account/hub/security",
+  "privacy-data": "/dashboard/account/hub/privacy-data",
 };
 
-const DOCUMENT_STATUS_LABELS: Record<HubDocumentItem['status'], string> = {
-  uploaded: 'Up to date',
-  expiring: 'Expiring soon',
-  required: 'Upload required',
+const DOCUMENT_STATUS_LABELS: Record<HubDocumentItem["status"], string> = {
+  uploaded: "Up to date",
+  expiring: "Expiring soon",
+  required: "Upload required",
 };
 
-function HubDocumentsCard({ documents }: { documents: HubDocumentItem[] }) {
+function HubDocumentsCard({
+  documents,
+}: Readonly<{ documents: HubDocumentItem[] }>) {
   const actionItems = getHubDocumentsNeedingAction(documents);
   const allUpToDate = actionItems.length === 0;
 
@@ -99,12 +147,14 @@ function HubDocumentsCard({ documents }: { documents: HubDocumentItem[] }) {
       <View style={styles.documentsTop}>
         <View style={styles.documentsText}>
           <Text style={styles.documentsTitle}>
-            {allUpToDate ? 'Documents are up to date' : 'Documents need attention'}
+            {allUpToDate
+              ? "Documents are up to date"
+              : "Documents need attention"}
           </Text>
           <Text style={styles.documentsDescription}>
             {allUpToDate
-              ? 'Your instructor documents are current. Upload new files here when something changes or expires.'
-              : 'Upload or renew documents here. Schools may require these before assigning lessons.'}
+              ? "Your instructor documents are current. Upload new files here when something changes or expires."
+              : "Upload or renew documents here. Schools may require these before assigning lessons."}
           </Text>
         </View>
 
@@ -120,8 +170,10 @@ function HubDocumentsCard({ documents }: { documents: HubDocumentItem[] }) {
               <View
                 style={[
                   styles.documentStatusDot,
-                  document.status === 'required' && styles.documentStatusDotRequired,
-                  document.status === 'expiring' && styles.documentStatusDotExpiring,
+                  document.status === "required" &&
+                    styles.documentStatusDotRequired,
+                  document.status === "expiring" &&
+                    styles.documentStatusDotExpiring,
                 ]}
               />
               <View style={styles.documentRowText}>
@@ -143,9 +195,10 @@ function HubDocumentsCard({ documents }: { documents: HubDocumentItem[] }) {
         ]}
         onPress={() => {
           // TODO: connect to documents upload flow / NestJS API
-        }}>
+        }}
+      >
         <Text style={styles.documentsButtonText}>
-          {allUpToDate ? 'Manage documents' : 'Upload documents'}
+          {allUpToDate ? "Manage documents" : "Upload documents"}
         </Text>
       </Pressable>
     </View>
@@ -154,15 +207,17 @@ function HubDocumentsCard({ documents }: { documents: HubDocumentItem[] }) {
 
 function HubAccountHomeContent({
   profile,
+  documents,
   photoUri,
   isUploadingPhoto,
   onPickPhoto,
-}: {
-  profile: typeof MOCK_HUB_ACCOUNT;
+}: Readonly<{
+  profile: InstructorProfile;
+  documents: HubDocumentItem[];
   photoUri: string | null;
   isUploadingPhoto: boolean;
   onPickPhoto: () => void;
-}) {
+}>) {
   return (
     <View style={styles.homeContent}>
       <View style={styles.profileSection}>
@@ -171,13 +226,14 @@ function HubAccountHomeContent({
           disabled={isUploadingPhoto}
           android_ripple={ANDROID_RIPPLE}
           accessibilityLabel={
-            photoUri ? 'Change profile photo' : 'Upload profile photo'
+            photoUri ? "Change profile photo" : "Upload profile photo"
           }
           style={({ pressed }) => [
             styles.avatarButton,
             pressed && styles.pressed,
             isUploadingPhoto && styles.avatarButtonDisabled,
-          ]}>
+          ]}
+        >
           <View style={styles.avatar}>
             {isUploadingPhoto ? (
               <ActivityIndicator color={colors.primary} />
@@ -188,7 +244,9 @@ function HubAccountHomeContent({
             )}
           </View>
           <View style={styles.avatarBadge}>
-            <Text style={styles.avatarBadgeText}>{photoUri ? 'Edit' : 'Add'}</Text>
+            <Text style={styles.avatarBadgeText}>
+              {photoUri ? "Edit" : "Add"}
+            </Text>
           </View>
         </Pressable>
 
@@ -198,7 +256,9 @@ function HubAccountHomeContent({
           <Text style={styles.profileName}>{profile.name}</Text>
           <View style={styles.ratingBadge}>
             <StarIcon />
-            <Text style={styles.ratingText}>{formatRating(profile.rating)}</Text>
+            <Text style={styles.ratingText}>
+              {formatRating(profile.rating)}
+            </Text>
           </View>
         </View>
 
@@ -222,35 +282,62 @@ function HubAccountHomeContent({
 
       <Text style={styles.sectionTitle}>Documents</Text>
 
-      <HubDocumentsCard documents={MOCK_HUB_DOCUMENTS} />
+      <HubDocumentsCard documents={documents} />
     </View>
   );
 }
 
-export function HubAccountScreen({ onClose }: HubAccountScreenProps) {
+export function HubAccountScreen({ onClose }: Readonly<HubAccountScreenProps>) {
   const { getToken } = useAuth();
-  const profile = MOCK_HUB_ACCOUNT;
-  const [photoUri, setPhotoUri] = useState<string | null>(() => getProfilePhotoUri());
+
+  const [profile, setProfile] = useState<InstructorProfile | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const [photoUri, setPhotoUri] = useState<string | null>(() =>
+    getProfilePhotoUri(),
+  );
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+
+  const loadProfile = useCallback(async () => {
+    try {
+      const token = await getToken();
+      const data = await getMyProfile(token);
+      setProfile(data);
+
+      if (data?.avatarUrl && !getProfilePhotoUri()) {
+        setPhotoUri(data.avatarUrl);
+        setProfilePhotoUri(data.avatarUrl);
+      }
+    } catch (error) {
+      console.error("Failed to load hub account profile", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [getToken]);
+
+  useEffect(() => {
+    void loadProfile();
+  }, [loadProfile]);
 
   async function handlePickPhoto() {
     if (isUploadingPhoto) {
       return;
     }
 
-    if (Platform.OS !== 'web') {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
+    if (Platform.OS !== "web") {
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
         Alert.alert(
-          'Permission required',
-          'Allow photo library access to upload a profile picture.',
+          "Permission required",
+          "Allow photo library access to upload a profile picture.",
         );
         return;
       }
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
+      mediaTypes: ["images"],
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
@@ -262,13 +349,13 @@ export function HubAccountScreen({ onClose }: HubAccountScreenProps) {
 
     const asset = result.assets[0];
     const localUri = asset.uri;
-    const fileName = asset.fileName || localUri.split('/').pop() || 'profile-photo.jpg';
-    const mimeType = asset.mimeType || 'image/jpeg';
+    const fileName =
+      asset.fileName || localUri.split("/").pop() || "profile-photo.jpg";
+    const mimeType = asset.mimeType || "image/jpeg";
 
     setIsUploadingPhoto(true);
 
     try {
-      // Persist as a data URL so the Account tab can show it after navigation.
       const persistentUri = await persistProfilePhotoUri(localUri);
       setPhotoUri(persistentUri);
 
@@ -300,7 +387,11 @@ export function HubAccountScreen({ onClose }: HubAccountScreenProps) {
           hitSlop={8}
           android_ripple={ANDROID_RIPPLE}
           accessibilityLabel="Close"
-          style={({ pressed }) => [styles.closeButton, pressed && styles.pressed]}>
+          style={({ pressed }) => [
+            styles.closeButton,
+            pressed && styles.pressed,
+          ]}
+        >
           <CloseIcon size={22} />
         </Pressable>
 
@@ -311,15 +402,25 @@ export function HubAccountScreen({ onClose }: HubAccountScreenProps) {
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}>
-        <HubAccountHomeContent
-          profile={profile}
-          photoUri={photoUri}
-          isUploadingPhoto={isUploadingPhoto}
-          onPickPhoto={() => {
-            void handlePickPhoto();
-          }}
-        />
+        showsVerticalScrollIndicator={false}
+      >
+        {isLoading ? (
+          <View style={styles.loaderContainer}>
+            <ActivityIndicator size="large" color={colors.primary} />
+          </View>
+        ) : profile ? (
+          <HubAccountHomeContent
+            profile={profile}
+            documents={mapProfileDocsToItems(profile.documents)}
+            photoUri={photoUri}
+            isUploadingPhoto={isUploadingPhoto}
+            onPickPhoto={() => {
+              void handlePickPhoto();
+            }}
+          />
+        ) : (
+          <Text style={styles.errorText}>Failed to load profile data.</Text>
+        )}
       </ScrollView>
     </View>
   );
@@ -331,9 +432,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.sm,
     paddingBottom: spacing.md,
@@ -341,12 +442,12 @@ const styles = StyleSheet.create({
   closeButton: {
     width: 40,
     height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerTitle: {
     fontSize: 17,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
   },
   headerSpacer: {
@@ -358,17 +459,26 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: spacing.xl,
   },
+  loaderContainer: {
+    padding: 40,
+    alignItems: "center",
+  },
+  errorText: {
+    textAlign: "center",
+    marginTop: 40,
+    color: colors.textSecondary,
+  },
   homeContent: {
     paddingTop: spacing.xl,
     gap: spacing.xl,
   },
   profileSection: {
-    alignItems: 'center',
+    alignItems: "center",
     gap: spacing.sm,
     paddingHorizontal: spacing.xl,
   },
   avatarButton: {
-    position: 'relative',
+    position: "relative",
     marginBottom: spacing.xs,
   },
   avatarButtonDisabled: {
@@ -378,22 +488,22 @@ const styles = StyleSheet.create({
     width: 88,
     height: 88,
     borderRadius: 44,
-    backgroundColor: '#e8f1ff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
+    backgroundColor: "#e8f1ff",
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
   },
   avatarImage: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
   },
   avatarText: {
     fontSize: 32,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.primary,
   },
   avatarBadge: {
-    position: 'absolute',
+    position: "absolute",
     right: -2,
     bottom: -2,
     backgroundColor: colors.primary,
@@ -405,7 +515,7 @@ const styles = StyleSheet.create({
   },
   avatarBadgeText: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.white,
   },
   photoHint: {
@@ -414,27 +524,27 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.sm,
   },
   profileName: {
     fontSize: 22,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
   },
   ratingBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
-    backgroundColor: '#fef3c7',
+    backgroundColor: "#fef3c7",
     borderRadius: 999,
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
   ratingText: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
   },
   profileEmail: {
@@ -442,35 +552,35 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   quickLinksRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: spacing.md,
     paddingHorizontal: spacing.xl,
   },
   quickCard: {
     flex: 1,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: "#f3f4f6",
     borderRadius: 16,
     paddingVertical: spacing.lg,
     paddingHorizontal: spacing.sm,
-    alignItems: 'center',
+    alignItems: "center",
     gap: spacing.md,
     minHeight: 108,
   },
   quickCardIcon: {
     height: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   quickCardLabel: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text,
-    textAlign: 'center',
+    textAlign: "center",
     lineHeight: 18,
   },
   sectionTitle: {
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
     paddingHorizontal: spacing.xl,
   },
@@ -484,9 +594,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   documentsTop: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: spacing.md,
-    alignItems: 'flex-start',
+    alignItems: "flex-start",
   },
   documentsText: {
     flex: 1,
@@ -494,7 +604,7 @@ const styles = StyleSheet.create({
   },
   documentsTitle: {
     fontSize: 17,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
     lineHeight: 24,
   },
@@ -507,17 +617,17 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 12,
-    backgroundColor: '#e8f1ff',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#e8f1ff",
+    alignItems: "center",
+    justifyContent: "center",
   },
   documentsList: {
     gap: spacing.md,
     paddingTop: spacing.xs,
   },
   documentRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
     gap: spacing.md,
   },
   documentStatusDot: {
@@ -531,7 +641,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.error,
   },
   documentStatusDotExpiring: {
-    backgroundColor: '#f59e0b',
+    backgroundColor: "#f59e0b",
   },
   documentRowText: {
     flex: 1,
@@ -539,7 +649,7 @@ const styles = StyleSheet.create({
   },
   documentLabel: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text,
   },
   documentDetail: {
@@ -547,15 +657,15 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   documentsButton: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#f3f4f6',
+    alignSelf: "flex-start",
+    backgroundColor: "#f3f4f6",
     borderRadius: 999,
     paddingHorizontal: spacing.lg,
     paddingVertical: 10,
   },
   documentsButtonText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text,
   },
   pressed: {

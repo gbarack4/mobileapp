@@ -1,5 +1,5 @@
-import { useAuth, useUser } from '@clerk/clerk-expo';
-import { useEffect, useState } from 'react';
+import { useAuth, useUser } from "@clerk/clerk-expo";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -8,72 +8,39 @@ import {
   StyleSheet,
   Text,
   View,
-} from 'react-native';
+} from "react-native";
 
-import { AuthTextField } from '../auth/auth-text-field';
-import { ChevronLeftIcon } from '../icons/dashboard-icons';
-import { colors, spacing } from '../../constants/theme';
-import {
-  getMyAccountProfile,
-  getOfflineAccountProfile,
-  ProfileApiError,
-  updateMyAccountProfile,
-} from '../../services/profile';
-import { getSessionEmail, setSessionEmail } from '../../services/session';
+import { colors, spacing } from "../../constants/theme";
+import { getMyProfile } from "../../services/profile";
+import { getSessionEmail, setSessionEmail } from "../../services/session";
+import { AuthTextField } from "../auth/auth-text-field";
+import { ChevronLeftIcon } from "../icons/dashboard-icons";
 
 type HubPersonalInfoScreenProps = {
   onBack: () => void;
 };
 
-type FocusedField = 'firstName' | 'lastName' | 'phone' | 'address' | null;
+type FocusedField = "firstName" | "lastName" | "phone" | "address" | null;
 
 const ANDROID_RIPPLE =
-  Platform.OS === 'android' ? { color: 'rgba(0, 0, 0, 0.06)' } : undefined;
+  Platform.OS === "android" ? { color: "rgba(0, 0, 0, 0.06)" } : undefined;
 
-function applyProfileToForm(
-  profile: {
-    email: string;
-    firstName: string | null;
-    lastName: string | null;
-    phone: string | null;
-    address: string | null;
-  },
-  setters: {
-    setEmail: (value: string) => void;
-    setFirstName: (value: string) => void;
-    setLastName: (value: string) => void;
-    setPhone: (value: string) => void;
-    setAddress: (value: string) => void;
-  },
-) {
-  setters.setEmail(profile.email);
-  setters.setFirstName(profile.firstName ?? '');
-  setters.setLastName(profile.lastName ?? '');
-  setters.setPhone(profile.phone ?? '');
-  setters.setAddress(profile.address ?? '');
-  setSessionEmail(profile.email);
-}
-
-export function HubPersonalInfoScreen({ onBack }: HubPersonalInfoScreenProps) {
+export function HubPersonalInfoScreen({
+  onBack,
+}: Readonly<HubPersonalInfoScreenProps>) {
   const { getToken } = useAuth();
   const { user } = useUser();
   const clerkEmail = user?.primaryEmailAddress?.emailAddress ?? null;
 
-  const [email, setEmail] = useState(() => {
-    const offline = getOfflineAccountProfile();
-    return clerkEmail || getSessionEmail() || offline.email;
-  });
-  const [firstName, setFirstName] = useState(
-    () => getOfflineAccountProfile().firstName ?? '',
-  );
-  const [lastName, setLastName] = useState(
-    () => getOfflineAccountProfile().lastName ?? '',
-  );
-  const [phone, setPhone] = useState(() => getOfflineAccountProfile().phone ?? '');
-  const [address, setAddress] = useState(
-    () => getOfflineAccountProfile().address ?? '',
-  );
+  // Початкові стани тепер порожні (без виклику мокових функцій)
+  const [email, setEmail] = useState(clerkEmail || getSessionEmail() || "");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [address, setAddress] = useState("");
+
   const [focusedField, setFocusedField] = useState<FocusedField>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -81,9 +48,9 @@ export function HubPersonalInfoScreen({ onBack }: HubPersonalInfoScreenProps) {
   useEffect(() => {
     if (clerkEmail) {
       setSessionEmail(clerkEmail);
-      setEmail(clerkEmail);
+      if (!email) setEmail(clerkEmail);
     }
-  }, [clerkEmail]);
+  }, [clerkEmail, email]);
 
   useEffect(() => {
     let cancelled = false;
@@ -91,21 +58,42 @@ export function HubPersonalInfoScreen({ onBack }: HubPersonalInfoScreenProps) {
     async function load() {
       try {
         const token = await getToken();
-        const profile = await getMyAccountProfile(token);
+        const profile = await getMyProfile(token);
 
         if (cancelled || !profile) {
           return;
         }
 
-        applyProfileToForm(profile, {
-          setEmail,
-          setFirstName,
-          setLastName,
-          setPhone,
-          setAddress,
-        });
+        // Розбиваємо "John Doe" на firstName та lastName
+        const nameParts = profile.name ? profile.name.split(" ") : [];
+        setFirstName(nameParts[0] || "");
+        setLastName(nameParts.slice(1).join(" ") || "");
+
+        setEmail(profile.email || clerkEmail || "");
+        setPhone(profile.phone || "");
+
+        // Мапимо об'єкт address в один рядок
+        if (profile.address) {
+          const addr = profile.address;
+          const fullAddress = [
+            addr.line1,
+            addr.line2,
+            addr.suburb,
+            addr.state,
+            addr.postcode,
+          ]
+            .filter(Boolean)
+            .join(", ");
+          setAddress(fullAddress);
+        }
+
+        setSessionEmail(profile.email || clerkEmail || "");
       } catch {
-        // Keep the offline/mock values already on screen.
+        setError("Failed to load profile data.");
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
       }
     }
 
@@ -114,45 +102,14 @@ export function HubPersonalInfoScreen({ onBack }: HubPersonalInfoScreenProps) {
     return () => {
       cancelled = true;
     };
-  }, [getToken]);
+  }, [getToken, clerkEmail]);
 
   async function handleSave() {
-    if (isSaving) {
-      return;
-    }
+    if (isSaving) return;
 
     setError(null);
     setSuccess(null);
     setIsSaving(true);
-
-    try {
-      const token = await getToken();
-      const profile = await updateMyAccountProfile(
-        {
-          firstName,
-          lastName,
-          phoneNumber: phone,
-          address,
-        },
-        token,
-      );
-
-      setEmail(profile.email);
-      setFirstName(profile.firstName ?? '');
-      setLastName(profile.lastName ?? '');
-      setPhone(profile.phone ?? '');
-      setAddress(profile.address ?? '');
-      setSessionEmail(profile.email);
-      setSuccess('Personal info saved.');
-    } catch (err) {
-      setError(
-        err instanceof ProfileApiError
-          ? err.message
-          : 'Unable to save personal info. Please try again.',
-      );
-    } finally {
-      setIsSaving(false);
-    }
   }
 
   return (
@@ -163,7 +120,11 @@ export function HubPersonalInfoScreen({ onBack }: HubPersonalInfoScreenProps) {
           hitSlop={8}
           android_ripple={ANDROID_RIPPLE}
           accessibilityLabel="Back"
-          style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}>
+          style={({ pressed }) => [
+            styles.backButton,
+            pressed && styles.pressed,
+          ]}
+        >
           <ChevronLeftIcon size={22} />
         </Pressable>
 
@@ -175,90 +136,104 @@ export function HubPersonalInfoScreen({ onBack }: HubPersonalInfoScreenProps) {
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}>
-        <Text style={styles.description}>
-          Info about you and your preferences across InstructorHub services. Some details may be
-          visible to schools you work with.
-        </Text>
-
-        <View style={styles.form}>
-          <Text style={styles.sectionTitle}>Basic info</Text>
-
-          <AuthTextField
-            label="First name"
-            value={firstName}
-            onChangeText={setFirstName}
-            onFocus={() => setFocusedField('firstName')}
-            onBlur={() => setFocusedField(null)}
-            focused={focusedField === 'firstName'}
-            autoCapitalize="words"
-            editable={!isSaving}
+        showsVerticalScrollIndicator={false}
+      >
+        {isLoading ? (
+          <ActivityIndicator
+            size="large"
+            color={colors.primary}
+            style={styles.loader}
           />
+        ) : (
+          <>
+            <Text style={styles.description}>
+              Info about you and your preferences across InstructorHub services.
+              Some details may be visible to schools you work with.
+            </Text>
 
-          <AuthTextField
-            label="Last name"
-            value={lastName}
-            onChangeText={setLastName}
-            onFocus={() => setFocusedField('lastName')}
-            onBlur={() => setFocusedField(null)}
-            focused={focusedField === 'lastName'}
-            autoCapitalize="words"
-            editable={!isSaving}
-          />
+            <View style={styles.form}>
+              <Text style={styles.sectionTitle}>Basic info</Text>
 
-          <AuthTextField
-            label="Email"
-            value={email}
-            focused={false}
-            editable={false}
-            autoCapitalize="none"
-          />
+              <AuthTextField
+                label="First name"
+                value={firstName}
+                onChangeText={setFirstName}
+                onFocus={() => setFocusedField("firstName")}
+                onBlur={() => setFocusedField(null)}
+                focused={focusedField === "firstName"}
+                autoCapitalize="words"
+                editable={!isSaving}
+              />
 
-          <AuthTextField
-            label="Phone"
-            value={phone}
-            onChangeText={setPhone}
-            onFocus={() => setFocusedField('phone')}
-            onBlur={() => setFocusedField(null)}
-            focused={focusedField === 'phone'}
-            keyboardType="phone-pad"
-            editable={!isSaving}
-          />
+              <AuthTextField
+                label="Last name"
+                value={lastName}
+                onChangeText={setLastName}
+                onFocus={() => setFocusedField("lastName")}
+                onBlur={() => setFocusedField(null)}
+                focused={focusedField === "lastName"}
+                autoCapitalize="words"
+                editable={!isSaving}
+              />
 
-          <Text style={styles.sectionTitle}>Contact info</Text>
+              <AuthTextField
+                label="Email"
+                value={email}
+                focused={false}
+                editable={false}
+                autoCapitalize="none"
+              />
 
-          <AuthTextField
-            label="Address"
-            value={address}
-            onChangeText={setAddress}
-            onFocus={() => setFocusedField('address')}
-            onBlur={() => setFocusedField(null)}
-            focused={focusedField === 'address'}
-            autoCapitalize="words"
-            editable={!isSaving}
-          />
+              <AuthTextField
+                label="Phone"
+                value={phone}
+                onChangeText={setPhone}
+                onFocus={() => setFocusedField("phone")}
+                onBlur={() => setFocusedField(null)}
+                focused={focusedField === "phone"}
+                keyboardType="phone-pad"
+                editable={!isSaving}
+              />
 
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
-          {success ? <Text style={styles.successText}>{success}</Text> : null}
+              <Text style={styles.sectionTitle}>Contact info</Text>
 
-          <Pressable
-            onPress={() => {
-              void handleSave();
-            }}
-            disabled={isSaving}
-            android_ripple={ANDROID_RIPPLE}
-            style={({ pressed }) => [
-              styles.saveButton,
-              (pressed || isSaving) && styles.pressed,
-              isSaving && styles.saveButtonDisabled,
-            ]}>
-            {isSaving ? (
-              <ActivityIndicator color={colors.white} />
-            ) : (
-              <Text style={styles.saveButtonText}>Save changes</Text>
-            )}
-          </Pressable>
-        </View>
+              <AuthTextField
+                label="Address"
+                value={address}
+                onChangeText={setAddress}
+                onFocus={() => setFocusedField("address")}
+                onBlur={() => setFocusedField(null)}
+                focused={focusedField === "address"}
+                autoCapitalize="words"
+                editable={!isSaving}
+              />
+
+              {error ? <Text style={styles.errorText}>{error}</Text> : null}
+              {success ? (
+                <Text style={styles.successText}>{success}</Text>
+              ) : null}
+
+              <Pressable
+                onPress={() => {
+                  void handleSave();
+                }}
+                disabled={isSaving}
+                android_ripple={ANDROID_RIPPLE}
+                style={({ pressed }) => [
+                  styles.saveButton,
+                  (pressed || isSaving) && styles.pressed,
+                  isSaving && styles.saveButtonDisabled,
+                ]}
+              >
+                {isSaving ? (
+                  <ActivityIndicator color={colors.white} />
+                ) : (
+                  <Text style={styles.saveButtonText}>Save changes</Text>
+                )}
+              </Pressable>
+            </View>
+          </>
+        )}
       </ScrollView>
     </View>
   );
@@ -270,9 +245,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.sm,
     paddingBottom: spacing.md,
@@ -280,16 +255,17 @@ const styles = StyleSheet.create({
   backButton: {
     width: 40,
     height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: -8,
   },
   headerTitle: {
     fontSize: 17,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
   },
   headerSpacer: {
-    width: 40,
+    width: 32,
   },
   scroll: {
     flex: 1,
@@ -297,6 +273,9 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: spacing.xxxl,
     gap: spacing.lg,
+  },
+  loader: {
+    marginTop: 40,
   },
   description: {
     fontSize: 14,
@@ -310,9 +289,9 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.textSecondary,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     letterSpacing: 0.4,
     marginTop: spacing.sm,
   },
@@ -322,15 +301,15 @@ const styles = StyleSheet.create({
   },
   successText: {
     fontSize: 14,
-    color: '#15803d',
+    color: "#15803d",
   },
   saveButton: {
     marginTop: spacing.sm,
     minHeight: 48,
     borderRadius: 12,
     backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   saveButtonDisabled: {
     opacity: 0.7,
@@ -338,7 +317,7 @@ const styles = StyleSheet.create({
   saveButtonText: {
     color: colors.white,
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   pressed: {
     opacity: 0.85,
