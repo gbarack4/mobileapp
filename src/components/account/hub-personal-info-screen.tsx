@@ -32,7 +32,6 @@ export function HubPersonalInfoScreen({
   const { user } = useUser();
   const clerkEmail = user?.primaryEmailAddress?.emailAddress ?? null;
 
-  // Початкові стани тепер порожні (без виклику мокових функцій)
   const [email, setEmail] = useState(clerkEmail || getSessionEmail() || "");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -64,7 +63,6 @@ export function HubPersonalInfoScreen({
           return;
         }
 
-        // Розбиваємо "John Doe" на firstName та lastName
         const nameParts = profile.name ? profile.name.split(" ") : [];
         setFirstName(nameParts[0] || "");
         setLastName(nameParts.slice(1).join(" ") || "");
@@ -72,7 +70,6 @@ export function HubPersonalInfoScreen({
         setEmail(profile.email || clerkEmail || "");
         setPhone(profile.phone || "");
 
-        // Мапимо об'єкт address в один рядок
         if (profile.address) {
           const addr = profile.address;
           const fullAddress = [
