@@ -21,7 +21,7 @@ import {
   type InstructorVehicle,
 } from "../../data/mock-instructor-vehicle";
 import type { TransmissionType, YesNo } from "../../types/onboarding";
-import { useProfileQuery } from "@/hooks/use-profile";
+import { useProfileQuery, useUpdateVehicleMutation } from "@/hooks/use-profile";
 
 type VehiclesScreenProps = {
   onClose: () => void;
@@ -33,6 +33,7 @@ const ANDROID_RIPPLE =
   Platform.OS === "android" ? { color: "rgba(0, 0, 0, 0.06)" } : undefined;
 
 export function VehiclesScreen({ onClose }: Readonly<VehiclesScreenProps>) {
+  const updateVehicle = useUpdateVehicleMutation();
   const { data: profile, isLoading: isProfileLoading } = useProfileQuery();
 
   const [vehicle, setVehicle] = useState<InstructorVehicle>({
@@ -99,9 +100,24 @@ export function VehiclesScreen({ onClose }: Readonly<VehiclesScreenProps>) {
       return;
     }
 
-    // TODO: connect to NestJS instructor vehicle API (PATCH request)
-    console.log("Vehicle data to save:", vehicle);
-    onClose();
+    updateVehicle.mutate(
+      {
+        make: vehicle.make.trim(),
+        model: vehicle.model.trim(),
+        year: vehicle.year.trim(),
+        registrationNumber: vehicle.registration.trim(),
+        transmission: vehicle.transmission,
+        dualControl: vehicle.dualControl,
+      },
+      {
+        onSuccess: () => {
+          onClose();
+        },
+        onError: () => {
+          setError("Failed to update vehicle. Please try again.");
+        },
+      },
+    );
   }
 
   if (isProfileLoading) {
@@ -246,13 +262,18 @@ export function VehiclesScreen({ onClose }: Readonly<VehiclesScreenProps>) {
       <View style={styles.footer}>
         <Pressable
           onPress={handleSave}
+          disabled={updateVehicle.isPending}
           android_ripple={ANDROID_RIPPLE}
           style={({ pressed }) => [
             styles.saveButton,
-            pressed && styles.pressed,
+            (pressed || updateVehicle.isPending) && styles.pressed,
           ]}
         >
-          <Text style={styles.saveButtonText}>Save vehicle</Text>
+          {updateVehicle.isPending ? (
+            <ActivityIndicator color={colors.white} />
+          ) : (
+            <Text style={styles.saveButtonText}>Save vehicle</Text>
+          )}
         </Pressable>
       </View>
     </KeyboardAvoidingView>

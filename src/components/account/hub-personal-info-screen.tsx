@@ -10,7 +10,10 @@ import {
   View,
 } from "react-native";
 
-import { useProfileQuery } from "@/hooks/use-profile";
+import {
+  useProfileQuery,
+  useUpdatePersonalInfoMutation,
+} from "@/hooks/use-profile";
 import { colors, spacing } from "../../constants/theme";
 import { getSessionEmail, setSessionEmail } from "../../services/session";
 import { AuthTextField } from "../auth/auth-text-field";
@@ -32,14 +35,17 @@ export function HubPersonalInfoScreen({
   const clerkEmail = user?.primaryEmailAddress?.emailAddress ?? null;
 
   const { data: profile, isLoading: isProfileLoading } = useProfileQuery();
+  const updatePersonalInfo = useUpdatePersonalInfoMutation();
 
   const [email, setEmail] = useState(clerkEmail || getSessionEmail() || "");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
+  const [originalAddress, setOriginalAddress] = useState("");
 
   const [focusedField, setFocusedField] = useState<FocusedField>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (clerkEmail) {
@@ -69,9 +75,39 @@ export function HubPersonalInfoScreen({
           .filter(Boolean)
           .join(", ");
         setAddress(fullAddress);
+        setOriginalAddress(fullAddress);
       }
     }
   }, [profile, clerkEmail]);
+
+  function handleSave() {
+    setError(null);
+
+    const updateData: any = {
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      phone: phone.trim(),
+    };
+
+    if (address.trim() !== originalAddress) {
+      updateData.address = {
+        line1: address.trim(),
+        line2: null,
+        suburb: undefined,
+        state: undefined,
+        postcode: undefined,
+      };
+    }
+
+    updatePersonalInfo.mutate(updateData, {
+      onSuccess: () => {
+        onBack();
+      },
+      onError: () => {
+        setError("Failed to update personal info. Please try again.");
+      },
+    });
+  }
 
   return (
     <View style={styles.screen}>
@@ -165,10 +201,22 @@ export function HubPersonalInfoScreen({
                 autoCapitalize="words"
               />
 
-              <Pressable android_ripple={ANDROID_RIPPLE}>
-                <ActivityIndicator color={colors.white} />
+              {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-                <Text style={styles.saveButtonText}>Save changes</Text>
+              <Pressable
+                onPress={handleSave}
+                disabled={updatePersonalInfo.isPending}
+                android_ripple={ANDROID_RIPPLE}
+                style={({ pressed }) => [
+                  styles.saveButton,
+                  (pressed || updatePersonalInfo.isPending) && styles.pressed,
+                ]}
+              >
+                {updatePersonalInfo.isPending ? (
+                  <ActivityIndicator color={colors.white} />
+                ) : (
+                  <Text style={styles.saveButtonText}>Save changes</Text>
+                )}
               </Pressable>
             </View>
           </>

@@ -55,6 +55,28 @@ export type InstructorProfileApiResponse = {
   };
 };
 
+export type UpdatePersonalInfoDto = {
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  address?: {
+    line1?: string;
+    line2?: string | null;
+    suburb?: string;
+    state?: string;
+    postcode?: string;
+  };
+};
+
+export type UpdateVehicleDto = {
+  make?: string;
+  model?: string;
+  year?: string;
+  registrationNumber?: string;
+  transmission?: "automatic" | "manual" | "both";
+  dualControl?: "yes" | "no";
+};
+
 export async function getMyProfile(
   accessToken?: string | null,
 ): Promise<InstructorProfile | null> {
@@ -119,5 +141,61 @@ export async function getMyProfile(
   } catch (error) {
     console.error("Profile fetch error:", error);
     return null;
+  }
+}
+
+export async function updatePersonalInfo(
+  accessToken: string,
+  data: UpdatePersonalInfoDto,
+): Promise<boolean> {
+  if (!API_BASE_URL) return false;
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/instructors/personal-info`, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to update personal info: ${errorText}`);
+    }
+
+    return true;
+  } catch (error) {
+    console.error("updatePersonalInfo error:", error);
+    throw error;
+  }
+}
+
+export async function updateVehicle(
+  accessToken: string,
+  data: UpdateVehicleDto,
+): Promise<boolean> {
+  if (!API_BASE_URL) return false;
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/instructors/vehicle`, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to update vehicle: ${errorText}`);
+    }
+
+    return true;
+  } catch (error) {
+    console.error("updateVehicle error:", error);
+    throw error;
   }
 }
