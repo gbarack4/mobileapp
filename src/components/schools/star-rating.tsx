@@ -48,7 +48,7 @@ export function StarRating({
   reviewCount,
   variant = "card",
   showReviewCount = true,
-}: StarRatingProps) {
+}: Readonly<StarRatingProps>) {
   const reviewLabel =
     variant === "detail"
       ? `(${reviewCount} reviews)`
