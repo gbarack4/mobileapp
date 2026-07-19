@@ -1,7 +1,7 @@
 import { useAuth } from "@clerk/clerk-expo";
-import { router, type Href } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
-import { type ReactNode, useCallback, useEffect, useState } from "react";
+import { router, type Href } from "expo-router";
+import { useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -14,19 +14,19 @@ import {
   View,
 } from "react-native";
 
-import { CloseIcon } from "../icons/lesson-detail-icons";
+import { colors, spacing } from "../../constants/theme";
 import {
   HUB_QUICK_LINKS,
   type HubQuickLinkId,
 } from "../../data/mock-hub-account";
-import { colors, spacing } from "../../constants/theme";
+import { type InstructorProfile } from "../../services/profile";
 import {
   getProfilePhotoUri,
   persistProfilePhotoUri,
   setProfilePhotoUri,
 } from "../../services/profile-photo";
 import { uploadAvatarToBackend } from "../../services/uploadService";
-import { getMyProfile, type InstructorProfile } from "../../services/profile";
+import { CloseIcon } from "../icons/lesson-detail-icons";
 import { DocumentsIcon } from "./account-icons";
 import {
   HubPersonalInfoIcon,
@@ -34,6 +34,9 @@ import {
   HubSecurityIcon,
   StarIcon,
 } from "./hub-account-icons";
+
+import { useProfileQuery } from "@/hooks/use-profile";
+import { useQueryClient } from "@tanstack/react-query";
 
 type DocumentsDto = {
   driverLicence: string;
@@ -194,7 +197,7 @@ function HubDocumentsCard({
           pressed && styles.pressed,
         ]}
         onPress={() => {
-          // TODO: connect to documents upload flow / NestJS API
+          router.push("/dashboard/account/documents");
         }}
       >
         <Text style={styles.documentsButtonText}>
@@ -255,7 +258,7 @@ function HubAccountHomeContent({
         <View style={styles.nameRow}>
           <Text style={styles.profileName}>{profile.name}</Text>
           <View style={styles.ratingBadge}>
-            <StarIcon />
+            <StarIcon size={11} />
             <Text style={styles.ratingText}>
               {formatRating(profile.rating)}
             </Text>
@@ -289,40 +292,17 @@ function HubAccountHomeContent({
 
 export function HubAccountScreen({ onClose }: Readonly<HubAccountScreenProps>) {
   const { getToken } = useAuth();
+  const queryClient = useQueryClient();
 
-  const [profile, setProfile] = useState<InstructorProfile | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const { data: profile, isLoading, isError } = useProfileQuery();
 
   const [photoUri, setPhotoUri] = useState<string | null>(() =>
     getProfilePhotoUri(),
   );
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
 
-  const loadProfile = useCallback(async () => {
-    try {
-      const token = await getToken();
-      const data = await getMyProfile(token);
-      setProfile(data);
-
-      if (data?.avatarUrl && !getProfilePhotoUri()) {
-        setPhotoUri(data.avatarUrl);
-        setProfilePhotoUri(data.avatarUrl);
-      }
-    } catch (error) {
-      console.error("Failed to load hub account profile", error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [getToken]);
-
-  useEffect(() => {
-    void loadProfile();
-  }, [loadProfile]);
-
   async function handlePickPhoto() {
-    if (isUploadingPhoto) {
-      return;
-    }
+    if (isUploadingPhoto) return;
 
     if (Platform.OS !== "web") {
       const { status } =
@@ -343,9 +323,7 @@ export function HubAccountScreen({ onClose }: Readonly<HubAccountScreenProps>) {
       quality: 0.8,
     });
 
-    if (result.canceled || !result.assets?.length) {
-      return;
-    }
+    if (result.canceled || !result.assets?.length) return;
 
     const asset = result.assets[0];
     const localUri = asset.uri;
@@ -367,9 +345,14 @@ export function HubAccountScreen({ onClose }: Readonly<HubAccountScreenProps>) {
           mimeType,
           token,
         );
+
         if (remoteUrl) {
-          setPhotoUri(remoteUrl);
-          setProfilePhotoUri(remoteUrl);
+          const cacheBustedUrl = `${remoteUrl.split("?")[0]}?t=${Date.now()}`;
+
+          setPhotoUri(cacheBustedUrl);
+          setProfilePhotoUri(cacheBustedUrl);
+
+          void queryClient.invalidateQueries({ queryKey: ["profile"] });
         }
       }
     } catch {
@@ -408,7 +391,9 @@ export function HubAccountScreen({ onClose }: Readonly<HubAccountScreenProps>) {
           <View style={styles.loaderContainer}>
             <ActivityIndicator size="large" color={colors.primary} />
           </View>
-        ) : profile ? (
+        ) : isError || !profile ? (
+          <Text style={styles.errorText}>Failed to load profile data.</Text>
+        ) : (
           <HubAccountHomeContent
             profile={profile}
             documents={mapProfileDocsToItems(profile.documents)}
@@ -418,8 +403,6 @@ export function HubAccountScreen({ onClose }: Readonly<HubAccountScreenProps>) {
               void handlePickPhoto();
             }}
           />
-        ) : (
-          <Text style={styles.errorText}>Failed to load profile data.</Text>
         )}
       </ScrollView>
     </View>

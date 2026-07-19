@@ -1,4 +1,4 @@
-import { useAuth, useUser } from "@clerk/clerk-expo";
+import { useUser } from "@clerk/clerk-expo";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -10,8 +10,8 @@ import {
   View,
 } from "react-native";
 
+import { useProfileQuery } from "@/hooks/use-profile";
 import { colors, spacing } from "../../constants/theme";
-import { getMyProfile } from "../../services/profile";
 import { getSessionEmail, setSessionEmail } from "../../services/session";
 import { AuthTextField } from "../auth/auth-text-field";
 import { ChevronLeftIcon } from "../icons/dashboard-icons";
@@ -28,9 +28,10 @@ const ANDROID_RIPPLE =
 export function HubPersonalInfoScreen({
   onBack,
 }: Readonly<HubPersonalInfoScreenProps>) {
-  const { getToken } = useAuth();
   const { user } = useUser();
   const clerkEmail = user?.primaryEmailAddress?.emailAddress ?? null;
+
+  const { data: profile, isLoading: isProfileLoading } = useProfileQuery();
 
   const [email, setEmail] = useState(clerkEmail || getSessionEmail() || "");
   const [firstName, setFirstName] = useState("");
@@ -39,10 +40,6 @@ export function HubPersonalInfoScreen({
   const [address, setAddress] = useState("");
 
   const [focusedField, setFocusedField] = useState<FocusedField>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     if (clerkEmail) {
@@ -52,62 +49,29 @@ export function HubPersonalInfoScreen({
   }, [clerkEmail, email]);
 
   useEffect(() => {
-    let cancelled = false;
+    if (profile) {
+      const nameParts = profile.name ? profile.name.split(" ") : [];
+      setFirstName(nameParts[0] || "");
+      setLastName(nameParts.slice(1).join(" ") || "");
 
-    async function load() {
-      try {
-        const token = await getToken();
-        const profile = await getMyProfile(token);
+      setEmail(profile.email || clerkEmail || "");
+      setPhone(profile.phone || "");
 
-        if (cancelled || !profile) {
-          return;
-        }
-
-        const nameParts = profile.name ? profile.name.split(" ") : [];
-        setFirstName(nameParts[0] || "");
-        setLastName(nameParts.slice(1).join(" ") || "");
-
-        setEmail(profile.email || clerkEmail || "");
-        setPhone(profile.phone || "");
-
-        if (profile.address) {
-          const addr = profile.address;
-          const fullAddress = [
-            addr.line1,
-            addr.line2,
-            addr.suburb,
-            addr.state,
-            addr.postcode,
-          ]
-            .filter(Boolean)
-            .join(", ");
-          setAddress(fullAddress);
-        }
-
-        setSessionEmail(profile.email || clerkEmail || "");
-      } catch {
-        setError("Failed to load profile data.");
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
+      if (profile.address) {
+        const addr = profile.address;
+        const fullAddress = [
+          addr.line1,
+          addr.line2,
+          addr.suburb,
+          addr.state,
+          addr.postcode,
+        ]
+          .filter(Boolean)
+          .join(", ");
+        setAddress(fullAddress);
       }
     }
-
-    void load();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [getToken, clerkEmail]);
-
-  async function handleSave() {
-    if (isSaving) return;
-
-    setError(null);
-    setSuccess(null);
-    setIsSaving(true);
-  }
+  }, [profile, clerkEmail]);
 
   return (
     <View style={styles.screen}>
@@ -135,7 +99,7 @@ export function HubPersonalInfoScreen({
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {isLoading ? (
+        {isProfileLoading ? (
           <ActivityIndicator
             size="large"
             color={colors.primary}
@@ -159,7 +123,6 @@ export function HubPersonalInfoScreen({
                 onBlur={() => setFocusedField(null)}
                 focused={focusedField === "firstName"}
                 autoCapitalize="words"
-                editable={!isSaving}
               />
 
               <AuthTextField
@@ -170,7 +133,6 @@ export function HubPersonalInfoScreen({
                 onBlur={() => setFocusedField(null)}
                 focused={focusedField === "lastName"}
                 autoCapitalize="words"
-                editable={!isSaving}
               />
 
               <AuthTextField
@@ -189,7 +151,6 @@ export function HubPersonalInfoScreen({
                 onBlur={() => setFocusedField(null)}
                 focused={focusedField === "phone"}
                 keyboardType="phone-pad"
-                editable={!isSaving}
               />
 
               <Text style={styles.sectionTitle}>Contact info</Text>
@@ -202,31 +163,12 @@ export function HubPersonalInfoScreen({
                 onBlur={() => setFocusedField(null)}
                 focused={focusedField === "address"}
                 autoCapitalize="words"
-                editable={!isSaving}
               />
 
-              {error ? <Text style={styles.errorText}>{error}</Text> : null}
-              {success ? (
-                <Text style={styles.successText}>{success}</Text>
-              ) : null}
+              <Pressable android_ripple={ANDROID_RIPPLE}>
+                <ActivityIndicator color={colors.white} />
 
-              <Pressable
-                onPress={() => {
-                  void handleSave();
-                }}
-                disabled={isSaving}
-                android_ripple={ANDROID_RIPPLE}
-                style={({ pressed }) => [
-                  styles.saveButton,
-                  (pressed || isSaving) && styles.pressed,
-                  isSaving && styles.saveButtonDisabled,
-                ]}
-              >
-                {isSaving ? (
-                  <ActivityIndicator color={colors.white} />
-                ) : (
-                  <Text style={styles.saveButtonText}>Save changes</Text>
-                )}
+                <Text style={styles.saveButtonText}>Save changes</Text>
               </Pressable>
             </View>
           </>

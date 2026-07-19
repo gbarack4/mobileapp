@@ -53,6 +53,7 @@ export async function uploadDocumentToBackend(
   localUri: string,
   fileName: string,
   mimeType: string,
+  documentType: string,
   token: string,
 ): Promise<string> {
   const formData = new FormData();
@@ -74,7 +75,9 @@ export async function uploadDocumentToBackend(
     throw new Error("EXPO_PUBLIC_API_URL is not defined");
   }
 
-  const response = await fetch(`${baseUrl}/instructors/upload-document`, {
+  const url = `${baseUrl}/instructors/upload-document?documentType=${encodeURIComponent(documentType)}`;
+
+  const response = await fetch(url, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,

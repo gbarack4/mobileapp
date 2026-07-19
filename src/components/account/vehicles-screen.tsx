@@ -10,7 +10,6 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { useAuth } from "@clerk/clerk-expo";
 
 import { AuthTextField } from "../auth/auth-text-field";
 import { SelectionPills } from "../onboarding/selection-pills";
@@ -22,7 +21,7 @@ import {
   type InstructorVehicle,
 } from "../../data/mock-instructor-vehicle";
 import type { TransmissionType, YesNo } from "../../types/onboarding";
-import { getMyProfile } from "../../services/profile";
+import { useProfileQuery } from "@/hooks/use-profile";
 
 type VehiclesScreenProps = {
   onClose: () => void;
@@ -34,8 +33,7 @@ const ANDROID_RIPPLE =
   Platform.OS === "android" ? { color: "rgba(0, 0, 0, 0.06)" } : undefined;
 
 export function VehiclesScreen({ onClose }: Readonly<VehiclesScreenProps>) {
-  const { getToken } = useAuth();
-  const [isLoading, setIsLoading] = useState(true);
+  const { data: profile, isLoading: isProfileLoading } = useProfileQuery();
 
   const [vehicle, setVehicle] = useState<InstructorVehicle>({
     make: "",
@@ -54,42 +52,23 @@ export function VehiclesScreen({ onClose }: Readonly<VehiclesScreenProps>) {
   const registrationRef = useRef<TextInput>(null);
 
   useEffect(() => {
-    let isMounted = true;
+    if (profile?.carDetails) {
+      const { carDetails } = profile;
 
-    async function loadVehicleData() {
-      try {
-        const token = await getToken();
-        const profile = await getMyProfile(token);
-
-        if (isMounted && profile?.carDetails) {
-          const { carDetails } = profile;
-
-          setVehicle({
-            make: carDetails.make || "",
-            model: carDetails.model || "",
-            year: carDetails.year || "",
-            registration: carDetails.registration || "",
-            transmission: (carDetails.transmission.toLowerCase() === "manual"
-              ? "manual"
-              : carDetails.transmission.toLowerCase() === "both"
-                ? "both"
-                : "automatic") as TransmissionType,
-            dualControl: carDetails.dualControl ? "yes" : "no",
-          });
-        }
-      } catch (err) {
-        console.error("Failed to load vehicle data", err);
-      } finally {
-        if (isMounted) setIsLoading(false);
-      }
+      setVehicle({
+        make: carDetails.make || "",
+        model: carDetails.model || "",
+        year: carDetails.year || "",
+        registration: carDetails.registration || "",
+        transmission: (carDetails.transmission?.toLowerCase() === "manual"
+          ? "manual"
+          : carDetails.transmission?.toLowerCase() === "both"
+            ? "both"
+            : "automatic") as TransmissionType,
+        dualControl: carDetails.dualControl ? "yes" : "no",
+      });
     }
-
-    void loadVehicleData();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [getToken]);
+  }, [profile]);
 
   function updateField<K extends keyof InstructorVehicle>(
     field: K,
@@ -125,7 +104,7 @@ export function VehiclesScreen({ onClose }: Readonly<VehiclesScreenProps>) {
     onClose();
   }
 
-  if (isLoading) {
+  if (isProfileLoading) {
     return (
       <View style={[styles.screen, styles.loaderContainer]}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -181,7 +160,7 @@ export function VehiclesScreen({ onClose }: Readonly<VehiclesScreenProps>) {
             }
             onSubmitEditing={() => modelRef.current?.focus()}
             returnKeyType="next"
-            placeholder="Ford"
+            placeholder="Volkswagen"
             focused={focusedField === "make"}
           />
 
@@ -197,7 +176,7 @@ export function VehiclesScreen({ onClose }: Readonly<VehiclesScreenProps>) {
             }
             onSubmitEditing={() => yearRef.current?.focus()}
             returnKeyType="next"
-            placeholder="Focus"
+            placeholder="Golf"
             focused={focusedField === "model"}
             ref={modelRef}
           />
@@ -216,7 +195,7 @@ export function VehiclesScreen({ onClose }: Readonly<VehiclesScreenProps>) {
                 }
                 onSubmitEditing={() => registrationRef.current?.focus()}
                 returnKeyType="next"
-                placeholder="2021"
+                placeholder="2006"
                 keyboardType="number-pad"
                 maxLength={4}
                 focused={focusedField === "year"}
@@ -279,7 +258,6 @@ export function VehiclesScreen({ onClose }: Readonly<VehiclesScreenProps>) {
     </KeyboardAvoidingView>
   );
 }
-
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
@@ -289,7 +267,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  // ... всі інші твої стилі залишаються без змін
   header: {
     flexDirection: "row",
     alignItems: "center",

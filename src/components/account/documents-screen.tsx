@@ -1,6 +1,6 @@
 import { useAuth } from "@clerk/clerk-expo";
 import * as DocumentPicker from "expo-document-picker";
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -13,7 +13,10 @@ import {
 
 import { ChevronLeftIcon } from "../icons/dashboard-icons";
 import { colors, spacing } from "../../constants/theme";
-import { getMyProfile } from "../../services/profile";
+
+import { uploadDocumentToBackend } from "../../services/uploadService";
+import { useQueryClient } from "@tanstack/react-query";
+import { useProfileQuery } from "@/hooks/use-profile";
 
 type DocumentsDto = {
   driverLicence: string;
@@ -47,9 +50,10 @@ const DOC_LABELS: Record<keyof DocumentsDto, string> = {
   policeCheck: "Police Check",
 };
 
-function mapProfileDocsToItems(docs: DocumentsDto): HubDocumentItem[] {
+function mapProfileDocsToItems(docs?: DocumentsDto | null): HubDocumentItem[] {
+  const safeDocs = docs || ({} as DocumentsDto);
   return Object.entries(DOC_LABELS).map(([key, label]) => {
-    const value = docs[key as keyof DocumentsDto];
+    const value = safeDocs[key as keyof DocumentsDto];
     return {
       id: key as keyof DocumentsDto,
       label,
@@ -125,42 +129,45 @@ function DocumentCard({
 
 export function DocumentsScreen({ onClose }: Readonly<DocumentsScreenProps>) {
   const { getToken } = useAuth();
-  const [documents, setDocuments] = useState<HubDocumentItem[]>([]);
+  const queryClient = useQueryClient();
+
+  const { data: profile, isLoading } = useProfileQuery();
+
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const documents = mapProfileDocsToItems(
+    profile?.documents as DocumentsDto | undefined,
+  );
   const upToDateCount = documents.filter((d) => d.status === "uploaded").length;
-
-  const loadDocuments = useCallback(async () => {
-    setError(null);
-    try {
-      const token = await getToken();
-      const profile = await getMyProfile(token);
-
-      if (profile?.documents) {
-        setDocuments(mapProfileDocsToItems(profile.documents as DocumentsDto));
-      }
-    } catch {
-      setError("Failed to load documents from server.");
-    }
-  }, [getToken]);
-
-  useEffect(() => {
-    void loadDocuments();
-  }, [loadDocuments]);
 
   async function handleUpload(documentId: string) {
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: ["application/pdf", "image/jpeg", "image/png"],
+        copyToCacheDirectory: true,
       });
 
-      if (result.canceled) return;
-      // const file = result.assets[0];
-      // await updateInstructorDocument(documentId, file);
+      if (result.canceled || !result.assets?.length) return;
+
+      const file = result.assets[0];
+      const token = await getToken();
+      if (!token) throw new Error("Not authenticated");
+
       setUploadingId(documentId);
-      await loadDocuments();
-    } catch {
+      setError(null);
+
+      await uploadDocumentToBackend(
+        file.uri,
+        file.name,
+        file.mimeType || "application/pdf",
+        documentId,
+        token,
+      );
+
+      await queryClient.invalidateQueries({ queryKey: ["profile"] });
+    } catch (err) {
+      console.error("Upload error:", err);
       setError("Failed to upload document.");
     } finally {
       setUploadingId(null);
@@ -183,25 +190,35 @@ export function DocumentsScreen({ onClose }: Readonly<DocumentsScreenProps>) {
           Keep your licence, checks, and insurance up to date.
         </Text>
 
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryValue}>
-            {upToDateCount} of {documents.length}
-          </Text>
-          <Text style={styles.summaryLabel}>documents up to date</Text>
-        </View>
+        {isLoading ? (
+          <ActivityIndicator
+            size="large"
+            color={colors.primary}
+            style={{ marginTop: 20 }}
+          />
+        ) : (
+          <>
+            <View style={styles.summaryCard}>
+              <Text style={styles.summaryValue}>
+                {upToDateCount} of {documents.length}
+              </Text>
+              <Text style={styles.summaryLabel}>documents up to date</Text>
+            </View>
 
-        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-        <View style={styles.documentList}>
-          {documents.map((doc) => (
-            <DocumentCard
-              key={doc.id}
-              document={doc}
-              isUploading={uploadingId === doc.id}
-              onUpload={handleUpload}
-            />
-          ))}
-        </View>
+            <View style={styles.documentList}>
+              {documents.map((doc) => (
+                <DocumentCard
+                  key={doc.id}
+                  document={doc}
+                  isUploading={uploadingId === doc.id}
+                  onUpload={handleUpload}
+                />
+              ))}
+            </View>
+          </>
+        )}
       </ScrollView>
     </View>
   );

@@ -1,6 +1,6 @@
-import { useAuth, useClerk, useUser } from "@clerk/clerk-expo";
-import { router } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { useClerk, useUser } from "@clerk/clerk-expo";
+import { router, useFocusEffect } from "expo-router"; // ДОДАНО useFocusEffect
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { NativeScrollEvent, NativeSyntheticEvent } from "react-native";
 import {
   Image,
@@ -18,11 +18,7 @@ import {
   ACCOUNT_MENU_SECTION_2,
   ACCOUNT_MENU_SECTION_3,
 } from "../../data/mock-account";
-import { getMyProfile, type InstructorProfile } from "../../services/profile";
-import {
-  getProfilePhotoUri,
-  subscribeProfilePhoto,
-} from "../../services/profile-photo";
+import { getProfilePhotoUri } from "../../services/profile-photo";
 import {
   clearSession,
   getSessionEmail,
@@ -43,6 +39,7 @@ import {
 } from "./account-icons";
 import { AccountMenuRow } from "./account-menu-row";
 import { StarIcon } from "./hub-account-icons";
+import { useProfileQuery } from "@/hooks/use-profile";
 
 type AccountScreenProps = {
   onClose?: () => void;
@@ -75,39 +72,41 @@ function formatRating(rating: number) {
   return Number.isInteger(rating) ? String(rating) : rating.toFixed(1);
 }
 
+function getInitials(name?: string) {
+  if (!name || name === "Loading...") return "";
+  return name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .substring(0, 2)
+    .toUpperCase();
+}
+
 function handleMenuPress(itemId: string) {
   if (itemId === "vehicles") {
     router.push("/dashboard/account/vehicles");
     return;
   }
-
   if (itemId === "documents") {
     router.push("/dashboard/account/documents");
     return;
   }
-
   if (itemId === "manage-account") {
     router.push("/dashboard/account/hub");
     return;
   }
-
   if (itemId === "availability") {
     router.push("/dashboard/account/availability");
     return;
   }
-
   if (itemId === "payment") {
     router.push("/dashboard/account/payment");
     return;
   }
-
   if (itemId === "edit-address") {
     router.push("/dashboard/account/edit-address");
     return;
   }
-
-  // TODO: connect to account routes / NestJS API
-  void itemId;
 }
 
 function goToLogin() {
@@ -128,29 +127,21 @@ export function AccountScreen({
   onClose,
   onScroll,
 }: Readonly<AccountScreenProps>) {
-  const { getToken } = useAuth();
   const { user } = useUser();
   const { signOut } = useClerk();
   const userEmail = user?.primaryEmailAddress?.emailAddress ?? null;
 
-  const [profile, setProfile] = useState<InstructorProfile>({
-    name: "Loading...",
-    initials: "",
-    subtitle: "",
-    phone: "",
-    email: userEmail || getSessionEmail() || "",
-    rating: 0,
-    vehicleSummary: "",
-    address: null,
-    carDetails: null,
-    documents: null,
-  });
+  const { data: profile } = useProfileQuery();
 
-  const [photoUri, setPhotoUri] = useState<string | null>(() =>
-    getProfilePhotoUri(),
-  );
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const isSigningOutRef = useRef(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      setPhotoUri(getProfilePhotoUri());
+    }, []),
+  );
 
   useEffect(() => {
     if (userEmail) {
@@ -158,46 +149,12 @@ export function AccountScreen({
     }
   }, [userEmail]);
 
-  useEffect(() => {
-    setPhotoUri(getProfilePhotoUri());
-    return subscribeProfilePhoto(() => {
-      setPhotoUri(getProfilePhotoUri());
-    });
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadProfile() {
-      try {
-        const token = await getToken().catch(() => null);
-        const remoteProfile = await getMyProfile(token);
-        if (!cancelled && remoteProfile) {
-          setProfile(remoteProfile);
-        }
-      } catch (error) {
-        console.error("Failed to load profile", error);
-      }
-    }
-
-    void loadProfile();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [getToken, userEmail]);
-
   async function handleSignOut() {
-    if (isSigningOutRef.current) {
-      return;
-    }
-
+    if (isSigningOutRef.current) return;
     isSigningOutRef.current = true;
     setIsSigningOut(true);
     clearSession();
-
     await delay(2000);
-
     try {
       await Promise.race([signOut().catch(() => undefined), delay(1000)]);
     } catch {
@@ -205,6 +162,14 @@ export function AccountScreen({
       goToLogin();
     }
   }
+
+  const displayName = profile?.name || "Loading...";
+  const displayEmail = profile?.email || userEmail || getSessionEmail() || "";
+  const displayInitials = profile?.initials || getInitials(displayName);
+  const displayRating = profile?.rating || 0;
+  const displayVehicleSummary = profile?.vehicleSummary || "";
+
+  const displayAvatarUrl = photoUri || profile?.avatarUrl || null;
 
   return (
     <View style={styles.screen}>
@@ -232,30 +197,30 @@ export function AccountScreen({
 
         <View style={styles.profileRow}>
           <View style={styles.avatar}>
-            {profile.avatarUrl || photoUri ? (
+            {displayAvatarUrl ? (
               <Image
-                source={{ uri: profile.avatarUrl || photoUri || "" }}
+                source={{ uri: displayAvatarUrl }}
                 style={styles.avatarImage}
               />
             ) : (
-              <Text style={styles.avatarText}>{profile.initials}</Text>
+              <Text style={styles.avatarText}>{displayInitials}</Text>
             )}
           </View>
 
           <View style={styles.profileText}>
             <View style={styles.nameRow}>
-              <Text style={styles.profileName}>{profile.name}</Text>
-              {profile.rating > 0 ? (
+              <Text style={styles.profileName}>{displayName}</Text>
+              {displayRating > 0 ? (
                 <View style={styles.ratingBadge}>
                   <StarIcon size={11} />
                   <Text style={styles.ratingText}>
-                    {formatRating(profile.rating)}
+                    {formatRating(displayRating)}
                   </Text>
                 </View>
               ) : null}
             </View>
-            <Text style={styles.profileSubtitle}>{profile.phone}</Text>
-            <Text style={styles.profileEmail}>{profile.email}</Text>
+            <Text style={styles.profileSubtitle}>{profile?.phone || ""}</Text>
+            <Text style={styles.profileEmail}>{displayEmail}</Text>
           </View>
         </View>
 
@@ -264,7 +229,7 @@ export function AccountScreen({
             const Icon =
               SECTION_1_ICONS[item.id as keyof typeof SECTION_1_ICONS];
             const subtitle =
-              item.id === "vehicles" ? profile.vehicleSummary : item.subtitle;
+              item.id === "vehicles" ? displayVehicleSummary : item.subtitle;
 
             return (
               <AccountMenuRow
