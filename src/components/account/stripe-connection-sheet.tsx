@@ -22,7 +22,7 @@ export function StripeConnectionSheet({
   onClose,
   onReconnect,
   onDisconnect,
-}: StripeConnectionSheetProps) {
+}: Readonly<StripeConnectionSheetProps>) {
   const insets = useSafeAreaInsets();
 
   if (!connection) {

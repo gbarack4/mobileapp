@@ -1,13 +1,13 @@
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
-import { colors, spacing } from '../../constants/theme';
+import { colors, spacing } from "../../constants/theme";
 import {
   buildCalendarCells,
   formatMonthYear,
   isSameDay,
-} from '../../utils/lesson-dates';
+} from "../../utils/lesson-dates";
 
-const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 type MonthCalendarProps = {
   visibleMonth: Date;
@@ -20,7 +20,7 @@ type MonthCalendarProps = {
 };
 
 const ANDROID_RIPPLE =
-  Platform.OS === 'android' ? { color: 'rgba(0, 94, 255, 0.08)' } : undefined;
+  Platform.OS === "android" ? { color: "rgba(0, 94, 255, 0.08)" } : undefined;
 
 export function MonthCalendar({
   visibleMonth,
@@ -30,7 +30,7 @@ export function MonthCalendar({
   onPreviousMonth,
   onNextMonth,
   minSelectableDate,
-}: MonthCalendarProps) {
+}: Readonly<MonthCalendarProps>) {
   const today = new Date();
   const year = visibleMonth.getFullYear();
   const month = visibleMonth.getMonth();
@@ -48,7 +48,11 @@ export function MonthCalendar({
       return false;
     }
 
-    const candidate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const candidate = new Date(
+      date.getFullYear(),
+      date.getMonth(),
+      date.getDate(),
+    );
     return candidate < minDate;
   }
 
@@ -58,7 +62,11 @@ export function MonthCalendar({
         <Pressable
           onPress={onPreviousMonth}
           android_ripple={ANDROID_RIPPLE}
-          style={({ pressed }) => [styles.monthNavButton, pressed && styles.pressed]}>
+          style={({ pressed }) => [
+            styles.monthNavButton,
+            pressed && styles.pressed,
+          ]}
+        >
           <Text style={styles.monthNavIcon}>‹</Text>
         </Pressable>
 
@@ -67,7 +75,11 @@ export function MonthCalendar({
         <Pressable
           onPress={onNextMonth}
           android_ripple={ANDROID_RIPPLE}
-          style={({ pressed }) => [styles.monthNavButton, pressed && styles.pressed]}>
+          style={({ pressed }) => [
+            styles.monthNavButton,
+            pressed && styles.pressed,
+          ]}
+        >
           <Text style={styles.monthNavIcon}>›</Text>
         </Pressable>
       </View>
@@ -102,29 +114,38 @@ export function MonthCalendar({
               }}
               disabled={disabled}
               android_ripple={disabled ? undefined : ANDROID_RIPPLE}
-              style={styles.dayCell}>
+              style={styles.dayCell}
+            >
               <View
                 style={[
                   styles.dayInner,
                   isToday && !selected && !disabled && styles.dayInnerToday,
                   selected && styles.dayInnerSelected,
                   disabled && styles.dayInnerDisabled,
-                ]}>
+                ]}
+              >
                 <Text
                   style={[
                     styles.dayText,
                     selected && styles.dayTextSelected,
                     disabled && styles.dayTextDisabled,
-                  ]}>
+                  ]}
+                >
                   {day}
                 </Text>
                 {lessonCount > 0 ? (
-                  <View style={[styles.lessonCountBadge, selected && styles.lessonCountBadgeSelected]}>
+                  <View
+                    style={[
+                      styles.lessonCountBadge,
+                      selected && styles.lessonCountBadgeSelected,
+                    ]}
+                  >
                     <Text
                       style={[
                         styles.lessonCountText,
                         selected && styles.lessonCountTextSelected,
-                      ]}>
+                      ]}
+                    >
                       {lessonCount}
                     </Text>
                   </View>
@@ -145,63 +166,63 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   monthHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: spacing.sm,
   },
   monthTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
   },
   monthNavButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     backgroundColor: colors.inputBackground,
   },
   monthNavIcon: {
     fontSize: 24,
     lineHeight: 28,
     color: colors.text,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   weekdayRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
   },
   weekdayLabel: {
     flex: 1,
-    textAlign: 'center',
+    textAlign: "center",
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.textMuted,
   },
   grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
   },
   dayCell: {
     width: `${100 / 7}%`,
     aspectRatio: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     padding: 2,
   },
   dayInner: {
     minWidth: 40,
     minHeight: 48,
     borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     gap: 3,
     paddingHorizontal: 4,
     paddingVertical: 4,
   },
   dayInnerToday: {
-    backgroundColor: '#e8f1ff',
+    backgroundColor: "#e8f1ff",
   },
   dayInnerSelected: {
     backgroundColor: colors.primary,
@@ -211,7 +232,7 @@ const styles = StyleSheet.create({
   },
   dayText: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text,
   },
   dayTextSelected: {
@@ -226,15 +247,15 @@ const styles = StyleSheet.create({
     borderRadius: 9,
     paddingHorizontal: 6,
     backgroundColor: colors.inputBackground,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   lessonCountBadgeSelected: {
     backgroundColor: colors.white,
   },
   lessonCountText: {
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.textSecondary,
     lineHeight: 12,
   },

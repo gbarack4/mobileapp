@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState } from "react";
 import {
   Platform,
   Pressable,
@@ -7,32 +7,39 @@ import {
   Text,
   TextInput,
   View,
-} from 'react-native';
+} from "react-native";
 
-import { ChevronLeftIcon, SearchIcon } from '../icons/dashboard-icons';
-import { colors, spacing } from '../../constants/theme';
+import { ChevronLeftIcon, SearchIcon } from "../icons/dashboard-icons";
+import { colors, spacing } from "../../constants/theme";
 import {
   filterWorkSuburbs,
   MOCK_WORK_SUBURBS,
   suburbIdsToNames,
   suburbNamesToIds,
-} from '../../data/mock-work-locations';
+} from "../../data/mock-work-locations";
 import {
   clearWorkLocationBridge,
   getWorkLocationBridge,
-} from '../../utils/availability-location-bridge';
-import { CloseSmallIcon } from './availability-icons';
-import { CheckCircleIcon, InfoCircleIcon, PlusCircleIcon } from './work-locations-icons';
-import { WorkLocationsMap } from './work-locations-map';
+} from "../../utils/availability-location-bridge";
+import { CloseSmallIcon } from "./availability-icons";
+import {
+  CheckCircleIcon,
+  InfoCircleIcon,
+  PlusCircleIcon,
+} from "./work-locations-icons";
+import { WorkLocationsMap } from "./work-locations-map";
 
 type SelectWorkLocationsScreenProps = {
   onClose: () => void;
 };
 
 const ANDROID_RIPPLE =
-  Platform.OS === 'android' ? { color: 'rgba(0, 0, 0, 0.06)' } : undefined;
+  Platform.OS === "android" ? { color: "rgba(0, 0, 0, 0.06)" } : undefined;
 
-function LegendItem({ color, label }: { color: string; label: string }) {
+function LegendItem({
+  color,
+  label,
+}: Readonly<{ color: string; label: string }>) {
   return (
     <View style={styles.legendItem}>
       <View style={[styles.legendSwatch, { backgroundColor: color }]} />
@@ -41,9 +48,11 @@ function LegendItem({ color, label }: { color: string; label: string }) {
   );
 }
 
-export function SelectWorkLocationsScreen({ onClose }: SelectWorkLocationsScreenProps) {
+export function SelectWorkLocationsScreen({
+  onClose,
+}: Readonly<SelectWorkLocationsScreenProps>) {
   const bridge = getWorkLocationBridge();
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>(() =>
     bridge ? suburbNamesToIds(bridge.initialLocations) : [],
   );
@@ -53,7 +62,10 @@ export function SelectWorkLocationsScreen({ onClose }: SelectWorkLocationsScreen
     [searchQuery],
   );
 
-  const selectedNames = useMemo(() => suburbIdsToNames(selectedIds), [selectedIds]);
+  const selectedNames = useMemo(
+    () => suburbIdsToNames(selectedIds),
+    [selectedIds],
+  );
 
   function toggleSuburb(suburbId: string) {
     setSelectedIds((current) =>
@@ -86,7 +98,11 @@ export function SelectWorkLocationsScreen({ onClose }: SelectWorkLocationsScreen
           hitSlop={8}
           android_ripple={ANDROID_RIPPLE}
           accessibilityLabel="Back"
-          style={({ pressed }) => [styles.headerIconButton, pressed && styles.pressed]}>
+          style={({ pressed }) => [
+            styles.headerIconButton,
+            pressed && styles.pressed,
+          ]}
+        >
           <ChevronLeftIcon size={22} />
         </Pressable>
 
@@ -101,7 +117,11 @@ export function SelectWorkLocationsScreen({ onClose }: SelectWorkLocationsScreen
           hitSlop={8}
           android_ripple={ANDROID_RIPPLE}
           accessibilityLabel="Info"
-          style={({ pressed }) => [styles.headerIconButton, pressed && styles.pressed]}>
+          style={({ pressed }) => [
+            styles.headerIconButton,
+            pressed && styles.pressed,
+          ]}
+        >
           <InfoCircleIcon />
         </Pressable>
       </View>
@@ -110,7 +130,8 @@ export function SelectWorkLocationsScreen({ onClose }: SelectWorkLocationsScreen
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled">
+        keyboardShouldPersistTaps="handled"
+      >
         <View style={styles.searchBar}>
           <SearchIcon />
           <TextInput
@@ -150,11 +171,17 @@ export function SelectWorkLocationsScreen({ onClose }: SelectWorkLocationsScreen
                 <Pressable
                   onPress={() => toggleSuburb(suburb.id)}
                   android_ripple={ANDROID_RIPPLE}
-                  style={({ pressed }) => [styles.listRow, pressed && styles.pressed]}>
+                  style={({ pressed }) => [
+                    styles.listRow,
+                    pressed && styles.pressed,
+                  ]}
+                >
                   <Text style={styles.listRowLabel}>{suburb.name}</Text>
                   {selected ? <CheckCircleIcon /> : <PlusCircleIcon />}
                 </Pressable>
-                {index < filteredSuburbs.length - 1 ? <View style={styles.listDivider} /> : null}
+                {index < filteredSuburbs.length - 1 ? (
+                  <View style={styles.listDivider} />
+                ) : null}
               </View>
             );
           })}
@@ -163,11 +190,17 @@ export function SelectWorkLocationsScreen({ onClose }: SelectWorkLocationsScreen
         {selectedIds.length > 0 ? (
           <View style={styles.selectedSection}>
             <View style={styles.selectedHeader}>
-              <Text style={styles.selectedTitle}>Selected suburbs ({selectedIds.length})</Text>
+              <Text style={styles.selectedTitle}>
+                Selected suburbs ({selectedIds.length})
+              </Text>
               <Pressable
                 onPress={handleClearAll}
                 android_ripple={ANDROID_RIPPLE}
-                style={({ pressed }) => [styles.clearAllButton, pressed && styles.pressed]}>
+                style={({ pressed }) => [
+                  styles.clearAllButton,
+                  pressed && styles.pressed,
+                ]}
+              >
                 <Text style={styles.clearAllText}>Clear all</Text>
               </Pressable>
             </View>
@@ -178,13 +211,19 @@ export function SelectWorkLocationsScreen({ onClose }: SelectWorkLocationsScreen
                   <Text style={styles.chipText}>{name}</Text>
                   <Pressable
                     onPress={() => {
-                      const suburb = MOCK_WORK_SUBURBS.find((item) => item.name === name);
+                      const suburb = MOCK_WORK_SUBURBS.find(
+                        (item) => item.name === name,
+                      );
                       if (suburb) {
                         toggleSuburb(suburb.id);
                       }
                     }}
                     hitSlop={6}
-                    style={({ pressed }) => [styles.chipRemove, pressed && styles.pressed]}>
+                    style={({ pressed }) => [
+                      styles.chipRemove,
+                      pressed && styles.pressed,
+                    ]}
+                  >
                     <CloseSmallIcon size={12} color={colors.white} />
                   </Pressable>
                 </View>
@@ -198,7 +237,11 @@ export function SelectWorkLocationsScreen({ onClose }: SelectWorkLocationsScreen
         <Pressable
           onPress={handleConfirm}
           android_ripple={ANDROID_RIPPLE}
-          style={({ pressed }) => [styles.confirmButton, pressed && styles.pressed]}>
+          style={({ pressed }) => [
+            styles.confirmButton,
+            pressed && styles.pressed,
+          ]}
+        >
           <Text style={styles.confirmButtonText}>Confirm Locations</Text>
         </Pressable>
       </View>
@@ -212,8 +255,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
     gap: spacing.sm,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.sm,
@@ -222,8 +265,8 @@ const styles = StyleSheet.create({
   headerIconButton: {
     width: 40,
     height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginTop: 2,
   },
   headerText: {
@@ -233,15 +276,15 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 17,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
-    textAlign: 'center',
+    textAlign: "center",
   },
   headerSubtitle: {
     fontSize: 13,
     lineHeight: 18,
     color: colors.textSecondary,
-    textAlign: 'center',
+    textAlign: "center",
   },
   scroll: {
     flex: 1,
@@ -252,8 +295,8 @@ const styles = StyleSheet.create({
     gap: spacing.lg,
   },
   searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
     backgroundColor: colors.inputBackground,
     borderRadius: 14,
@@ -265,18 +308,18 @@ const styles = StyleSheet.create({
     minWidth: 0,
     fontSize: 15,
     color: colors.text,
-    paddingVertical: Platform.OS === 'web' ? 12 : 0,
-    ...(Platform.OS === 'web'
-      ? ({ outlineStyle: 'none', width: '100%' } as object)
+    paddingVertical: Platform.OS === "web" ? 12 : 0,
+    ...(Platform.OS === "web"
+      ? ({ outlineStyle: "none", width: "100%" } as object)
       : {}),
   },
   legendRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: spacing.lg,
   },
   legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   legendSwatch: {
@@ -289,35 +332,35 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   listHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   listTitle: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
   },
   listCount: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.primary,
   },
   listCard: {
     backgroundColor: colors.background,
     borderRadius: 16,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   listRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingVertical: 16,
     paddingHorizontal: spacing.lg,
   },
   listRowLabel: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text,
   },
   listDivider: {
@@ -329,13 +372,13 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   selectedHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   selectedTitle: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
   },
   clearAllButton: {
@@ -343,17 +386,17 @@ const styles = StyleSheet.create({
   },
   clearAllText: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.primary,
   },
   chipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: spacing.xs,
   },
   chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
     backgroundColor: colors.primary,
     borderRadius: 999,
@@ -363,14 +406,14 @@ const styles = StyleSheet.create({
   },
   chipText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.white,
   },
   chipRemove: {
     width: 16,
     height: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   footer: {
     paddingHorizontal: spacing.xl,
@@ -382,12 +425,12 @@ const styles = StyleSheet.create({
     minHeight: 52,
     borderRadius: 14,
     backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   confirmButtonText: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.white,
   },
   pressed: {

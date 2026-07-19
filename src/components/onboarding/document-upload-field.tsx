@@ -1,6 +1,6 @@
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
-import { colors, radius, spacing } from '../../constants/theme';
+import { colors, radius, spacing } from "../../constants/theme";
 
 type DocumentUploadFieldProps = {
   label: string;
@@ -10,9 +10,14 @@ type DocumentUploadFieldProps = {
 };
 
 const ANDROID_RIPPLE =
-  Platform.OS === 'android' ? { color: 'rgba(0, 94, 255, 0.14)' } : undefined;
+  Platform.OS === "android" ? { color: "rgba(0, 94, 255, 0.14)" } : undefined;
 
-export function DocumentUploadField({ label, hint, fileName, onPress }: DocumentUploadFieldProps) {
+export function DocumentUploadField({
+  label,
+  hint,
+  fileName,
+  onPress,
+}: Readonly<DocumentUploadFieldProps>) {
   return (
     <View style={styles.container}>
       <View style={styles.labelRow}>
@@ -23,10 +28,13 @@ export function DocumentUploadField({ label, hint, fileName, onPress }: Document
       <Pressable
         onPress={onPress}
         android_ripple={ANDROID_RIPPLE}
-        style={({ pressed }) => [styles.uploadCard, pressed && styles.pressed]}>
-        <Text style={styles.uploadTitle}>{fileName ? 'Document added' : 'Upload document'}</Text>
+        style={({ pressed }) => [styles.uploadCard, pressed && styles.pressed]}
+      >
+        <Text style={styles.uploadTitle}>
+          {fileName ? "Document added" : "Upload document"}
+        </Text>
         <Text style={styles.uploadSubtitle}>
-          {fileName ?? 'Tap to select a PDF or image'}
+          {fileName ?? "Tap to select a PDF or image"}
         </Text>
       </Pressable>
     </View>
@@ -44,7 +52,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 20,
     color: colors.text,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   hint: {
     fontSize: 13,
@@ -57,11 +65,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.lg,
     borderWidth: 2,
-    borderColor: 'transparent',
+    borderColor: "transparent",
   },
   uploadTitle: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text,
     marginBottom: spacing.xs,
   },

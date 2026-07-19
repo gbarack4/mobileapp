@@ -14,7 +14,7 @@ type WorkLocationsMapProps = {
 
 const MAP_HEIGHT = 260;
 
-function SuburbLabel({ name, selected }: { name: string; selected: boolean }) {
+function SuburbLabel({ name, selected }: Readonly<{ name: string; selected: boolean }>) {
   return (
     <View style={[styles.label, selected && styles.labelSelected]}>
       <Text style={[styles.labelText, selected && styles.labelTextSelected]} numberOfLines={1}>
@@ -24,7 +24,7 @@ function SuburbLabel({ name, selected }: { name: string; selected: boolean }) {
   );
 }
 
-export function WorkLocationsMap({ suburbs, selectedIds, onToggleSuburb }: WorkLocationsMapProps) {
+export function WorkLocationsMap({ suburbs, selectedIds, onToggleSuburb }: Readonly<WorkLocationsMapProps>) {
   const mapRef = useRef<MapView>(null);
   const initialRegion = getWorkLocationsRegion(suburbs);
 

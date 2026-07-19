@@ -60,7 +60,7 @@ type DaySelectorProps = {
   onSelectDay: (day: DayOfWeek) => void;
 };
 
-function DaySelector({ days, selectedDay, onSelectDay }: DaySelectorProps) {
+function DaySelector({ days, selectedDay, onSelectDay }: Readonly<DaySelectorProps>) {
   return (
     <ScrollView
       horizontal
@@ -120,7 +120,7 @@ function SlotCard({
   onRemoveLocation,
   onDeleteSlot,
   onViewMap,
-}: SlotCardProps) {
+}: Readonly<SlotCardProps>) {
   return (
     <View style={styles.slotCard}>
       <View style={styles.slotCardHeader}>
@@ -214,7 +214,7 @@ function SlotCard({
   );
 }
 
-export function AvailabilityScreen({ onClose }: AvailabilityScreenProps) {
+export function AvailabilityScreen({ onClose }: Readonly<AvailabilityScreenProps>) {
   const [draftAvailability, setDraftAvailability] = useState(() =>
     cloneAvailability(MOCK_INSTRUCTOR_AVAILABILITY),
   );

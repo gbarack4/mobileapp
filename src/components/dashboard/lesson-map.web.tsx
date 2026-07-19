@@ -8,7 +8,7 @@ type LessonMapProps = {
 
 const MAP_HEIGHT = 220;
 
-export function LessonMap({ latitude, longitude, locationName }: LessonMapProps) {
+export function LessonMap({ latitude, longitude, locationName }: Readonly<LessonMapProps>) {
   return (
     <View style={styles.webMapContainer}>
       <iframe

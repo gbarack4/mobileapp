@@ -1,7 +1,14 @@
-import { useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useState } from "react";
+import {
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
-import { ChevronLeftIcon } from '../icons/dashboard-icons';
+import { ChevronLeftIcon } from "../icons/dashboard-icons";
 import {
   HUB_PERSONAL_INFO_SECTIONS,
   HUB_PRIVACY_SECTIONS,
@@ -9,9 +16,9 @@ import {
   type HubQuickLinkId,
   type HubSettingItem,
   type HubSettingsSection,
-} from '../../data/mock-hub-account';
-import { colors, spacing } from '../../constants/theme';
-import { HubSettingsRow } from './hub-settings-row';
+} from "../../data/mock-hub-account";
+import { colors, spacing } from "../../constants/theme";
+import { HubSettingsRow } from "./hub-settings-row";
 
 type HubQuickLinkScreenProps = {
   screen: HubQuickLinkId;
@@ -19,31 +26,31 @@ type HubQuickLinkScreenProps = {
 };
 
 const ANDROID_RIPPLE =
-  Platform.OS === 'android' ? { color: 'rgba(0, 0, 0, 0.06)' } : undefined;
+  Platform.OS === "android" ? { color: "rgba(0, 0, 0, 0.06)" } : undefined;
 
 const HUB_QUICK_LINKS_LABELS: Record<HubQuickLinkId, string> = {
-  'personal-info': 'Personal info',
-  security: 'Security',
-  'privacy-data': 'Privacy & data',
+  "personal-info": "Personal info",
+  security: "Security",
+  "privacy-data": "Privacy & data",
 };
 
 const SCREEN_COPY: Record<
   HubQuickLinkId,
   { description: string; sections: HubSettingsSection[] }
 > = {
-  'personal-info': {
+  "personal-info": {
     description:
-      'Info about you and your preferences across InstructorHub services. Some details may be visible to schools you work with.',
+      "Info about you and your preferences across InstructorHub services. Some details may be visible to schools you work with.",
     sections: HUB_PERSONAL_INFO_SECTIONS,
   },
   security: {
     description:
-      'Settings and recommendations to help keep your account secure. Manage how you sign in and monitor recent activity.',
+      "Settings and recommendations to help keep your account secure. Manage how you sign in and monitor recent activity.",
     sections: HUB_SECURITY_SECTIONS,
   },
-  'privacy-data': {
+  "privacy-data": {
     description:
-      'Manage how your data is used in InstructorHub. You can control visibility, sharing, and download or delete your data.',
+      "Manage how your data is used in InstructorHub. You can control visibility, sharing, and download or delete your data.",
     sections: HUB_PRIVACY_SECTIONS,
   },
 };
@@ -53,17 +60,22 @@ function HubSettingsSections({
   toggleState,
   onToggle,
   onRowPress,
-}: {
+}: Readonly<{
   sections: HubSettingsSection[];
   toggleState: Record<string, boolean>;
   onToggle: (id: string, enabled: boolean) => void;
   onRowPress: (item: HubSettingItem) => void;
-}) {
+}>) {
   return (
     <>
       {sections.map((section, sectionIndex) => (
-        <View key={section.title ?? `section-${sectionIndex}`} style={styles.section}>
-          {section.title ? <Text style={styles.sectionTitle}>{section.title}</Text> : null}
+        <View
+          key={section.title ?? `section-${sectionIndex}`}
+          style={styles.section}
+        >
+          {section.title ? (
+            <Text style={styles.sectionTitle}>{section.title}</Text>
+          ) : null}
 
           <View style={styles.sectionCard}>
             {section.rows.map((row, rowIndex) => (
@@ -73,7 +85,11 @@ function HubSettingsSections({
                 value={row.value}
                 subtitle={row.subtitle}
                 toggle={row.toggle}
-                enabled={row.toggle ? (toggleState[row.id] ?? row.enabled ?? false) : false}
+                enabled={
+                  row.toggle
+                    ? (toggleState[row.id] ?? row.enabled ?? false)
+                    : false
+                }
                 destructive={row.destructive}
                 onPress={() => onRowPress(row)}
                 onToggle={(enabled) => onToggle(row.id, enabled)}
@@ -87,22 +103,27 @@ function HubSettingsSections({
   );
 }
 
-function HubQuickLinkSettingsScreen({ screen, onBack }: HubQuickLinkScreenProps) {
+function HubQuickLinkSettingsScreen({
+  screen,
+  onBack,
+}: Readonly<HubQuickLinkScreenProps>) {
   const copy = SCREEN_COPY[screen];
   const title = HUB_QUICK_LINKS_LABELS[screen];
-  const [toggleState, setToggleState] = useState<Record<string, boolean>>(() => {
-    const initial: Record<string, boolean> = {};
+  const [toggleState, setToggleState] = useState<Record<string, boolean>>(
+    () => {
+      const initial: Record<string, boolean> = {};
 
-    for (const section of copy.sections) {
-      for (const row of section.rows) {
-        if (row.toggle) {
-          initial[row.id] = row.enabled ?? false;
+      for (const section of copy.sections) {
+        for (const row of section.rows) {
+          if (row.toggle) {
+            initial[row.id] = row.enabled ?? false;
+          }
         }
       }
-    }
 
-    return initial;
-  });
+      return initial;
+    },
+  );
 
   function handleRowPress(item: HubSettingItem) {
     // TODO: connect to NestJS hub account settings API
@@ -122,7 +143,11 @@ function HubQuickLinkSettingsScreen({ screen, onBack }: HubQuickLinkScreenProps)
           hitSlop={8}
           android_ripple={ANDROID_RIPPLE}
           accessibilityLabel="Back"
-          style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}>
+          style={({ pressed }) => [
+            styles.backButton,
+            pressed && styles.pressed,
+          ]}
+        >
           <ChevronLeftIcon size={22} />
         </Pressable>
 
@@ -133,7 +158,8 @@ function HubQuickLinkSettingsScreen({ screen, onBack }: HubQuickLinkScreenProps)
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}>
+        showsVerticalScrollIndicator={false}
+      >
         <Text style={styles.description}>{copy.description}</Text>
 
         <HubSettingsSections
@@ -147,11 +173,11 @@ function HubQuickLinkSettingsScreen({ screen, onBack }: HubQuickLinkScreenProps)
   );
 }
 
-export function HubSecurityScreen({ onBack }: { onBack: () => void }) {
+export function HubSecurityScreen({ onBack }: Readonly<{ onBack: () => void }>) {
   return <HubQuickLinkSettingsScreen screen="security" onBack={onBack} />;
 }
 
-export function HubPrivacyDataScreen({ onBack }: { onBack: () => void }) {
+export function HubPrivacyDataScreen({ onBack }: Readonly<{ onBack: () => void }>) {
   return <HubQuickLinkSettingsScreen screen="privacy-data" onBack={onBack} />;
 }
 
@@ -161,9 +187,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.sm,
     paddingBottom: spacing.md,
@@ -171,12 +197,12 @@ const styles = StyleSheet.create({
   backButton: {
     width: 40,
     height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerTitle: {
     fontSize: 17,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
   },
   headerSpacer: {
@@ -200,9 +226,9 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.textSecondary,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     letterSpacing: 0.4,
     paddingHorizontal: spacing.xl,
   },

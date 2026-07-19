@@ -105,7 +105,6 @@ function handleMenuPress(itemId: string) {
   }
   if (itemId === "edit-address") {
     router.push("/dashboard/account/edit-address");
-    return;
   }
 }
 

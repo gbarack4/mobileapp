@@ -1,8 +1,8 @@
-import { type ReactNode } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { type ReactNode } from "react";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
-import { ChevronRightIcon } from '../icons/dashboard-icons';
-import { colors, spacing } from '../../constants/theme';
+import { ChevronRightIcon } from "../icons/dashboard-icons";
+import { colors, spacing } from "../../constants/theme";
 
 type AccountMenuRowProps = {
   label: string;
@@ -13,7 +13,7 @@ type AccountMenuRowProps = {
 };
 
 const ANDROID_RIPPLE =
-  Platform.OS === 'android' ? { color: 'rgba(0, 0, 0, 0.04)' } : undefined;
+  Platform.OS === "android" ? { color: "rgba(0, 0, 0, 0.04)" } : undefined;
 
 export function AccountMenuRow({
   label,
@@ -21,13 +21,14 @@ export function AccountMenuRow({
   icon,
   onPress,
   showDivider = true,
-}: AccountMenuRowProps) {
+}: Readonly<AccountMenuRowProps>) {
   return (
     <View>
       <Pressable
         onPress={onPress}
         android_ripple={ANDROID_RIPPLE}
-        style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
+        style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+      >
         <View style={styles.iconWrap}>{icon}</View>
 
         <View style={styles.textWrap}>
@@ -45,15 +46,15 @@ export function AccountMenuRow({
 
 const styles = StyleSheet.create({
   row: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.lg,
     paddingVertical: 18,
     paddingHorizontal: spacing.xl,
   },
   iconWrap: {
     width: 28,
-    alignItems: 'center',
+    alignItems: "center",
   },
   textWrap: {
     flex: 1,
@@ -61,7 +62,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text,
   },
   subtitle: {

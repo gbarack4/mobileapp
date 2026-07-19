@@ -1,8 +1,8 @@
-import { useState } from 'react';
-import { Platform, StyleSheet, TextInput, View } from 'react-native';
+import { useState } from "react";
+import { Platform, StyleSheet, TextInput, View } from "react-native";
 
-import { SearchIcon } from '../icons/dashboard-icons';
-import { colors } from '../../constants/theme';
+import { SearchIcon } from "../icons/dashboard-icons";
+import { colors } from "../../constants/theme";
 
 type SearchBarProps = {
   value?: string;
@@ -13,9 +13,9 @@ type SearchBarProps = {
 export function SearchBar({
   value,
   onChangeText,
-  placeholder = 'Search by name, email, number',
-}: SearchBarProps) {
-  const [internalQuery, setInternalQuery] = useState('');
+  placeholder = "Search by name, email, number",
+}: Readonly<SearchBarProps>) {
+  const [internalQuery, setInternalQuery] = useState("");
   const isControlled = value !== undefined;
   const query = isControlled ? value : internalQuery;
 
@@ -48,8 +48,8 @@ export function SearchBar({
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
     backgroundColor: colors.inputBackground,
     borderRadius: 14,
@@ -61,9 +61,9 @@ const styles = StyleSheet.create({
     minWidth: 0,
     fontSize: 15,
     color: colors.text,
-    paddingVertical: Platform.OS === 'web' ? 12 : 0,
-    ...(Platform.OS === 'web'
-      ? ({ outlineStyle: 'none', width: '100%' } as object)
+    paddingVertical: Platform.OS === "web" ? 12 : 0,
+    ...(Platform.OS === "web"
+      ? ({ outlineStyle: "none", width: "100%" } as object)
       : {}),
   },
 });

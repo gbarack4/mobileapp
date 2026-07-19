@@ -1,10 +1,10 @@
-import Svg, { Path, Rect } from 'react-native-svg';
+import Svg, { Path, Rect } from "react-native-svg";
 
 type LogoProps = {
   size?: number;
 };
 
-export function Logo({ size = 64 }: LogoProps) {
+export function Logo({ size = 64 }: Readonly<LogoProps>) {
   return (
     <Svg width={size} height={size} viewBox="0 0 40 40" fill="none">
       <Rect width="40" height="40" rx="10" fill="#005eff" />

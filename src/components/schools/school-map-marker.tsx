@@ -8,7 +8,7 @@ type SchoolMapMarkerProps = {
   selected?: boolean;
 };
 
-export function SchoolMapMarker({ initials, color, selected }: SchoolMapMarkerProps) {
+export function SchoolMapMarker({ initials, color, selected }: Readonly<SchoolMapMarkerProps>) {
   return (
     <View style={[styles.wrapper, selected && styles.wrapperSelected]}>
       <View style={[styles.bubble, { backgroundColor: color }]}>

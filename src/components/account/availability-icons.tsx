@@ -1,25 +1,44 @@
-import Svg, { Circle, Line, Path, Rect } from 'react-native-svg';
+import Svg, { Circle, Line, Path, Rect } from "react-native-svg";
 
-import { colors } from '../../constants/theme';
+import { colors } from "../../constants/theme";
 
 type IconProps = {
   size?: number;
   color?: string;
 };
 
-export function ClockIcon({ size = 14, color = colors.textMuted }: IconProps) {
+export function ClockIcon({
+  size = 14,
+  color = colors.textMuted,
+}: Readonly<IconProps>) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Circle cx="12" cy="12" r="8" stroke={color} strokeWidth="1.75" />
-      <Path d="M12 8v4l2.5 2.5" stroke={color} strokeWidth="1.75" strokeLinecap="round" />
+      <Path
+        d="M12 8v4l2.5 2.5"
+        stroke={color}
+        strokeWidth="1.75"
+        strokeLinecap="round"
+      />
     </Svg>
   );
 }
 
-export function CopyIcon({ size = 16, color = colors.primary }: IconProps) {
+export function CopyIcon({
+  size = 16,
+  color = colors.primary,
+}: Readonly<IconProps>) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Rect x="8" y="8" width="11" height="11" rx="2" stroke={color} strokeWidth="1.75" />
+      <Rect
+        x="8"
+        y="8"
+        width="11"
+        height="11"
+        rx="2"
+        stroke={color}
+        strokeWidth="1.75"
+      />
       <Path
         d="M6 16V6a2 2 0 012-2h10"
         stroke={color}
@@ -30,7 +49,10 @@ export function CopyIcon({ size = 16, color = colors.primary }: IconProps) {
   );
 }
 
-export function TrashIcon({ size = 18, color = '#ef4444' }: IconProps) {
+export function TrashIcon({
+  size = 18,
+  color = "#ef4444",
+}: Readonly<IconProps>) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path
@@ -44,7 +66,10 @@ export function TrashIcon({ size = 18, color = '#ef4444' }: IconProps) {
   );
 }
 
-export function CheckIcon({ size = 18, color = colors.white }: IconProps) {
+export function CheckIcon({
+  size = 18,
+  color = colors.white,
+}: Readonly<IconProps>) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path
@@ -58,17 +83,38 @@ export function CheckIcon({ size = 18, color = colors.white }: IconProps) {
   );
 }
 
-export function MapLayersIcon({ size = 14, color = colors.white }: IconProps) {
+export function MapLayersIcon({
+  size = 14,
+  color = colors.white,
+}: Readonly<IconProps>) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Path d="M4 7l8-4 8 4-8 4-8-4z" stroke={color} strokeWidth="1.75" strokeLinejoin="round" />
-      <Path d="M4 12l8 4 8-4" stroke={color} strokeWidth="1.75" strokeLinejoin="round" />
-      <Path d="M4 17l8 4 8-4" stroke={color} strokeWidth="1.75" strokeLinejoin="round" />
+      <Path
+        d="M4 7l8-4 8 4-8 4-8-4z"
+        stroke={color}
+        strokeWidth="1.75"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M4 12l8 4 8-4"
+        stroke={color}
+        strokeWidth="1.75"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M4 17l8 4 8-4"
+        stroke={color}
+        strokeWidth="1.75"
+        strokeLinejoin="round"
+      />
     </Svg>
   );
 }
 
-export function LightningIcon({ size = 18, color = '#f59e0b' }: IconProps) {
+export function LightningIcon({
+  size = 18,
+  color = "#f59e0b",
+}: Readonly<IconProps>) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path
@@ -81,7 +127,10 @@ export function LightningIcon({ size = 18, color = '#f59e0b' }: IconProps) {
   );
 }
 
-export function LocationPinSmallIcon({ size = 14, color = colors.primary }: IconProps) {
+export function LocationPinSmallIcon({
+  size = 14,
+  color = colors.primary,
+}: Readonly<IconProps>) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path
@@ -95,11 +144,30 @@ export function LocationPinSmallIcon({ size = 14, color = colors.primary }: Icon
   );
 }
 
-export function CloseSmallIcon({ size = 14, color = colors.primary }: IconProps) {
+export function CloseSmallIcon({
+  size = 14,
+  color = colors.primary,
+}: Readonly<IconProps>) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Line x1="7" y1="7" x2="17" y2="17" stroke={color} strokeWidth="2" strokeLinecap="round" />
-      <Line x1="17" y1="7" x2="7" y2="17" stroke={color} strokeWidth="2" strokeLinecap="round" />
+      <Line
+        x1="7"
+        y1="7"
+        x2="17"
+        y2="17"
+        stroke={color}
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <Line
+        x1="17"
+        y1="7"
+        x2="7"
+        y2="17"
+        stroke={color}
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
     </Svg>
   );
 }

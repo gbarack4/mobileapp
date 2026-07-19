@@ -58,7 +58,7 @@ function formatLessonSummary(lesson: Lesson) {
   return `${lesson.dayOfWeek} ${lesson.day} ${lesson.month} · ${lesson.time} · ${lesson.studentName}`;
 }
 
-export function CancelLessonSheet({ visible, lesson, onClose, onConfirm }: CancelLessonSheetProps) {
+export function CancelLessonSheet({ visible, lesson, onClose, onConfirm }: Readonly<CancelLessonSheetProps>) {
   const insets = useSafeAreaInsets();
   const [mounted, setMounted] = useState(visible);
   const [selectedReason, setSelectedReason] = useState<CancellationReason | null>(null);

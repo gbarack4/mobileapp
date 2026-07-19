@@ -1,11 +1,11 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from "react-native";
 
-import { colors } from '../../constants/theme';
+import { colors } from "../../constants/theme";
 
 type StarRatingProps = {
   rating: number;
   reviewCount: number;
-  variant?: 'card' | 'detail';
+  variant?: "card" | "detail";
   showReviewCount?: boolean;
 };
 
@@ -14,12 +14,15 @@ function formatRating(rating: number) {
     return String(rating);
   }
 
-  return rating.toFixed(2).replace(/0$/, '');
+  return rating.toFixed(2).replace(/0$/, "");
 }
 
-function StarIcon({ filled, half }: { filled: boolean; half: boolean }) {
-  const fillColor = filled || half ? '#facc15' : 'transparent';
-  const strokeColor = filled || half ? '#facc15' : '#d1d5db';
+function StarIcon({
+  filled,
+  half,
+}: Readonly<{ filled: boolean; half: boolean }>) {
+  const fillColor = filled || half ? "#facc15" : "transparent";
+  const strokeColor = filled || half ? "#facc15" : "#d1d5db";
 
   return (
     <View style={styles.star}>
@@ -31,7 +34,8 @@ function StarIcon({ filled, half }: { filled: boolean; half: boolean }) {
             styles.starFill,
             { color: fillColor },
             half && styles.starHalf,
-          ]}>
+          ]}
+        >
           ★
         </Text>
       ) : null}
@@ -42,11 +46,13 @@ function StarIcon({ filled, half }: { filled: boolean; half: boolean }) {
 export function StarRating({
   rating,
   reviewCount,
-  variant = 'card',
+  variant = "card",
   showReviewCount = true,
 }: StarRatingProps) {
   const reviewLabel =
-    variant === 'detail' ? `(${reviewCount} reviews)` : `${reviewCount} reviews`;
+    variant === "detail"
+      ? `(${reviewCount} reviews)`
+      : `${reviewCount} reviews`;
 
   return (
     <View style={styles.row}>
@@ -59,45 +65,47 @@ export function StarRating({
         })}
       </View>
       <Text style={styles.ratingValue}>{formatRating(rating)}</Text>
-      {showReviewCount ? <Text style={styles.reviewCount}>{reviewLabel}</Text> : null}
+      {showReviewCount ? (
+        <Text style={styles.reviewCount}>{reviewLabel}</Text>
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   row: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
-    flexWrap: 'wrap',
+    flexWrap: "wrap",
   },
   stars: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 1,
   },
   star: {
     width: 14,
     height: 14,
-    position: 'relative',
+    position: "relative",
   },
   starGlyph: {
     fontSize: 14,
     lineHeight: 14,
-    position: 'absolute',
+    position: "absolute",
     left: 0,
     top: 0,
   },
   starFill: {
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   starHalf: {
     width: 7,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   ratingValue: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
   },
   reviewCount: {

@@ -1,7 +1,14 @@
-import { Platform, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import {
+  Platform,
+  Pressable,
+  StyleSheet,
+  Switch,
+  Text,
+  View,
+} from "react-native";
 
-import { ChevronRightIcon } from '../icons/dashboard-icons';
-import { colors, spacing } from '../../constants/theme';
+import { ChevronRightIcon } from "../icons/dashboard-icons";
+import { colors, spacing } from "../../constants/theme";
 
 type HubSettingsRowProps = {
   label: string;
@@ -16,7 +23,7 @@ type HubSettingsRowProps = {
 };
 
 const ANDROID_RIPPLE =
-  Platform.OS === 'android' ? { color: 'rgba(0, 0, 0, 0.04)' } : undefined;
+  Platform.OS === "android" ? { color: "rgba(0, 0, 0, 0.04)" } : undefined;
 
 export function HubSettingsRow({
   label,
@@ -28,11 +35,13 @@ export function HubSettingsRow({
   onPress,
   onToggle,
   showDivider = true,
-}: HubSettingsRowProps) {
+}: Readonly<HubSettingsRowProps>) {
   const content = (
     <>
       <View style={styles.textWrap}>
-        <Text style={[styles.label, destructive && styles.destructiveLabel]}>{label}</Text>
+        <Text style={[styles.label, destructive && styles.destructiveLabel]}>
+          {label}
+        </Text>
         {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
         {value ? <Text style={styles.value}>{value}</Text> : null}
       </View>
@@ -41,7 +50,7 @@ export function HubSettingsRow({
         <Switch
           value={enabled}
           onValueChange={onToggle}
-          trackColor={{ false: '#e5e7eb', true: '#93c5fd' }}
+          trackColor={{ false: "#e5e7eb", true: "#93c5fd" }}
           thumbColor={enabled ? colors.primary : colors.white}
         />
       ) : (
@@ -58,7 +67,8 @@ export function HubSettingsRow({
         <Pressable
           onPress={onPress}
           android_ripple={ANDROID_RIPPLE}
-          style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
+          style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+        >
           {content}
         </Pressable>
       )}
@@ -70,8 +80,8 @@ export function HubSettingsRow({
 
 const styles = StyleSheet.create({
   row: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.md,
     paddingVertical: 18,
     paddingHorizontal: spacing.xl,
@@ -82,7 +92,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text,
   },
   destructiveLabel: {

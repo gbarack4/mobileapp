@@ -1,61 +1,68 @@
-import { router } from 'expo-router';
-import { useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { router } from "expo-router";
+import { useState } from "react";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
-import { colors } from '../../constants/theme';
-import type { Lesson } from '../../types/dashboard';
-import { cancelLesson } from '../../services/lessons';
-import { formatLessonMeta } from '../../utils/lessons';
-import { CancelLessonSheet, type CancellationReason } from './cancel-lesson-sheet';
-import { CarIcon, MapPinIcon, MoreVerticalIcon } from '../icons/dashboard-icons';
+import { colors } from "../../constants/theme";
+import type { Lesson } from "../../types/dashboard";
+import { cancelLesson } from "../../services/lessons";
+import { formatLessonMeta } from "../../utils/lessons";
+import {
+  CancelLessonSheet,
+  type CancellationReason,
+} from "./cancel-lesson-sheet";
+import {
+  CarIcon,
+  MapPinIcon,
+  MoreVerticalIcon,
+} from "../icons/dashboard-icons";
 
 type LessonCardProps = {
   lesson: Lesson;
 };
 
 const ANDROID_RIPPLE =
-  Platform.OS === 'android' ? { color: 'rgba(0, 0, 0, 0.04)' } : undefined;
+  Platform.OS === "android" ? { color: "rgba(0, 0, 0, 0.04)" } : undefined;
 
-function statusLabel(status: Lesson['status']) {
+function statusLabel(status: Lesson["status"]) {
   switch (status) {
-    case 'upcoming':
-      return 'Upcoming';
-    case 'completed':
-      return 'Completed';
-    case 'cancelled':
-      return 'Cancelled';
+    case "upcoming":
+      return "Upcoming";
+    case "completed":
+      return "Completed";
+    case "cancelled":
+      return "Cancelled";
     default:
       return status;
   }
 }
 
-function statusBadgeStyle(status: Lesson['status']) {
+function statusBadgeStyle(status: Lesson["status"]) {
   switch (status) {
-    case 'completed':
+    case "completed":
       return styles.statusBadgeCompleted;
-    case 'cancelled':
+    case "cancelled":
       return styles.statusBadgeCancelled;
     default:
       return null;
   }
 }
 
-function statusTextStyle(status: Lesson['status']) {
+function statusTextStyle(status: Lesson["status"]) {
   switch (status) {
-    case 'completed':
+    case "completed":
       return styles.statusTextCompleted;
-    case 'cancelled':
+    case "cancelled":
       return styles.statusTextCancelled;
     default:
       return null;
   }
 }
 
-export function LessonCard({ lesson }: LessonCardProps) {
+export function LessonCard({ lesson }: Readonly<LessonCardProps>) {
   const [cancelSheetVisible, setCancelSheetVisible] = useState(false);
 
   function handleMenuPress() {
-    if (lesson.status !== 'upcoming') {
+    if (lesson.status !== "upcoming") {
       return;
     }
 
@@ -71,72 +78,94 @@ export function LessonCard({ lesson }: LessonCardProps) {
       <Pressable
         onPress={() => router.push(`/dashboard/lesson/${lesson.id}`)}
         android_ripple={ANDROID_RIPPLE}
-        style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}>
-      <View style={styles.dateColumn}>
-        <Text style={styles.dayOfWeek}>{lesson.dayOfWeek}</Text>
-        <Text style={styles.day}>{lesson.day}</Text>
-        <Text style={styles.month}>{lesson.month}</Text>
-        <View style={styles.dateDivider} />
-        <Text style={styles.time}>{lesson.time}</Text>
-      </View>
+        style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+      >
+        <View style={styles.dateColumn}>
+          <Text style={styles.dayOfWeek}>{lesson.dayOfWeek}</Text>
+          <Text style={styles.day}>{lesson.day}</Text>
+          <Text style={styles.month}>{lesson.month}</Text>
+          <View style={styles.dateDivider} />
+          <Text style={styles.time}>{lesson.time}</Text>
+        </View>
 
-      <View style={styles.contentColumn}>
-        <View style={styles.titleRow}>
-          <View style={styles.titleLeft}>
-            <View style={styles.iconCircle}>
-              <CarIcon size={16} />
+        <View style={styles.contentColumn}>
+          <View style={styles.titleRow}>
+            <View style={styles.titleLeft}>
+              <View style={styles.iconCircle}>
+                <CarIcon size={16} />
+              </View>
+              <View style={styles.titleTextColumn}>
+                <Text
+                  style={styles.title}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  {lesson.title}
+                </Text>
+                <Text style={styles.meta}>{formatLessonMeta(lesson)}</Text>
+              </View>
             </View>
-            <View style={styles.titleTextColumn}>
-              <Text style={styles.title} numberOfLines={1} ellipsizeMode="tail">
-                {lesson.title}
+
+            <View style={styles.titleRight}>
+              <View
+                style={[styles.statusBadge, statusBadgeStyle(lesson.status)]}
+              >
+                <Text
+                  style={[styles.statusText, statusTextStyle(lesson.status)]}
+                >
+                  {statusLabel(lesson.status)}
+                </Text>
+              </View>
+              <Pressable
+                onPress={(event) => {
+                  event.stopPropagation();
+                  handleMenuPress();
+                }}
+                android_ripple={ANDROID_RIPPLE}
+                hitSlop={8}
+              >
+                <MoreVerticalIcon />
+              </Pressable>
+            </View>
+          </View>
+
+          <View style={styles.locationRow}>
+            <MapPinIcon />
+            <View style={styles.locationText}>
+              <Text
+                style={styles.locationAddress}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                {lesson.locationAddress}
               </Text>
-              <Text style={styles.meta}>{formatLessonMeta(lesson)}</Text>
             </View>
           </View>
 
-          <View style={styles.titleRight}>
-            <View style={[styles.statusBadge, statusBadgeStyle(lesson.status)]}>
-              <Text style={[styles.statusText, statusTextStyle(lesson.status)]}>
-                {statusLabel(lesson.status)}
+          <View style={styles.studentRow}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>{lesson.studentInitials}</Text>
+            </View>
+            <View style={styles.studentText}>
+              <Text style={styles.studentLabel}>Student</Text>
+              <Text
+                style={styles.studentName}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                {lesson.studentName}
+              </Text>
+              <Text
+                style={styles.studentEmail}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                {lesson.studentEmail}
               </Text>
             </View>
-            <Pressable
-              onPress={(event) => {
-                event.stopPropagation();
-                handleMenuPress();
-              }}
-              android_ripple={ANDROID_RIPPLE}
-              hitSlop={8}>
-              <MoreVerticalIcon />
-            </Pressable>
           </View>
         </View>
-
-        <View style={styles.locationRow}>
-          <MapPinIcon />
-          <View style={styles.locationText}>
-            <Text style={styles.locationAddress} numberOfLines={1} ellipsizeMode="tail">
-              {lesson.locationAddress}
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.studentRow}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{lesson.studentInitials}</Text>
-          </View>
-          <View style={styles.studentText}>
-            <Text style={styles.studentLabel}>Student</Text>
-            <Text style={styles.studentName} numberOfLines={1} ellipsizeMode="tail">
-              {lesson.studentName}
-            </Text>
-            <Text style={styles.studentEmail} numberOfLines={1} ellipsizeMode="tail">
-              {lesson.studentEmail}
-            </Text>
-          </View>
-        </View>
-      </View>
-    </Pressable>
+      </Pressable>
 
       <CancelLessonSheet
         visible={cancelSheetVisible}
@@ -150,10 +179,10 @@ export function LessonCard({ lesson }: LessonCardProps) {
 
 const styles = StyleSheet.create({
   card: {
-    flexDirection: 'row',
-    backgroundColor: '#f9f9f9',
+    flexDirection: "row",
+    backgroundColor: "#f9f9f9",
     borderRadius: 16,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   cardPressed: {
     opacity: 0.92,
@@ -162,13 +191,13 @@ const styles = StyleSheet.create({
     width: 78,
     paddingVertical: 16,
     paddingHorizontal: 12,
-    alignItems: 'center',
+    alignItems: "center",
     borderRightWidth: 1,
-    borderRightColor: '#e8edf3',
+    borderRightColor: "#e8edf3",
   },
   dayOfWeek: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.primary,
     letterSpacing: 0.6,
     marginBottom: 2,
@@ -176,27 +205,27 @@ const styles = StyleSheet.create({
   day: {
     fontSize: 28,
     lineHeight: 32,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
   },
   month: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.textMuted,
     letterSpacing: 0.5,
     marginBottom: 10,
   },
   dateDivider: {
-    width: '100%',
+    width: "100%",
     height: 1,
-    backgroundColor: '#e8edf3',
+    backgroundColor: "#e8edf3",
     marginBottom: 10,
   },
   time: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.primary,
-    textAlign: 'center',
+    textAlign: "center",
   },
   contentColumn: {
     flex: 1,
@@ -205,14 +234,14 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   titleRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
     gap: 8,
   },
   titleLeft: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
     gap: 8,
     flex: 1,
     minWidth: 0,
@@ -227,17 +256,17 @@ const styles = StyleSheet.create({
     height: 32,
     borderRadius: 16,
     backgroundColor: colors.white,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   title: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
   },
   titleRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
     flexShrink: 0,
   },
@@ -249,14 +278,14 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.primary,
   },
   statusBadgeCompleted: {
     backgroundColor: colors.white,
   },
   statusTextCompleted: {
-    color: '#059669',
+    color: "#059669",
   },
   statusBadgeCancelled: {
     backgroundColor: colors.white,
@@ -269,8 +298,8 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   locationRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
     gap: 8,
   },
   locationText: {
@@ -283,8 +312,8 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   studentRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
     marginTop: 2,
   },
@@ -292,13 +321,13 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#e8f1ff',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#e8f1ff",
+    alignItems: "center",
+    justifyContent: "center",
   },
   avatarText: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.primary,
   },
   studentText: {
@@ -312,7 +341,7 @@ const styles = StyleSheet.create({
   },
   studentName: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
   },
   studentEmail: {

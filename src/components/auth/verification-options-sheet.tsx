@@ -53,7 +53,7 @@ export function VerificationOptionsSheet({
   identifier,
   onClose,
   onSelectMethod,
-}: VerificationOptionsSheetProps) {
+}: Readonly<VerificationOptionsSheetProps>) {
   const insets = useSafeAreaInsets();
   const maskedPhone = maskPhone(identifier);
   const [mounted, setMounted] = useState(visible);

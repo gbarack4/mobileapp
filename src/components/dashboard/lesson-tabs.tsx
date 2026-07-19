@@ -17,7 +17,7 @@ const TABS: { id: LessonTab; label: string }[] = [
 const ANDROID_RIPPLE =
   Platform.OS === 'android' ? { color: 'rgba(0, 94, 255, 0.08)' } : undefined;
 
-export function LessonTabs({ activeTab, onTabChange }: LessonTabsProps) {
+export function LessonTabs({ activeTab, onTabChange }: Readonly<LessonTabsProps>) {
   return (
     <View style={styles.container}>
       {TABS.map((tab) => {

@@ -1,6 +1,6 @@
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
-import { colors, radius, spacing } from '../../constants/theme';
+import { colors, radius, spacing } from "../../constants/theme";
 
 type SelectionPillsProps<T extends string> = {
   label: string;
@@ -10,14 +10,14 @@ type SelectionPillsProps<T extends string> = {
 };
 
 const ANDROID_RIPPLE =
-  Platform.OS === 'android' ? { color: 'rgba(0, 94, 255, 0.14)' } : undefined;
+  Platform.OS === "android" ? { color: "rgba(0, 94, 255, 0.14)" } : undefined;
 
 export function SelectionPills<T extends string>({
   label,
   options,
   value,
   onChange,
-}: SelectionPillsProps<T>) {
+}: Readonly<SelectionPillsProps<T>>) {
   return (
     <View style={styles.container}>
       <Text style={styles.label}>{label}</Text>
@@ -30,8 +30,11 @@ export function SelectionPills<T extends string>({
               key={option.value}
               onPress={() => onChange(option.value)}
               android_ripple={ANDROID_RIPPLE}
-              style={[styles.pill, selected && styles.pillSelected]}>
-              <Text style={[styles.pillText, selected && styles.pillTextSelected]}>
+              style={[styles.pill, selected && styles.pillSelected]}
+            >
+              <Text
+                style={[styles.pillText, selected && styles.pillTextSelected]}
+              >
                 {option.label}
               </Text>
             </Pressable>
@@ -52,8 +55,8 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   row: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: spacing.sm,
   },
   pill: {
@@ -62,7 +65,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     borderWidth: 2,
-    borderColor: 'transparent',
+    borderColor: "transparent",
   },
   pillSelected: {
     borderColor: colors.primary,
@@ -70,11 +73,11 @@ const styles = StyleSheet.create({
   },
   pillText: {
     fontSize: 15,
-    fontWeight: '500',
+    fontWeight: "500",
     color: colors.textSecondary,
   },
   pillTextSelected: {
     color: colors.primary,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });

@@ -63,7 +63,7 @@ export function SchoolSearchBar({
   onSearch,
   onSelectSuggestion,
   placeholder = 'Enter school name',
-}: SchoolSearchBarProps) {
+}: Readonly<SchoolSearchBarProps>) {
   const [suggestions, setSuggestions] = useState<School[]>([]);
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
