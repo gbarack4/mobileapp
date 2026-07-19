@@ -344,19 +344,18 @@ export function HubAccountScreen({ onClose }: Readonly<HubAccountScreenProps>) {
           fileName,
           mimeType,
           token,
+          profile?.avatarUrl,
         );
 
         if (remoteUrl) {
-          const cacheBustedUrl = `${remoteUrl.split("?")[0]}?t=${Date.now()}`;
-
-          setPhotoUri(cacheBustedUrl);
-          setProfilePhotoUri(cacheBustedUrl);
+          setPhotoUri(remoteUrl);
+          setProfilePhotoUri(remoteUrl);
 
           void queryClient.invalidateQueries({ queryKey: ["profile"] });
         }
       }
-    } catch {
-      // Keep the local preview when the backend is offline.
+    } catch (error) {
+      console.error("Upload error:", error);
     } finally {
       setIsUploadingPhoto(false);
     }

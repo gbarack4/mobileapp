@@ -5,6 +5,7 @@ export async function uploadAvatarToBackend(
   fileName: string,
   mimeType: string,
   token: string,
+  oldFileUrl?: string | null,
 ): Promise<string> {
   const formData = new FormData();
 
@@ -18,6 +19,10 @@ export async function uploadAvatarToBackend(
       name: fileName,
       type: mimeType,
     } as any);
+  }
+
+  if (oldFileUrl) {
+    formData.append("oldFileUrl", oldFileUrl);
   }
 
   const baseUrl = process.env.EXPO_PUBLIC_API_URL;
@@ -55,6 +60,7 @@ export async function uploadDocumentToBackend(
   mimeType: string,
   documentType: string,
   token: string,
+  oldFileUrl?: string | null,
 ): Promise<string> {
   const formData = new FormData();
 
@@ -70,12 +76,17 @@ export async function uploadDocumentToBackend(
     } as any);
   }
 
+  formData.append("documentType", documentType);
+  if (oldFileUrl) {
+    formData.append("oldFileUrl", oldFileUrl);
+  }
+
   const baseUrl = process.env.EXPO_PUBLIC_API_URL;
   if (!baseUrl) {
     throw new Error("EXPO_PUBLIC_API_URL is not defined");
   }
 
-  const url = `${baseUrl}/instructors/upload-document?documentType=${encodeURIComponent(documentType)}`;
+  const url = `${baseUrl}/instructors/upload-document`;
 
   const response = await fetch(url, {
     method: "POST",

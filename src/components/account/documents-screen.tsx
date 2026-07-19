@@ -11,12 +11,12 @@ import {
   View,
 } from "react-native";
 
-import { ChevronLeftIcon } from "../icons/dashboard-icons";
 import { colors, spacing } from "../../constants/theme";
+import { ChevronLeftIcon } from "../icons/dashboard-icons";
 
-import { uploadDocumentToBackend } from "../../services/uploadService";
-import { useQueryClient } from "@tanstack/react-query";
 import { useProfileQuery } from "@/hooks/use-profile";
+import { useQueryClient } from "@tanstack/react-query";
+import { uploadDocumentToBackend } from "../../services/uploadService";
 
 type DocumentsDto = {
   driverLicence: string;
@@ -154,6 +154,9 @@ export function DocumentsScreen({ onClose }: Readonly<DocumentsScreenProps>) {
       const token = await getToken();
       if (!token) throw new Error("Not authenticated");
 
+      const currentDoc = documents.find((d) => d.id === documentId);
+      const oldFileUrl = currentDoc?.fileName;
+
       setUploadingId(documentId);
       setError(null);
 
@@ -163,6 +166,7 @@ export function DocumentsScreen({ onClose }: Readonly<DocumentsScreenProps>) {
         file.mimeType || "application/pdf",
         documentId,
         token,
+        oldFileUrl,
       );
 
       await queryClient.invalidateQueries({ queryKey: ["profile"] });
