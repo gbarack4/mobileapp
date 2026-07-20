@@ -536,7 +536,7 @@ const styles = StyleSheet.create({
   dayPill: {
     minWidth: 58,
     borderRadius: 12,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: '#f9f9f9',
     paddingVertical: 10,
     paddingHorizontal: 10,
     alignItems: 'center',
@@ -597,7 +597,7 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
   slotCard: {
-    backgroundColor: '#f3f4f6',
+    backgroundColor: '#f9f9f9',
     borderRadius: 16,
     padding: spacing.lg,
     gap: spacing.lg,
@@ -754,7 +754,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   offDayCard: {
-    backgroundColor: '#f3f4f6',
+    backgroundColor: '#f9f9f9',
     borderRadius: 16,
     padding: spacing.xl,
     gap: spacing.sm,

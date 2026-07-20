@@ -13,6 +13,7 @@ import type { NativeScrollEvent, NativeSyntheticEvent } from "react-native";
 
 import { FoldedMapIcon } from "../icons/school-icons";
 import { colors, spacing } from "../../constants/theme";
+import { requestSchoolJoin } from "../../services/school-membership";
 import { searchSchools } from "../../services/schools";
 import type { School } from "../../types/school";
 import { SchoolCard } from "./school-card";
@@ -66,7 +67,7 @@ export function SchoolsScreen({
 
   function handleJoin(school: School) {
     // TODO: connect to NestJS join-school API
-    router.push(`/dashboard/school/${school.id}`);
+    requestSchoolJoin(school.id);
   }
 
   return (

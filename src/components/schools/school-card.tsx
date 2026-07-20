@@ -1,8 +1,15 @@
 import { router } from "expo-router";
+import { useEffect, useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { MapPinIcon } from "../icons/dashboard-icons";
 import { colors, spacing } from "../../constants/theme";
+import {
+  getJoinButtonLabel,
+  getSchoolJoinStatus,
+  subscribeSchoolMemberships,
+  type SchoolJoinStatus,
+} from "../../services/school-membership";
 import type { School } from "../../types/school";
 import { StarRating } from "./star-rating";
 
@@ -19,7 +26,55 @@ type PressableState = {
 const ANDROID_RIPPLE =
   Platform.OS === "android" ? { color: "rgba(0, 94, 255, 0.08)" } : undefined;
 
+function joinButtonStyles(status: SchoolJoinStatus) {
+  if (status === "pending") {
+    return {
+      button: styles.pendingButton,
+      hovered: styles.pendingButtonHovered,
+      text: styles.pendingButtonText,
+    };
+  }
+
+  if (status === "joined") {
+    return {
+      button: styles.joinedButton,
+      hovered: styles.joinedButtonHovered,
+      text: styles.joinedButtonText,
+    };
+  }
+
+  if (status === "paused") {
+    return {
+      button: styles.pausedButton,
+      hovered: styles.pausedButtonHovered,
+      text: styles.pausedButtonText,
+    };
+  }
+
+  return {
+    button: styles.primaryButton,
+    hovered: styles.primaryButtonHovered,
+    text: styles.primaryButtonText,
+  };
+}
+
 export function SchoolCard({ school, onJoin }: Readonly<SchoolCardProps>) {
+  const [joinStatus, setJoinStatus] = useState<SchoolJoinStatus>(() =>
+    getSchoolJoinStatus(school.id),
+  );
+
+  useEffect(() => {
+    setJoinStatus(getSchoolJoinStatus(school.id));
+    return subscribeSchoolMemberships(() => {
+      setJoinStatus(getSchoolJoinStatus(school.id));
+    });
+  }, [school.id]);
+
+  const canJoin = joinStatus === "none" || joinStatus === "paused";
+  const joinStyles = joinButtonStyles(joinStatus);
+  const joinLabel =
+    joinStatus === "paused" ? "Resume" : getJoinButtonLabel(joinStatus);
+
   return (
     <View style={styles.card}>
       <View style={styles.headerRow}>
@@ -48,7 +103,7 @@ export function SchoolCard({ school, onJoin }: Readonly<SchoolCardProps>) {
           android_ripple={ANDROID_RIPPLE}
           style={({ pressed, hovered }: PressableState) => [
             styles.secondaryButton,
-            hovered && !pressed && styles.secondaryButtonHovered,
+            hovered && styles.buttonHoverOverlay,
             pressed && styles.pressed,
           ]}
         >
@@ -56,15 +111,21 @@ export function SchoolCard({ school, onJoin }: Readonly<SchoolCardProps>) {
         </Pressable>
 
         <Pressable
-          onPress={() => onJoin(school)}
-          android_ripple={ANDROID_RIPPLE}
+          onPress={() => {
+            if (canJoin) {
+              onJoin(school);
+            }
+          }}
+          disabled={!canJoin}
+          accessibilityState={{ disabled: !canJoin }}
+          android_ripple={canJoin ? ANDROID_RIPPLE : undefined}
           style={({ pressed, hovered }: PressableState) => [
-            styles.primaryButton,
-            hovered && !pressed && styles.primaryButtonHovered,
-            pressed && styles.pressed,
+            joinStyles.button,
+            hovered && styles.buttonHoverOverlay,
+            pressed && canJoin && styles.pressed,
           ]}
         >
-          <Text style={styles.primaryButtonText}>Join</Text>
+          <Text style={joinStyles.text}>{joinLabel}</Text>
         </Pressable>
       </View>
     </View>
@@ -127,20 +188,17 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 44,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.text,
     backgroundColor: colors.white,
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
     ...(Platform.OS === "web"
       ? ({
           outlineStyle: "none",
-          transition: "background-color 0.15s ease",
+          transition: "filter 0.15s ease, opacity 0.15s ease",
+          position: "relative",
         } as object)
       : {}),
-  },
-  secondaryButtonHovered: {
-    backgroundColor: "#f9fafb",
   },
   secondaryButtonText: {
     fontSize: 15,
@@ -154,10 +212,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
     ...(Platform.OS === "web"
       ? ({
           outlineStyle: "none",
-          transition: "background-color 0.15s ease",
+          transition: "filter 0.15s ease, opacity 0.15s ease",
+          position: "relative",
         } as object)
       : {}),
   },
@@ -168,6 +228,88 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
     color: colors.white,
+  },
+  pendingButton: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: 12,
+    backgroundColor: "#f59e0b",
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+    ...(Platform.OS === "web"
+      ? ({
+          outlineStyle: "none",
+          transition: "filter 0.15s ease, opacity 0.15s ease",
+          position: "relative",
+        } as object)
+      : {}),
+  },
+  pendingButtonHovered: {
+    backgroundColor: "#d97706",
+  },
+  pendingButtonText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: colors.white,
+  },
+  joinedButton: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: 12,
+    backgroundColor: "#22c55e",
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+    ...(Platform.OS === "web"
+      ? ({
+          outlineStyle: "none",
+          transition: "filter 0.15s ease, opacity 0.15s ease",
+          position: "relative",
+        } as object)
+      : {}),
+  },
+  joinedButtonHovered: {
+    backgroundColor: "#16a34a",
+  },
+  joinedButtonText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: colors.white,
+  },
+  pausedButton: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: 12,
+    backgroundColor: "#f3f4f6",
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+    ...(Platform.OS === "web"
+      ? ({
+          outlineStyle: "none",
+          transition: "filter 0.15s ease, opacity 0.15s ease",
+          position: "relative",
+        } as object)
+      : {}),
+  },
+  pausedButtonHovered: {
+    backgroundColor: "#e5e7eb",
+  },
+  pausedButtonText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: colors.textSecondary,
+  },
+  buttonHoverOverlay: {
+    ...(Platform.OS === "web"
+      ? ({
+          filter: "brightness(0.92)",
+          boxShadow: "inset 0 0 0 999px rgba(15, 23, 42, 0.08)",
+        } as object)
+      : {
+          opacity: 0.9,
+        }),
   },
   pressed: {
     opacity: 0.88,

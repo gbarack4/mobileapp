@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SchoolDetailProfile } from '../../../components/schools/school-detail-profile';
 import { colors, spacing } from '../../../constants/theme';
+import { requestSchoolJoin } from '../../../services/school-membership';
 import { getSchool } from '../../../services/schools';
 import type { School } from '../../../types/school';
 import { goBackOr } from '../../../utils/navigation';
@@ -85,7 +86,7 @@ export default function SchoolDetailScreen() {
 
   function handleJoin() {
     // TODO: connect to NestJS join-school API
-    goBackOr('/dashboard');
+    requestSchoolJoin(school.id);
   }
 
   return (

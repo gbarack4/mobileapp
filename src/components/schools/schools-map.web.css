@@ -3,6 +3,10 @@
   border: none !important;
 }
 
+.school-map-marker > div {
+  pointer-events: auto;
+}
+
 .leaflet-container {
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }

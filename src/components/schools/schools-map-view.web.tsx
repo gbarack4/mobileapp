@@ -101,8 +101,8 @@ export const SchoolsMapView = forwardRef<SchoolsMapViewHandle, SchoolsMapViewPro
         const icon = L.divIcon({
           className: 'school-map-marker',
           html: buildSchoolMarkerHtml(school.initials, school.avatarColor, selected),
-          iconSize: [42, 52],
-          iconAnchor: [21, 52],
+          iconSize: [48, 66],
+          iconAnchor: [24, 66],
         });
 
         const marker = L.marker([lat, lng], { icon });

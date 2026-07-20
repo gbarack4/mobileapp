@@ -1,5 +1,5 @@
 import * as Linking from "expo-linking";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   Dimensions,
   Platform,
@@ -20,7 +20,15 @@ import {
   ContactPhoneIcon,
 } from "../icons/school-detail-icons";
 import { colors, spacing } from "../../constants/theme";
+import {
+  deactivateSchoolMembership,
+  getSchoolJoinStatus,
+  pauseSchoolMembership,
+  subscribeSchoolMemberships,
+  type SchoolJoinStatus,
+} from "../../services/school-membership";
 import type { School } from "../../types/school";
+import { DeactivateSchoolDialog } from "./deactivate-school-dialog";
 import { StarRating } from "./star-rating";
 
 const BANNER_HEIGHT = 148;
@@ -111,6 +119,42 @@ function ContactRow({ icon, label, onPress }: Readonly<ContactRowProps>) {
   );
 }
 
+function detailJoinStyles(status: SchoolJoinStatus) {
+  if (status === "pending") {
+    return {
+      button: styles.joinButtonPending,
+      hovered: styles.joinButtonPendingHovered,
+      text: styles.joinButtonPendingText,
+      label: "Pending",
+    };
+  }
+
+  if (status === "joined") {
+    return {
+      button: styles.joinButtonJoined,
+      hovered: styles.joinButtonJoinedHovered,
+      text: styles.joinButtonJoinedText,
+      label: "Joined",
+    };
+  }
+
+  if (status === "paused") {
+    return {
+      button: styles.joinButtonPaused,
+      hovered: styles.joinButtonPausedHovered,
+      text: styles.joinButtonPausedText,
+      label: "Paused",
+    };
+  }
+
+  return {
+    button: styles.joinButton,
+    hovered: styles.joinButtonHovered,
+    text: styles.joinButtonText,
+    label: "Join School",
+  };
+}
+
 export function SchoolDetailProfile({
   school,
   onClose,
@@ -118,8 +162,23 @@ export function SchoolDetailProfile({
 }: Readonly<SchoolDetailProfileProps>) {
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<DetailTab>("about");
+  const [joinStatus, setJoinStatus] = useState<SchoolJoinStatus>(() =>
+    getSchoolJoinStatus(school.id),
+  );
+  const [deactivateOpen, setDeactivateOpen] = useState(false);
+
+  useEffect(() => {
+    setJoinStatus(getSchoolJoinStatus(school.id));
+    return subscribeSchoolMemberships(() => {
+      setJoinStatus(getSchoolJoinStatus(school.id));
+    });
+  }, [school.id]);
 
   const locationLabel = `${school.address}, ${school.suburb}`;
+  const canJoin = joinStatus === "none" || joinStatus === "paused";
+  const joinStyles = detailJoinStyles(joinStatus);
+  const showDeactive =
+    joinStatus === "pending" || joinStatus === "joined" || joinStatus === "paused";
 
   function openPhone() {
     Linking.openURL(`tel:${school.phone.replace(/\s/g, "")}`);
@@ -189,33 +248,49 @@ export function SchoolDetailProfile({
             />
           </View>
 
-          <View style={styles.tabs}>
-            <Pressable
-              onPress={() => setActiveTab("about")}
-              style={[styles.tab, activeTab === "about" && styles.tabActive]}
-            >
-              <Text
-                style={[
-                  styles.tabLabel,
-                  activeTab === "about" && styles.tabLabelActive,
+          <View style={styles.tabsRow}>
+            <View style={styles.tabs}>
+              <Pressable
+                onPress={() => setActiveTab("about")}
+                style={[styles.tab, activeTab === "about" && styles.tabActive]}
+              >
+                <Text
+                  style={[
+                    styles.tabLabel,
+                    activeTab === "about" && styles.tabLabelActive,
+                  ]}
+                >
+                  About
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setActiveTab("reviews")}
+                style={[styles.tab, activeTab === "reviews" && styles.tabActive]}
+              >
+                <Text
+                  style={[
+                    styles.tabLabel,
+                    activeTab === "reviews" && styles.tabLabelActive,
+                  ]}
+                >
+                  Reviews
+                </Text>
+              </Pressable>
+            </View>
+
+            {showDeactive ? (
+              <Pressable
+                onPress={() => setDeactivateOpen(true)}
+                android_ripple={ANDROID_RIPPLE}
+                accessibilityLabel="Deactivate school membership"
+                style={({ pressed }) => [
+                  styles.leaveButton,
+                  pressed && styles.pressed,
                 ]}
               >
-                About
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => setActiveTab("reviews")}
-              style={[styles.tab, activeTab === "reviews" && styles.tabActive]}
-            >
-              <Text
-                style={[
-                  styles.tabLabel,
-                  activeTab === "reviews" && styles.tabLabelActive,
-                ]}
-              >
-                Reviews
-              </Text>
-            </Pressable>
+                <Text style={styles.leaveButtonText}>Deactive</Text>
+              </Pressable>
+            ) : null}
           </View>
 
           {activeTab === "about" ? (
@@ -252,17 +327,39 @@ export function SchoolDetailProfile({
         ]}
       >
         <Pressable
-          onPress={onJoin}
-          android_ripple={ANDROID_RIPPLE}
+          onPress={() => {
+            if (canJoin) {
+              onJoin();
+            }
+          }}
+          disabled={!canJoin}
+          accessibilityState={{ disabled: !canJoin }}
+          android_ripple={canJoin ? ANDROID_RIPPLE : undefined}
           style={({ pressed, hovered }: PressableState) => [
-            styles.joinButton,
-            hovered && !pressed && styles.joinButtonHovered,
-            pressed && styles.pressed,
+            joinStyles.button,
+            canJoin && hovered && !pressed && joinStyles.hovered,
+            pressed && canJoin && styles.pressed,
           ]}
         >
-          <Text style={styles.joinButtonText}>Join School</Text>
+          <Text style={joinStyles.text}>
+            {joinStatus === "paused" ? "Resume" : joinStyles.label}
+          </Text>
         </Pressable>
       </View>
+
+      <DeactivateSchoolDialog
+        visible={deactivateOpen}
+        schoolName={school.name}
+        onClose={() => setDeactivateOpen(false)}
+        onPause={() => {
+          pauseSchoolMembership(school.id);
+          setDeactivateOpen(false);
+        }}
+        onDeactivate={() => {
+          deactivateSchoolMembership(school.id);
+          setDeactivateOpen(false);
+        }}
+      />
     </View>
   );
 }
@@ -370,11 +467,17 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: colors.text,
   },
-  tabs: {
+  tabsRow: {
     flexDirection: "row",
+    alignItems: "flex-end",
+    gap: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
     marginBottom: spacing.lg,
+  },
+  tabs: {
+    flex: 1,
+    flexDirection: "row",
   },
   tab: {
     flex: 1,
@@ -382,6 +485,7 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.md,
     borderBottomWidth: 2,
     borderBottomColor: "transparent",
+    marginBottom: -1,
   },
   tabActive: {
     borderBottomColor: colors.primary,
@@ -393,6 +497,18 @@ const styles = StyleSheet.create({
   },
   tabLabelActive: {
     color: colors.primary,
+  },
+  leaveButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginBottom: spacing.sm,
+    borderRadius: 999,
+    backgroundColor: "#fef2f2",
+  },
+  leaveButtonText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: colors.error,
   },
   aboutCard: {
     backgroundColor: "#f9f9f9",
@@ -467,6 +583,71 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     color: colors.white,
+  },
+  joinButtonPending: {
+    minHeight: 52,
+    borderRadius: 14,
+    backgroundColor: "#f59e0b",
+    alignItems: "center",
+    justifyContent: "center",
+    ...(Platform.OS === "web"
+      ? ({
+          outlineStyle: "none",
+          transition: "background-color 0.15s ease",
+        } as object)
+      : {}),
+  },
+  joinButtonPendingHovered: {
+    backgroundColor: "#d97706",
+  },
+  joinButtonPendingText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: colors.white,
+  },
+  joinButtonJoined: {
+    minHeight: 52,
+    borderRadius: 14,
+    backgroundColor: "#22c55e",
+    alignItems: "center",
+    justifyContent: "center",
+    ...(Platform.OS === "web"
+      ? ({
+          outlineStyle: "none",
+          transition: "background-color 0.15s ease",
+        } as object)
+      : {}),
+  },
+  joinButtonJoinedHovered: {
+    backgroundColor: "#16a34a",
+  },
+  joinButtonJoinedText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: colors.white,
+  },
+  joinButtonPaused: {
+    minHeight: 52,
+    borderRadius: 14,
+    backgroundColor: "#f3f4f6",
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+    alignItems: "center",
+    justifyContent: "center",
+    ...(Platform.OS === "web"
+      ? ({
+          outlineStyle: "none",
+          transition: "background-color 0.15s ease",
+        } as object)
+      : {}),
+  },
+  joinButtonPausedHovered: {
+    backgroundColor: "#e5e7eb",
+  },
+  joinButtonPausedText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: colors.textSecondary,
   },
   pressed: {
     opacity: 0.85,
