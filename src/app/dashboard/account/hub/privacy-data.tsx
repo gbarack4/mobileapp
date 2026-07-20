@@ -7,7 +7,7 @@ import { goBackOr } from '../../../../utils/navigation';
 export default function HubPrivacyDataRoute() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top', 'bottom']}>
-      <HubPrivacyDataScreen onBack={() => goBackOr('/dashboard/account/hub')} />
+      <HubPrivacyDataScreen onBack={() => goBackOr('/dashboard')} />
     </SafeAreaView>
   );
 }

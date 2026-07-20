@@ -34,7 +34,7 @@ export const ACCOUNT_MENU_SECTION_1: AccountMenuItem[] = [
 export const ACCOUNT_MENU_SECTION_2: AccountMenuItem[] = [
   { id: 'manage-account', label: 'Manage Hub account' },
   { id: 'edit-address', label: 'Edit Address' },
-  { id: 'insurance', label: 'Insurance' },
+  { id: 'insurance', label: 'Declaration' },
 ];
 
 export const ACCOUNT_MENU_SECTION_3: AccountMenuItem[] = [

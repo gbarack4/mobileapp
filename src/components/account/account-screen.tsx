@@ -95,18 +95,43 @@ function handleMenuPress(itemId: string) {
     router.push("/dashboard/account/hub");
     return;
   }
-  if (itemId === "availability") {
-    router.push("/dashboard/account/availability");
-    return;
-  }
   if (itemId === "payment") {
     router.push("/dashboard/account/payment");
     return;
   }
   if (itemId === "edit-address") {
     router.push("/dashboard/account/edit-address");
+    return;
+  }
+  if (itemId === "insurance") {
+    router.push("/dashboard/account/insurance");
+    return;
+  }
+  if (itemId === "app-settings") {
+    router.push("/dashboard/account/app-settings");
+    return;
+  }
+  if (itemId === "about") {
+    router.push("/dashboard/account/about");
+    return;
+  }
+  if (itemId === "privacy") {
+    router.push("/dashboard/account/hub/privacy-data");
   }
 }
+
+const AVAILABILITY_OPTIONS = [
+  {
+    id: "set-availability",
+    label: "Set availability",
+    href: "/dashboard/account/availability" as const,
+  },
+  {
+    id: "calendar-settings",
+    label: "Calendar settings",
+    href: "/dashboard/account/calendar-settings" as const,
+  },
+];
 
 function goToLogin() {
   if (Platform.OS === "web" && typeof window !== "undefined") {
@@ -134,6 +159,7 @@ export function AccountScreen({
 
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [availabilityExpanded, setAvailabilityExpanded] = useState(false);
   const isSigningOutRef = useRef(false);
 
   useFocusEffect(
@@ -229,6 +255,7 @@ export function AccountScreen({
               SECTION_1_ICONS[item.id as keyof typeof SECTION_1_ICONS];
             const subtitle =
               item.id === "vehicles" ? displayVehicleSummary : item.subtitle;
+            const isAvailability = item.id === "availability";
 
             return (
               <AccountMenuRow
@@ -236,7 +263,24 @@ export function AccountScreen({
                 label={item.label}
                 subtitle={subtitle}
                 icon={<Icon />}
-                onPress={() => handleMenuPress(item.id)}
+                onPress={() => {
+                  if (isAvailability) {
+                    setAvailabilityExpanded((open) => !open);
+                    return;
+                  }
+                  handleMenuPress(item.id);
+                }}
+                expandable={isAvailability}
+                expanded={isAvailability ? availabilityExpanded : false}
+                options={
+                  isAvailability
+                    ? AVAILABILITY_OPTIONS.map((option) => ({
+                        id: option.id,
+                        label: option.label,
+                        onPress: () => router.push(option.href),
+                      }))
+                    : undefined
+                }
                 showDivider={index < ACCOUNT_MENU_SECTION_1.length - 1}
               />
             );

@@ -18,6 +18,7 @@ import {
   type HubSettingsSection,
 } from "../../data/mock-hub-account";
 import { colors, spacing } from "../../constants/theme";
+import { DeleteAccountDialog } from "./delete-account-dialog";
 import { HubSettingsRow } from "./hub-settings-row";
 
 type HubQuickLinkScreenProps = {
@@ -124,15 +125,25 @@ function HubQuickLinkSettingsScreen({
       return initial;
     },
   );
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   function handleRowPress(item: HubSettingItem) {
+    if (item.id === "delete-account") {
+      setDeleteDialogOpen(true);
+      return;
+    }
+
     // TODO: connect to NestJS hub account settings API
-    void item;
   }
 
   function handleToggle(id: string, enabled: boolean) {
     setToggleState((current) => ({ ...current, [id]: enabled }));
     // TODO: connect to NestJS hub account settings API
+  }
+
+  function handleConfirmDelete() {
+    setDeleteDialogOpen(false);
+    // TODO: connect to NestJS delete account API
   }
 
   return (
@@ -169,6 +180,12 @@ function HubQuickLinkSettingsScreen({
           onRowPress={handleRowPress}
         />
       </ScrollView>
+
+      <DeleteAccountDialog
+        visible={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+        onConfirm={handleConfirmDelete}
+      />
     </View>
   );
 }

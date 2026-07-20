@@ -36,6 +36,8 @@ const ANDROID_RIPPLE =
 
 const FADE_OUT_MS = 120;
 const FADE_IN_MS = 160;
+/** Native-driver opacity on web often leaves the pane unclickable after tab fades. */
+const USE_NATIVE_DRIVER = Platform.OS !== 'web';
 
 export default function DashboardScreen() {
   const [lessonTab, setLessonTab] = useState<LessonTab>('upcoming');
@@ -83,6 +85,12 @@ export default function DashboardScreen() {
     };
   }, []);
 
+  function settleContentInteractive() {
+    contentOpacity.setValue(1);
+    contentTranslateY.setValue(0);
+    isAnimatingRef.current = false;
+  }
+
   function runFadeIn() {
     contentTranslateY.setValue(6);
     animationRef.current = Animated.parallel([
@@ -90,21 +98,22 @@ export default function DashboardScreen() {
         toValue: 1,
         duration: FADE_IN_MS,
         easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
+        useNativeDriver: USE_NATIVE_DRIVER,
       }),
       Animated.timing(contentTranslateY, {
         toValue: 0,
         duration: FADE_IN_MS,
         easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
+        useNativeDriver: USE_NATIVE_DRIVER,
       }),
     ]);
     animationRef.current.start(({ finished }) => {
+      settleContentInteractive();
+
       if (!finished) {
         return;
       }
 
-      isAnimatingRef.current = false;
       const pending = pendingTabRef.current;
       pendingTabRef.current = null;
       if (pending && pending !== displayedTabRef.current) {
@@ -116,6 +125,7 @@ export default function DashboardScreen() {
   function transitionToTab(nextTab: DashboardTab) {
     if (nextTab === displayedTabRef.current && !isAnimatingRef.current) {
       setActiveTab(nextTab);
+      settleContentInteractive();
       return;
     }
 
@@ -134,11 +144,12 @@ export default function DashboardScreen() {
       toValue: 0,
       duration: FADE_OUT_MS,
       easing: Easing.in(Easing.cubic),
-      useNativeDriver: true,
+      useNativeDriver: USE_NATIVE_DRIVER,
     });
 
     animationRef.current.start(({ finished }) => {
       if (!finished) {
+        settleContentInteractive();
         return;
       }
 
@@ -211,6 +222,7 @@ export default function DashboardScreen() {
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <View style={styles.content}>
         <Animated.View
+          pointerEvents="auto"
           style={[
             styles.animatedContent,
             {

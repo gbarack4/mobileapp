@@ -4,7 +4,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
   View,
@@ -23,17 +22,18 @@ import {
   type DayAvailability,
   type DayOfWeek,
 } from '../../data/mock-availability';
+import { filterWorkSuburbs } from '../../data/mock-work-locations';
 import { openWorkLocationPicker } from '../../utils/availability-location-bridge';
 import {
   CheckIcon,
   ClockIcon,
   CopyIcon,
-  LightningIcon,
   LocationPinSmallIcon,
   CloseSmallIcon,
   MapLayersIcon,
   TrashIcon,
 } from './availability-icons';
+import { TimePickerSheet } from './time-picker-sheet';
 
 type AvailabilityScreenProps = {
   onClose: () => void;
@@ -105,6 +105,7 @@ type SlotCardProps = {
   onEndTimeChange: (value: string) => void;
   onLocationDraftChange: (value: string) => void;
   onAddLocation: () => void;
+  onSelectLocation: (location: string) => void;
   onRemoveLocation: (location: string) => void;
   onDeleteSlot: () => void;
   onViewMap: () => void;
@@ -117,10 +118,29 @@ function SlotCard({
   onEndTimeChange,
   onLocationDraftChange,
   onAddLocation,
+  onSelectLocation,
   onRemoveLocation,
   onDeleteSlot,
   onViewMap,
 }: Readonly<SlotCardProps>) {
+  const [activeTimeField, setActiveTimeField] = useState<'start' | 'end' | null>(null);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  const suburbSuggestions = useMemo(() => {
+    const query = locationDraft.trim();
+    if (query.length < 1) {
+      return [];
+    }
+
+    const selected = new Set(slot.locations.map((location) => location.toLowerCase()));
+    return filterWorkSuburbs(query)
+      .filter((suburb) => !selected.has(suburb.name.toLowerCase()))
+      .slice(0, 6);
+  }, [locationDraft, slot.locations]);
+
+  const shouldShowSuggestions =
+    showSuggestions && locationDraft.trim().length > 0 && suburbSuggestions.length > 0;
+
   return (
     <View style={styles.slotCard}>
       <View style={styles.slotCardHeader}>
@@ -140,13 +160,12 @@ function SlotCard({
             <ClockIcon />
             <Text style={styles.fieldLabel}>Start</Text>
           </View>
-          <TextInput
-            value={slot.startTime}
-            onChangeText={onStartTimeChange}
-            placeholder="9:00 am"
-            placeholderTextColor={colors.textMuted}
-            style={styles.timeInput}
-          />
+          <Pressable
+            onPress={() => setActiveTimeField('start')}
+            android_ripple={ANDROID_RIPPLE}
+            style={({ pressed }) => [styles.timeInput, pressed && styles.pressed]}>
+            <Text style={styles.timeInputText}>{slot.startTime || '9:00 am'}</Text>
+          </Pressable>
         </View>
 
         <View style={styles.timeField}>
@@ -154,15 +173,30 @@ function SlotCard({
             <ClockIcon />
             <Text style={styles.fieldLabel}>End</Text>
           </View>
-          <TextInput
-            value={slot.endTime}
-            onChangeText={onEndTimeChange}
-            placeholder="12:00 pm"
-            placeholderTextColor={colors.textMuted}
-            style={styles.timeInput}
-          />
+          <Pressable
+            onPress={() => setActiveTimeField('end')}
+            android_ripple={ANDROID_RIPPLE}
+            style={({ pressed }) => [styles.timeInput, pressed && styles.pressed]}>
+            <Text style={styles.timeInputText}>{slot.endTime || '12:00 pm'}</Text>
+          </Pressable>
         </View>
       </View>
+
+      <TimePickerSheet
+        visible={activeTimeField !== null}
+        value={activeTimeField === 'end' ? slot.endTime : slot.startTime}
+        title={activeTimeField === 'end' ? 'Set end time' : 'Set start time'}
+        outputFormat="12h"
+        onClose={() => setActiveTimeField(null)}
+        onConfirm={(time) => {
+          if (activeTimeField === 'end') {
+            onEndTimeChange(time);
+          } else {
+            onStartTimeChange(time);
+          }
+          setActiveTimeField(null);
+        }}
+      />
 
       <View style={styles.locationsSection}>
         <View style={styles.fieldLabelRow}>
@@ -170,26 +204,58 @@ function SlotCard({
           <Text style={styles.fieldLabel}>Add locations</Text>
         </View>
 
-        <View style={styles.locationSearchBar}>
-          <SearchIcon />
-          <TextInput
-            value={locationDraft}
-            onChangeText={onLocationDraftChange}
-            placeholder="Enter suburb or postcode"
-            placeholderTextColor={colors.textMuted}
-            style={styles.locationSearchInput}
-            onSubmitEditing={onAddLocation}
-            returnKeyType="search"
-            autoCapitalize="words"
-            autoCorrect={false}
-          />
-          <Pressable
-            onPress={onViewMap}
-            android_ripple={ANDROID_RIPPLE}
-            style={({ pressed }) => [styles.viewMapButton, pressed && styles.pressed]}>
-            <MapLayersIcon />
-            <Text style={styles.viewMapButtonText}>View map</Text>
-          </Pressable>
+        <View style={styles.locationSearchWrap}>
+          <View style={styles.locationSearchBar}>
+            <SearchIcon />
+            <TextInput
+              value={locationDraft}
+              onChangeText={(value) => {
+                onLocationDraftChange(value);
+                setShowSuggestions(true);
+              }}
+              onFocus={() => setShowSuggestions(true)}
+              onBlur={() => {
+                // Allow suggestion press to register before closing.
+                setTimeout(() => setShowSuggestions(false), 150);
+              }}
+              placeholder="Enter suburb or postcode"
+              placeholderTextColor={colors.textMuted}
+              style={styles.locationSearchInput}
+              onSubmitEditing={onAddLocation}
+              returnKeyType="search"
+              autoCapitalize="words"
+              autoCorrect={false}
+            />
+            <Pressable
+              onPress={onViewMap}
+              android_ripple={ANDROID_RIPPLE}
+              style={({ pressed }) => [styles.viewMapButton, pressed && styles.pressed]}>
+              <MapLayersIcon />
+              <Text style={styles.viewMapButtonText}>View map</Text>
+            </Pressable>
+          </View>
+
+          {shouldShowSuggestions ? (
+            <View style={styles.suggestions}>
+              {suburbSuggestions.map((suburb, index) => (
+                <Pressable
+                  key={suburb.id}
+                  onPress={() => {
+                    onSelectLocation(suburb.name);
+                    setShowSuggestions(false);
+                  }}
+                  android_ripple={ANDROID_RIPPLE}
+                  style={({ pressed }) => [
+                    styles.suggestionRow,
+                    index < suburbSuggestions.length - 1 && styles.suggestionRowDivider,
+                    pressed && styles.pressed,
+                  ]}>
+                  <LocationPinSmallIcon size={14} />
+                  <Text style={styles.suggestionText}>{suburb.name}</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
         </View>
 
         {slot.locations.length > 0 ? (
@@ -262,6 +328,24 @@ export function AvailabilityScreen({ onClose }: Readonly<AvailabilityScreenProps
     updateSelectedSlot({
       locations: [...selectedDayData.slot.locations, draft],
     });
+    setLocationDraft('');
+  }
+
+  function handleSelectLocation(location: string) {
+    if (!selectedDayData.slot) {
+      return;
+    }
+
+    const alreadyAdded = selectedDayData.slot.locations.some(
+      (item) => item.toLowerCase() === location.toLowerCase(),
+    );
+
+    if (!alreadyAdded) {
+      updateSelectedSlot({
+        locations: [...selectedDayData.slot.locations, location],
+      });
+    }
+
     setLocationDraft('');
   }
 
@@ -367,6 +451,7 @@ export function AvailabilityScreen({ onClose }: Readonly<AvailabilityScreenProps
             onEndTimeChange={(value) => updateSelectedSlot({ endTime: value })}
             onLocationDraftChange={setLocationDraft}
             onAddLocation={handleAddLocation}
+            onSelectLocation={handleSelectLocation}
             onRemoveLocation={handleRemoveLocation}
             onDeleteSlot={handleDeleteSlot}
             onViewMap={() => {
@@ -394,27 +479,6 @@ export function AvailabilityScreen({ onClose }: Readonly<AvailabilityScreenProps
           </View>
         )}
 
-        {selectedDayData.slot ? (
-          <View style={styles.dynamicCard}>
-            <View style={styles.dynamicIconWrap}>
-              <LightningIcon />
-            </View>
-
-            <View style={styles.dynamicText}>
-              <Text style={styles.dynamicTitle}>Dynamic Scheduling</Text>
-              <Text style={styles.dynamicSubtitle}>Auto-adjust slots based on demand</Text>
-            </View>
-
-            <Switch
-              value={draftAvailability.dynamicScheduling}
-              onValueChange={(enabled) =>
-                setDraftAvailability((current) => ({ ...current, dynamicScheduling: enabled }))
-              }
-              trackColor={{ false: '#e5e7eb', true: '#93c5fd' }}
-              thumbColor={draftAvailability.dynamicScheduling ? colors.primary : colors.white}
-            />
-          </View>
-        ) : null}
       </ScrollView>
 
       <View style={styles.footer}>
@@ -578,13 +642,20 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: spacing.md,
     paddingVertical: 14,
+    minHeight: 46,
+    justifyContent: 'center',
+  },
+  timeInputText: {
     fontSize: 15,
     fontWeight: '600',
     color: colors.text,
-    ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as object) : {}),
   },
   locationsSection: {
     gap: spacing.md,
+  },
+  locationSearchWrap: {
+    gap: 6,
+    zIndex: 10,
   },
   locationSearchBar: {
     flexDirection: 'row',
@@ -621,6 +692,38 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: 13,
     fontWeight: '700',
+  },
+  suggestions: {
+    backgroundColor: colors.white,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#eef2f7',
+    overflow: 'hidden',
+    ...(Platform.OS === 'web'
+      ? ({ boxShadow: '0 8px 24px rgba(15, 23, 42, 0.08)' } as object)
+      : {
+          shadowColor: '#0f172a',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.08,
+          shadowRadius: 12,
+          elevation: 4,
+        }),
+  },
+  suggestionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 12,
+  },
+  suggestionRowDivider: {
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  suggestionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
   },
   locationTags: {
     flexDirection: 'row',
@@ -678,35 +781,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: colors.white,
-  },
-  dynamicCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    backgroundColor: '#f3f4f6',
-    borderRadius: 16,
-    padding: spacing.lg,
-  },
-  dynamicIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: '#fff7ed',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dynamicText: {
-    flex: 1,
-    gap: 2,
-  },
-  dynamicTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  dynamicSubtitle: {
-    fontSize: 13,
-    color: colors.textSecondary,
   },
   footer: {
     paddingHorizontal: spacing.xl,

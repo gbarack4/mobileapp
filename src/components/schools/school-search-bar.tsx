@@ -168,15 +168,6 @@ export function SchoolSearchBar({
         {isSuggesting ? (
           <ActivityIndicator size="small" color={colors.primary} style={styles.spinner} />
         ) : null}
-        <Pressable
-          onPress={() => {
-            setShowSuggestions(false);
-            onSearch();
-          }}
-          android_ripple={ANDROID_RIPPLE}
-          style={({ pressed }: PressableState) => [styles.searchButton, pressed && styles.pressed]}>
-          <Text style={styles.searchButtonText}>Search</Text>
-        </Pressable>
       </View>
 
       {shouldShowDropdown ? (
@@ -227,8 +218,7 @@ const styles = StyleSheet.create({
     gap: 10,
     backgroundColor: colors.inputBackground,
     borderRadius: 14,
-    paddingLeft: 16,
-    paddingRight: 6,
+    paddingHorizontal: 16,
     paddingVertical: 6,
     minHeight: 48,
   },
@@ -244,19 +234,6 @@ const styles = StyleSheet.create({
   },
   spinner: {
     marginRight: 2,
-  },
-  searchButton: {
-    backgroundColor: colors.primary,
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    minHeight: 36,
-    justifyContent: 'center',
-  },
-  searchButtonText: {
-    color: colors.white,
-    fontSize: 15,
-    fontWeight: '700',
   },
   suggestions: {
     marginTop: 6,

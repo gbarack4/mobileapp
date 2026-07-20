@@ -31,6 +31,10 @@ export default function DashboardLayout() {
           <Stack.Screen name="account/edit-address" />
           <Stack.Screen name="account/work-locations" />
           <Stack.Screen name="account/availability" />
+          <Stack.Screen name="account/calendar-settings" />
+          <Stack.Screen name="account/app-settings" />
+          <Stack.Screen name="account/about" />
+          <Stack.Screen name="account/insurance" />
           <Stack.Screen name="account/payment" />
           <Stack.Screen name="account/hub" />
         </Stack>

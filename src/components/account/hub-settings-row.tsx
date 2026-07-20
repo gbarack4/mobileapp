@@ -2,13 +2,13 @@ import {
   Platform,
   Pressable,
   StyleSheet,
-  Switch,
   Text,
   View,
 } from "react-native";
 
 import { ChevronRightIcon } from "../icons/dashboard-icons";
 import { colors, spacing } from "../../constants/theme";
+import { BlueToggle } from "./blue-toggle";
 
 type HubSettingsRowProps = {
   label: string;
@@ -47,11 +47,10 @@ export function HubSettingsRow({
       </View>
 
       {toggle ? (
-        <Switch
+        <BlueToggle
           value={enabled}
-          onValueChange={onToggle}
-          trackColor={{ false: "#e5e7eb", true: "#93c5fd" }}
-          thumbColor={enabled ? colors.primary : colors.white}
+          onValueChange={(value) => onToggle?.(value)}
+          accessibilityLabel={label}
         />
       ) : (
         <ChevronRightIcon size={18} color={colors.textMuted} />

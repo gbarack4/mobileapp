@@ -5,14 +5,12 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 
-import { ChevronLeftIcon, SearchIcon } from "../icons/dashboard-icons";
+import { ChevronLeftIcon } from "../icons/dashboard-icons";
 import { colors, spacing } from "../../constants/theme";
 import {
-  filterWorkSuburbs,
   MOCK_WORK_SUBURBS,
   suburbIdsToNames,
   suburbNamesToIds,
@@ -22,11 +20,7 @@ import {
   getWorkLocationBridge,
 } from "../../utils/availability-location-bridge";
 import { CloseSmallIcon } from "./availability-icons";
-import {
-  CheckCircleIcon,
-  InfoCircleIcon,
-  PlusCircleIcon,
-} from "./work-locations-icons";
+import { InfoCircleIcon } from "./work-locations-icons";
 import { WorkLocationsMap } from "./work-locations-map";
 
 type SelectWorkLocationsScreenProps = {
@@ -52,14 +46,8 @@ export function SelectWorkLocationsScreen({
   onClose,
 }: Readonly<SelectWorkLocationsScreenProps>) {
   const bridge = getWorkLocationBridge();
-  const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>(() =>
     bridge ? suburbNamesToIds(bridge.initialLocations) : [],
-  );
-
-  const filteredSuburbs = useMemo(
-    () => filterWorkSuburbs(searchQuery),
-    [searchQuery],
   );
 
   const selectedNames = useMemo(
@@ -130,22 +118,7 @@ export function SelectWorkLocationsScreen({
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.searchBar}>
-          <SearchIcon />
-          <TextInput
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholder="Search suburbs"
-            placeholderTextColor={colors.textMuted}
-            style={styles.searchInput}
-            autoCapitalize="words"
-            autoCorrect={false}
-            returnKeyType="search"
-          />
-        </View>
-
         <View style={styles.legendRow}>
           <LegendItem color="#e5e7eb" label="Not selected" />
           <LegendItem color={colors.primary} label="Selected" />
@@ -156,36 +129,6 @@ export function SelectWorkLocationsScreen({
           selectedIds={selectedIds}
           onToggleSuburb={toggleSuburb}
         />
-
-        <View style={styles.listHeader}>
-          <Text style={styles.listTitle}>All Suburbs</Text>
-          <Text style={styles.listCount}>{selectedIds.length} selected</Text>
-        </View>
-
-        <View style={styles.listCard}>
-          {filteredSuburbs.map((suburb, index) => {
-            const selected = selectedIds.includes(suburb.id);
-
-            return (
-              <View key={suburb.id}>
-                <Pressable
-                  onPress={() => toggleSuburb(suburb.id)}
-                  android_ripple={ANDROID_RIPPLE}
-                  style={({ pressed }) => [
-                    styles.listRow,
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <Text style={styles.listRowLabel}>{suburb.name}</Text>
-                  {selected ? <CheckCircleIcon /> : <PlusCircleIcon />}
-                </Pressable>
-                {index < filteredSuburbs.length - 1 ? (
-                  <View style={styles.listDivider} />
-                ) : null}
-              </View>
-            );
-          })}
-        </View>
 
         {selectedIds.length > 0 ? (
           <View style={styles.selectedSection}>
@@ -294,25 +237,6 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xl,
     gap: spacing.lg,
   },
-  searchBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    backgroundColor: colors.inputBackground,
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    minHeight: 48,
-  },
-  searchInput: {
-    flex: 1,
-    minWidth: 0,
-    fontSize: 15,
-    color: colors.text,
-    paddingVertical: Platform.OS === "web" ? 12 : 0,
-    ...(Platform.OS === "web"
-      ? ({ outlineStyle: "none", width: "100%" } as object)
-      : {}),
-  },
   legendRow: {
     flexDirection: "row",
     gap: spacing.lg,
@@ -330,43 +254,6 @@ const styles = StyleSheet.create({
   legendLabel: {
     fontSize: 13,
     color: colors.textSecondary,
-  },
-  listHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  listTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: colors.text,
-  },
-  listCount: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: colors.primary,
-  },
-  listCard: {
-    backgroundColor: colors.background,
-    borderRadius: 16,
-    overflow: "hidden",
-  },
-  listRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 16,
-    paddingHorizontal: spacing.lg,
-  },
-  listRowLabel: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: colors.text,
-  },
-  listDivider: {
-    height: 1,
-    backgroundColor: colors.border,
-    marginLeft: spacing.lg,
   },
   selectedSection: {
     gap: spacing.md,
