@@ -404,7 +404,7 @@ export default function SignUpScreen() {
                 </Pressable>
 
                 {error ? <Text style={styles.error}>{error}</Text> : null}
-
+                <View id="clerk-captcha" />
                 <Pressable
                   onPress={handleSignUp}
                   disabled={phase === "submitting"}

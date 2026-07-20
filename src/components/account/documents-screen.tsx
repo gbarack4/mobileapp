@@ -141,7 +141,7 @@ export function DocumentsScreen({ onClose }: Readonly<DocumentsScreenProps>) {
   );
   const upToDateCount = documents.filter((d) => d.status === "uploaded").length;
 
-  async function handleUpload(documentId: string) {
+  async function handleUpload(documentType: string) {
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: ["application/pdf", "image/jpeg", "image/png"],
@@ -154,17 +154,17 @@ export function DocumentsScreen({ onClose }: Readonly<DocumentsScreenProps>) {
       const token = await getToken();
       if (!token) throw new Error("Not authenticated");
 
-      const currentDoc = documents.find((d) => d.id === documentId);
+      const currentDoc = documents.find((d) => d.id === documentType);
       const oldFileUrl = currentDoc?.fileName;
 
-      setUploadingId(documentId);
+      setUploadingId(documentType);
       setError(null);
 
       await uploadDocumentToBackend(
         file.uri,
         file.name,
         file.mimeType || "application/pdf",
-        documentId,
+        documentType,
         token,
         oldFileUrl,
       );

@@ -377,11 +377,14 @@ export default function OnboardingScreen() {
       const token = await getToken();
       if (!token) throw new Error("No token");
 
+      const oldFileUrl = form.profilePhotoUri;
+
       const s3Url = await uploadAvatarToBackend(
         uri,
         fileName,
         mimeType || "image/jpeg",
         token,
+        oldFileUrl,
       );
 
       setForm((current) => ({
@@ -424,11 +427,15 @@ export default function OnboardingScreen() {
       const token = await getToken();
       if (!token) throw new Error("No token");
 
+      const oldFileUrl = form.documents[type];
+
       const s3Url = await uploadDocumentToBackend(
         file.uri,
         file.name,
         file.mimeType || "application/pdf",
+        type,
         token,
+        oldFileUrl,
       );
 
       setForm((current) => ({
