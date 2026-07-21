@@ -59,7 +59,7 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     minWidth: 0,
-    fontSize: 15,
+    fontSize: 16,
     color: colors.text,
     paddingVertical: Platform.OS === "web" ? 12 : 0,
     ...(Platform.OS === "web"

@@ -39,6 +39,13 @@ const SITE_LOADER_CSS = `
   0%, 100% { opacity: 0.2; }
   50% { opacity: 1; }
 }
+
+/* Prevent iOS Safari zoom on focus for inputs under 16px */
+input,
+textarea,
+select {
+  font-size: 16px !important;
+}
 `;
 
 const SITE_LOADER_BARS = Array.from({ length: 12 }, (_, index) => index);
