@@ -20,11 +20,6 @@ import {
   type HubQuickLinkId,
 } from "../../data/mock-hub-account";
 import { type InstructorProfile } from "../../services/profile";
-import {
-  getProfilePhotoUri,
-  persistProfilePhotoUri,
-  setProfilePhotoUri,
-} from "../../services/profile-photo";
 import { uploadAvatarToBackend } from "../../services/uploadService";
 import { CloseIcon } from "../icons/lesson-detail-icons";
 import { DocumentsIcon } from "./account-icons";
@@ -211,16 +206,26 @@ function HubDocumentsCard({
 function HubAccountHomeContent({
   profile,
   documents,
-  photoUri,
   isUploadingPhoto,
   onPickPhoto,
 }: Readonly<{
   profile: InstructorProfile;
   documents: HubDocumentItem[];
-  photoUri: string | null;
   isUploadingPhoto: boolean;
   onPickPhoto: () => void;
 }>) {
+  const renderAvatarContent = () => {
+    if (isUploadingPhoto) {
+      return <ActivityIndicator color={colors.primary} />;
+    }
+    if (profile.avatarUrl) {
+      return (
+        <Image source={{ uri: profile.avatarUrl }} style={styles.avatarImage} />
+      );
+    }
+    return <Text style={styles.avatarText}>{profile.initials}</Text>;
+  };
+
   return (
     <View style={styles.homeContent}>
       <View style={styles.profileSection}>
@@ -229,7 +234,7 @@ function HubAccountHomeContent({
           disabled={isUploadingPhoto}
           android_ripple={ANDROID_RIPPLE}
           accessibilityLabel={
-            photoUri ? "Change profile photo" : "Upload profile photo"
+            profile.avatarUrl ? "Change profile photo" : "Upload profile photo"
           }
           style={({ pressed }) => [
             styles.avatarButton,
@@ -237,18 +242,10 @@ function HubAccountHomeContent({
             isUploadingPhoto && styles.avatarButtonDisabled,
           ]}
         >
-          <View style={styles.avatar}>
-            {isUploadingPhoto ? (
-              <ActivityIndicator color={colors.primary} />
-            ) : photoUri ? (
-              <Image source={{ uri: photoUri }} style={styles.avatarImage} />
-            ) : (
-              <Text style={styles.avatarText}>{profile.initials}</Text>
-            )}
-          </View>
+          <View style={styles.avatar}>{renderAvatarContent()}</View>
           <View style={styles.avatarBadge}>
             <Text style={styles.avatarBadgeText}>
-              {photoUri ? "Edit" : "Add"}
+              {profile.avatarUrl ? "Edit" : "Add"}
             </Text>
           </View>
         </Pressable>
@@ -296,9 +293,6 @@ export function HubAccountScreen({ onClose }: Readonly<HubAccountScreenProps>) {
 
   const { data: profile, isLoading, isError } = useProfileQuery();
 
-  const [photoUri, setPhotoUri] = useState<string | null>(() =>
-    getProfilePhotoUri(),
-  );
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
 
   async function handlePickPhoto() {
@@ -334,9 +328,6 @@ export function HubAccountScreen({ onClose }: Readonly<HubAccountScreenProps>) {
     setIsUploadingPhoto(true);
 
     try {
-      const persistentUri = await persistProfilePhotoUri(localUri);
-      setPhotoUri(persistentUri);
-
       const token = await getToken().catch(() => null);
       if (token) {
         const remoteUrl = await uploadAvatarToBackend(
@@ -348,9 +339,6 @@ export function HubAccountScreen({ onClose }: Readonly<HubAccountScreenProps>) {
         );
 
         if (remoteUrl) {
-          setPhotoUri(remoteUrl);
-          setProfilePhotoUri(remoteUrl);
-
           void queryClient.invalidateQueries({ queryKey: ["profile"] });
         }
       }
@@ -360,6 +348,31 @@ export function HubAccountScreen({ onClose }: Readonly<HubAccountScreenProps>) {
       setIsUploadingPhoto(false);
     }
   }
+
+  const renderContent = () => {
+    if (isLoading) {
+      return (
+        <View style={styles.loaderContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      );
+    }
+
+    if (isError || !profile) {
+      return <Text style={styles.errorText}>Failed to load profile data.</Text>;
+    }
+
+    return (
+      <HubAccountHomeContent
+        profile={profile}
+        documents={mapProfileDocsToItems(profile.documents)}
+        isUploadingPhoto={isUploadingPhoto}
+        onPickPhoto={() => {
+          void handlePickPhoto();
+        }}
+      />
+    );
+  };
 
   return (
     <View style={styles.screen}>
@@ -386,23 +399,7 @@ export function HubAccountScreen({ onClose }: Readonly<HubAccountScreenProps>) {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {isLoading ? (
-          <View style={styles.loaderContainer}>
-            <ActivityIndicator size="large" color={colors.primary} />
-          </View>
-        ) : isError || !profile ? (
-          <Text style={styles.errorText}>Failed to load profile data.</Text>
-        ) : (
-          <HubAccountHomeContent
-            profile={profile}
-            documents={mapProfileDocsToItems(profile.documents)}
-            photoUri={photoUri}
-            isUploadingPhoto={isUploadingPhoto}
-            onPickPhoto={() => {
-              void handlePickPhoto();
-            }}
-          />
-        )}
+        {renderContent()}
       </ScrollView>
     </View>
   );
