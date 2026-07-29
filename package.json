@@ -29,7 +29,8 @@
   "devDependencies": {
     "@types/leaflet": "^1.9.21",
     "@types/react": "~19.2.2",
-    "typescript": "~6.0.3"
+    "eas-cli": "^21.4.0",
+    "typescript": "5.9.3"
   },
   "scripts": {
     "start": "expo start",

@@ -8,10 +8,13 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.driverapps.instructorhub"
+      "bundleIdentifier": "pro.driveinstructor.instructorhub",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
-      "package": "com.driverapps.instructorhub",
+      "package": "pro.driveinstructor.instructorhub",
       "adaptiveIcon": {
         "backgroundColor": "#ffffff"
       }
