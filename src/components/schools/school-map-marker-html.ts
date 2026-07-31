@@ -1,17 +1,42 @@
-import type { School } from '../../types/school';
+import type { School } from "../../types/school";
+import { getSchoolUIData } from "../../utils/school-ui";
 
 export function buildSchoolMarkerHtml(
-  initials: string,
-  color: string,
+  school: School,
   selected = false,
 ): string {
-  const safeInitials = initials.replace(/</g, '').slice(0, 3);
-  const ring = selected ? color : '#ffffff';
+  const ui = getSchoolUIData(school);
+  const color = ui.avatarColor;
+  const safeInitials = ui.initials.replaceAll("<", "").slice(0, 3);
+
+  const ring = selected ? color : "#ffffff";
   const ringWidth = selected ? 3 : 2.5;
   const shadow = selected
-    ? '0 8px 20px rgba(15,23,42,0.28)'
-    : '0 4px 12px rgba(15,23,42,0.18)';
-  const scale = selected ? 'transform:scale(1.1);' : '';
+    ? "0 8px 20px rgba(15,23,42,0.28)"
+    : "0 4px 12px rgba(15,23,42,0.18)";
+  const scale = selected ? "transform:scale(1.1);" : "";
+
+  const contentHtml = school.logoUrl
+    ? `<img src="${school.logoUrl}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;" />`
+    : `
+      <div style="
+        position:absolute;
+        inset:5px;
+        border-radius:999px;
+        background:rgba(255,255,255,0.16);
+      "></div>
+      <span style="
+        position:relative;
+        color:#ffffff;
+        font-size:12px;
+        font-weight:800;
+        letter-spacing:0.4px;
+        font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+        text-shadow:0 1px 1px rgba(15,23,42,0.25);
+      ">${safeInitials}</span>
+    `;
+
+  const backgroundColor = school.logoUrl ? "#ffffff" : color;
 
   return `
     <div style="
@@ -26,7 +51,7 @@ export function buildSchoolMarkerHtml(
         width:44px;
         height:44px;
         border-radius:22px;
-        background:${color};
+        background:${backgroundColor};
         border:${ringWidth}px solid ${ring};
         display:flex;
         align-items:center;
@@ -34,21 +59,7 @@ export function buildSchoolMarkerHtml(
         box-sizing:border-box;
         position:relative;
       ">
-        <div style="
-          position:absolute;
-          inset:5px;
-          border-radius:999px;
-          background:rgba(255,255,255,0.16);
-        "></div>
-        <span style="
-          position:relative;
-          color:#ffffff;
-          font-size:12px;
-          font-weight:800;
-          letter-spacing:0.4px;
-          font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-          text-shadow:0 1px 1px rgba(15,23,42,0.25);
-        ">${safeInitials}</span>
+        ${contentHtml}
       </div>
       <div style="
         width:0;
@@ -71,5 +82,5 @@ export function buildSchoolMarkerHtml(
 }
 
 export function schoolToLatLng(school: School): [number, number] {
-  return [school.latitude, school.longitude];
+  return [school.latitude as number, school.longitude as number];
 }

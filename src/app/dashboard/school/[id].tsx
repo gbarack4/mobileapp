@@ -1,33 +1,39 @@
-import { useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useAuth } from "@clerk/clerk-expo";
+import { useLocalSearchParams } from "expo-router";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
   StyleSheet,
   Text,
   View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import { SchoolDetailProfile } from '../../../components/schools/school-detail-profile';
-import { colors, spacing } from '../../../constants/theme';
-import { requestSchoolJoin } from '../../../services/school-membership';
-import { getSchool } from '../../../services/schools';
-import type { School } from '../../../types/school';
-import { goBackOr } from '../../../utils/navigation';
+import { SchoolDetailProfile } from "../../../components/schools/school-detail-profile";
+import { colors, spacing } from "../../../constants/theme";
+import { requestSchoolJoin } from "../../../services/school-membership";
+import { getSchool } from "../../../services/schools";
+import type { School } from "../../../types/school";
+import { goBackOr } from "../../../utils/navigation";
 
 export default function SchoolDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { getToken } = useAuth();
+
   const [school, setSchool] = useState<School | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const getTokenRef = useRef(getToken);
+  getTokenRef.current = getToken;
 
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
       if (!id) {
-        setError('School not found');
+        setError("School not found");
         setIsLoading(false);
         return;
       }
@@ -36,14 +42,14 @@ export default function SchoolDetailScreen() {
       setError(null);
 
       try {
-        const result = await getSchool(id);
+        const result = await getSchool(id, () => getTokenRef.current());
         if (!cancelled) {
           setSchool(result);
         }
       } catch (err) {
         if (!cancelled) {
           setSchool(null);
-          setError(err instanceof Error ? err.message : 'School not found');
+          setError(err instanceof Error ? err.message : "School not found");
         }
       } finally {
         if (!cancelled) {
@@ -61,7 +67,7 @@ export default function SchoolDetailScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
         <View style={styles.missingState}>
           <ActivityIndicator color={colors.primary} />
           <Text style={styles.missingSubtitle}>Loading school…</Text>
@@ -72,11 +78,14 @@ export default function SchoolDetailScreen() {
 
   if (!school) {
     return (
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
         <View style={styles.missingState}>
           <Text style={styles.missingTitle}>School not found</Text>
           {error ? <Text style={styles.missingSubtitle}>{error}</Text> : null}
-          <Pressable onPress={() => goBackOr('/dashboard')} style={styles.missingButton}>
+          <Pressable
+            onPress={() => goBackOr("/dashboard")}
+            style={styles.missingButton}
+          >
             <Text style={styles.missingButtonText}>Go back</Text>
           </Pressable>
         </View>
@@ -90,10 +99,10 @@ export default function SchoolDetailScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['bottom']}>
+    <SafeAreaView style={styles.safeArea} edges={["bottom"]}>
       <SchoolDetailProfile
         school={school}
-        onClose={() => goBackOr('/dashboard')}
+        onClose={() => goBackOr("/dashboard")}
         onJoin={handleJoin}
       />
     </SafeAreaView>
@@ -107,20 +116,20 @@ const styles = StyleSheet.create({
   },
   missingState: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     gap: spacing.lg,
     paddingHorizontal: spacing.xl,
   },
   missingTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text,
   },
   missingSubtitle: {
     fontSize: 14,
     color: colors.textSecondary,
-    textAlign: 'center',
+    textAlign: "center",
   },
   missingButton: {
     paddingHorizontal: spacing.lg,
@@ -130,6 +139,6 @@ const styles = StyleSheet.create({
   },
   missingButtonText: {
     color: colors.white,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });

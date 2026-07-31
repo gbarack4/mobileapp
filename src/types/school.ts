@@ -8,25 +8,24 @@ export type SchoolReview = {
 
 export type School = {
   id: string;
+  locationId: string;
   name: string;
-  initials: string;
-  avatarColor: string;
-  bannerColorStart: string;
-  bannerColorEnd: string;
+  logoUrl: string | null;
+  coverImageUrl: string | null;
+  about: string | null;
+  address: string | null;
+  suburb: string | null;
+  postcode: string | null;
+  longitude: number | null;
+  latitude: number | null;
+  distance: number | null;
   rating: number;
   reviewCount: number;
-  serviceTypes: string;
-  address: string;
-  suburb: string;
-  postcode: string;
-  distanceMiles: number;
-  latitude: number;
-  longitude: number;
-  phone: string;
-  email: string;
-  website: string;
-  about: string;
-  isOpen: boolean;
-  verified: boolean;
+};
+
+export type SchoolDetail = School & {
+  phone: string | null;
+  email: string | null;
+  website: string | null;
   reviews: SchoolReview[];
 };

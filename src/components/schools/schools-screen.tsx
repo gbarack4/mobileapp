@@ -1,5 +1,8 @@
+import { useAuth } from "@clerk/clerk-expo";
+import * as Location from "expo-location";
 import { router } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { NativeScrollEvent, NativeSyntheticEvent } from "react-native";
 import {
   ActivityIndicator,
   Platform,
@@ -9,13 +12,12 @@ import {
   Text,
   View,
 } from "react-native";
-import type { NativeScrollEvent, NativeSyntheticEvent } from "react-native";
 
-import { FoldedMapIcon } from "../icons/school-icons";
 import { colors, spacing } from "../../constants/theme";
 import { requestSchoolJoin } from "../../services/school-membership";
 import { searchSchools } from "../../services/schools";
 import type { School } from "../../types/school";
+import { FoldedMapIcon } from "../icons/school-icons";
 import { SchoolCard } from "./school-card";
 import { SchoolSearchBar } from "./school-search-bar";
 
@@ -27,48 +29,135 @@ export function SchoolsScreen({
 }: Readonly<{
   onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
 }>) {
+  const { getToken } = useAuth();
+  const [isLocationReady, setIsLocationReady] = useState(false);
   const [searchInput, setSearchInput] = useState("");
-  const [submittedQuery, setSubmittedQuery] = useState("");
   const [schools, setSchools] = useState<School[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadSchools = useCallback(async (query: string) => {
-    setIsLoading(true);
-    setError(null);
+  const [userLocation, setUserLocation] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
 
-    try {
-      const results = await searchSchools(query);
-      setSchools(results);
-    } catch (err) {
-      setSchools([]);
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Unable to load schools from the database.",
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  const getTokenRef = useRef(getToken);
+  getTokenRef.current = getToken;
 
   useEffect(() => {
-    void loadSchools(submittedQuery);
-  }, [loadSchools, submittedQuery]);
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") {
+          setIsLocationReady(true);
+          return;
+        }
 
-  function handleSearch() {
-    setSubmittedQuery(searchInput.trim());
-  }
+        const location = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+
+        setUserLocation({
+          lat: location.coords.latitude,
+          lng: location.coords.longitude,
+        });
+      } catch (err) {
+        console.warn("Failed to get location:", err);
+      } finally {
+        setIsLocationReady(true);
+      }
+    })();
+  }, []);
+
+  const loadSchools = useCallback(
+    async (query: string, location: { lat: number; lng: number } | null) => {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const results = await searchSchools(
+          {
+            q: query.trim(),
+            originLat: location?.lat,
+            originLng: location?.lng,
+            radiusKm: 10,
+          },
+          () => getTokenRef.current(),
+        );
+        setSchools(results);
+      } catch (err) {
+        setSchools([]);
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Unable to load schools from the database.",
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!isLocationReady) return;
+    void loadSchools(searchInput, userLocation);
+  }, [loadSchools, searchInput, userLocation, isLocationReady]);
 
   function handleSelectSuggestion(school: School) {
     setSearchInput(school.name);
-    setSubmittedQuery(school.name);
   }
 
   function handleJoin(school: School) {
-    // TODO: connect to NestJS join-school API
     requestSchoolJoin(school.id);
   }
+
+  const renderContent = () => {
+    if (isLoading) {
+      return (
+        <View style={styles.emptyState}>
+          <ActivityIndicator color={colors.primary} />
+          <Text style={styles.emptySubtitle}>Loading schools…</Text>
+        </View>
+      );
+    }
+
+    if (error) {
+      return (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyTitle}>Couldn’t load schools</Text>
+          <Text style={styles.emptySubtitle}>{error}</Text>
+          <Pressable
+            onPress={() => void loadSchools(searchInput, userLocation)}
+            style={styles.retryButton}
+          >
+            <Text style={styles.retryButtonText}>Try again</Text>
+          </Pressable>
+        </View>
+      );
+    }
+
+    if (schools.length > 0) {
+      return schools.map((school) => (
+        <SchoolCard
+          key={school.locationId ?? school.id}
+          school={school}
+          onJoin={handleJoin}
+        />
+      ));
+    }
+
+    return (
+      <View style={styles.emptyState}>
+        <Text style={styles.emptyTitle}>No schools found</Text>
+        <Text style={styles.emptySubtitle}>
+          {searchInput.trim()
+            ? "Try a different school name."
+            : "No active schools nearby."}
+        </Text>
+      </View>
+    );
+  };
 
   return (
     <View style={styles.screen}>
@@ -76,7 +165,7 @@ export function SchoolsScreen({
         <SchoolSearchBar
           value={searchInput}
           onChangeText={setSearchInput}
-          onSearch={handleSearch}
+          onSearch={() => void loadSchools(searchInput, userLocation)}
           onSelectSuggestion={handleSelectSuggestion}
         />
 
@@ -84,7 +173,7 @@ export function SchoolsScreen({
           onPress={() =>
             router.push({
               pathname: "/dashboard/schools-map",
-              params: submittedQuery ? { q: submittedQuery } : {},
+              params: searchInput.trim() ? { q: searchInput.trim() } : {},
             })
           }
           android_ripple={ANDROID_RIPPLE}
@@ -103,36 +192,7 @@ export function SchoolsScreen({
         onScroll={onScroll}
         scrollEventThrottle={8}
       >
-        {isLoading ? (
-          <View style={styles.emptyState}>
-            <ActivityIndicator color={colors.primary} />
-            <Text style={styles.emptySubtitle}>Loading schools…</Text>
-          </View>
-        ) : error ? (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>Couldn’t load schools</Text>
-            <Text style={styles.emptySubtitle}>{error}</Text>
-            <Pressable
-              onPress={() => void loadSchools(submittedQuery)}
-              style={styles.retryButton}
-            >
-              <Text style={styles.retryButtonText}>Try again</Text>
-            </Pressable>
-          </View>
-        ) : schools.length > 0 ? (
-          schools.map((school) => (
-            <SchoolCard key={school.id} school={school} onJoin={handleJoin} />
-          ))
-        ) : (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>No schools found</Text>
-            <Text style={styles.emptySubtitle}>
-              {submittedQuery
-                ? "Try a different school name."
-                : "No active schools in the database yet."}
-            </Text>
-          </View>
-        )}
+        {renderContent()}
       </ScrollView>
     </View>
   );

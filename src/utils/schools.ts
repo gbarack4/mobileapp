@@ -1,9 +1,4 @@
-import { MOCK_SCHOOLS } from '../data/mock-schools';
-import type { School } from '../types/school';
-
-export function getSchoolById(id: string): School | undefined {
-  return MOCK_SCHOOLS.find((school) => school.id === id);
-}
+import type { School } from "../types/school";
 
 export function filterSchools(schools: School[], query: string): School[] {
   const trimmedQuery = query.trim().toLowerCase();
@@ -18,36 +13,38 @@ export function filterSchools(schools: School[], query: string): School[] {
       school.suburb,
       school.postcode,
       school.address,
-      school.serviceTypes,
     ]
-      .join(' ')
+      .join(" ")
       .toLowerCase();
 
     return searchableText.includes(trimmedQuery);
   });
 }
 
+function hasValidCoordinates(
+  school: School,
+): school is School & { latitude: number; longitude: number } {
+  return school.latitude != null && school.longitude != null;
+}
+
 export function getSchoolMapRegion(schools: School[]) {
-  if (schools.length === 0) {
-    return {
-      latitude: -27.62,
-      longitude: 153.02,
-      latitudeDelta: 0.2,
-      longitudeDelta: 0.2,
-    };
+  const validSchools = schools.filter(hasValidCoordinates);
+
+  if (validSchools.length === 0) {
+    return null;
   }
 
-  if (schools.length === 1) {
+  if (validSchools.length === 1) {
     return {
-      latitude: schools[0].latitude,
-      longitude: schools[0].longitude,
+      latitude: validSchools[0].latitude,
+      longitude: validSchools[0].longitude,
       latitudeDelta: 0.08,
       longitudeDelta: 0.08,
     };
   }
 
-  const latitudes = schools.map((school) => school.latitude);
-  const longitudes = schools.map((school) => school.longitude);
+  const latitudes = validSchools.map((school) => school.latitude);
+  const longitudes = validSchools.map((school) => school.longitude);
   const minLat = Math.min(...latitudes);
   const maxLat = Math.max(...latitudes);
   const minLng = Math.min(...longitudes);

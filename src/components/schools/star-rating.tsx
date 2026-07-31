@@ -9,12 +9,12 @@ type StarRatingProps = {
   showReviewCount?: boolean;
 };
 
-function formatRating(rating: number) {
-  if (Number.isInteger(rating)) {
-    return String(rating);
+function formatRating(rating: number | null | undefined) {
+  if (rating == null) {
+    return "0";
   }
 
-  return rating.toFixed(2).replace(/0$/, "");
+  return Number(rating).toFixed(2).replace(/0$/, "");
 }
 
 function StarIcon({

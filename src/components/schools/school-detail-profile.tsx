@@ -2,6 +2,7 @@ import * as Linking from "expo-linking";
 import { useEffect, useState, type ReactNode } from "react";
 import {
   Dimensions,
+  Image,
   Platform,
   Pressable,
   ScrollView,
@@ -27,7 +28,8 @@ import {
   subscribeSchoolMemberships,
   type SchoolJoinStatus,
 } from "../../services/school-membership";
-import type { School } from "../../types/school";
+import type { SchoolDetail } from "../../types/school";
+import { getSchoolUIData } from "../../utils/school-ui";
 import { DeactivateSchoolDialog } from "./deactivate-school-dialog";
 import { StarRating } from "./star-rating";
 
@@ -35,7 +37,7 @@ const BANNER_HEIGHT = 148;
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 type SchoolDetailProfileProps = {
-  school: School;
+  school: SchoolDetail;
   onClose: () => void;
   onJoin: () => void;
 };
@@ -55,33 +57,44 @@ function SchoolBanner({
   topInset,
   onClose,
 }: Readonly<{
-  school: School;
+  school: SchoolDetail;
   topInset: number;
   onClose: () => void;
 }>) {
+  const { bannerColorStart, bannerColorEnd, initials } =
+    getSchoolUIData(school);
   const gradientId = `school-banner-${school.id}`;
 
   return (
     <View style={styles.banner}>
-      <Svg
-        height={BANNER_HEIGHT}
-        width={SCREEN_WIDTH}
-        preserveAspectRatio="none"
-      >
-        <Defs>
-          <LinearGradient id={gradientId} x1="0" y1="0" x2="1" y2="0">
-            <Stop offset="0" stopColor={school.bannerColorStart} />
-            <Stop offset="1" stopColor={school.bannerColorEnd} />
-          </LinearGradient>
-        </Defs>
-        <Rect
-          width={SCREEN_WIDTH}
-          height={BANNER_HEIGHT}
-          fill={`url(#${gradientId})`}
+      {school.coverImageUrl ? (
+        <Image
+          source={{ uri: school.coverImageUrl }}
+          style={StyleSheet.absoluteFill}
+          resizeMode="cover"
         />
-      </Svg>
-
-      <Text style={styles.bannerWatermark}>{school.initials}</Text>
+      ) : (
+        <>
+          <Svg
+            height={BANNER_HEIGHT}
+            width={SCREEN_WIDTH}
+            preserveAspectRatio="none"
+          >
+            <Defs>
+              <LinearGradient id={gradientId} x1="0" y1="0" x2="1" y2="0">
+                <Stop offset="0" stopColor={bannerColorStart} />
+                <Stop offset="1" stopColor={bannerColorEnd} />
+              </LinearGradient>
+            </Defs>
+            <Rect
+              width={SCREEN_WIDTH}
+              height={BANNER_HEIGHT}
+              fill={`url(#${gradientId})`}
+            />
+          </Svg>
+          <Text style={styles.bannerWatermark}>{initials}</Text>
+        </>
+      )}
 
       <Pressable
         onPress={onClose}
@@ -174,25 +187,40 @@ export function SchoolDetailProfile({
     });
   }, [school.id]);
 
-  const locationLabel = `${school.address}, ${school.suburb}`;
+  const { initials, avatarColor } = getSchoolUIData(school);
+
+  const locationParts = [school.address, school.suburb].filter(Boolean);
+  const locationLabel =
+    locationParts.length > 0
+      ? locationParts.join(", ")
+      : "No location provided";
+
   const canJoin = joinStatus === "none" || joinStatus === "paused";
   const joinStyles = detailJoinStyles(joinStatus);
   const showDeactive =
-    joinStatus === "pending" || joinStatus === "joined" || joinStatus === "paused";
+    joinStatus === "pending" ||
+    joinStatus === "joined" ||
+    joinStatus === "paused";
 
   function openPhone() {
-    Linking.openURL(`tel:${school.phone.replace(/\s/g, "")}`);
+    if (school.phone) {
+      Linking.openURL(`tel:${school.phone.replace(/\s/g, "")}`);
+    }
   }
 
   function openEmail() {
-    Linking.openURL(`mailto:${school.email}`);
+    if (school.email) {
+      Linking.openURL(`mailto:${school.email}`);
+    }
   }
 
   function openWebsite() {
-    const url = school.website.startsWith("http")
-      ? school.website
-      : `https://${school.website}`;
-    Linking.openURL(url);
+    if (school.website) {
+      const url = school.website.startsWith("http")
+        ? school.website
+        : `https://${school.website}`;
+      Linking.openURL(url);
+    }
   }
 
   return (
@@ -205,11 +233,17 @@ export function SchoolDetailProfile({
         <SchoolBanner school={school} topInset={insets.top} onClose={onClose} />
 
         <View style={styles.profileSection}>
-          <View
-            style={[styles.avatar, { backgroundColor: school.avatarColor }]}
-          >
-            <Text style={styles.avatarText}>{school.initials}</Text>
-          </View>
+          {school.logoUrl ? (
+            <Image
+              source={{ uri: school.logoUrl }}
+              style={styles.avatar}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={[styles.avatar, { backgroundColor: avatarColor }]}>
+              <Text style={styles.avatarText}>{initials}</Text>
+            </View>
+          )}
 
           <Text style={styles.name}>{school.name}</Text>
 
@@ -219,33 +253,32 @@ export function SchoolDetailProfile({
             variant="detail"
           />
 
-          <View style={styles.statusRow}>
-            <Text style={styles.serviceTypes}>{school.serviceTypes}</Text>
-            <Text style={styles.statusDot}>·</Text>
-            <Text
-              style={[styles.openStatus, !school.isOpen && styles.closedStatus]}
-            >
-              {school.isOpen ? "Open now" : "Closed"}
-            </Text>
-          </View>
-
           <View style={styles.contactList}>
-            <ContactRow
-              icon={<ContactPhoneIcon />}
-              label={school.phone}
-              onPress={openPhone}
-            />
-            <ContactRow
-              icon={<ContactEmailIcon />}
-              label={school.email}
-              onPress={openEmail}
-            />
             <ContactRow icon={<ContactLocationIcon />} label={locationLabel} />
-            <ContactRow
-              icon={<ContactGlobeIcon />}
-              label={school.website}
-              onPress={openWebsite}
-            />
+
+            {school.phone ? (
+              <ContactRow
+                icon={<ContactPhoneIcon />}
+                label={school.phone}
+                onPress={openPhone}
+              />
+            ) : null}
+
+            {school.email ? (
+              <ContactRow
+                icon={<ContactEmailIcon />}
+                label={school.email}
+                onPress={openEmail}
+              />
+            ) : null}
+
+            {school.website ? (
+              <ContactRow
+                icon={<ContactGlobeIcon />}
+                label={school.website}
+                onPress={openWebsite}
+              />
+            ) : null}
           </View>
 
           <View style={styles.tabsRow}>
@@ -265,7 +298,10 @@ export function SchoolDetailProfile({
               </Pressable>
               <Pressable
                 onPress={() => setActiveTab("reviews")}
-                style={[styles.tab, activeTab === "reviews" && styles.tabActive]}
+                style={[
+                  styles.tab,
+                  activeTab === "reviews" && styles.tabActive,
+                ]}
               >
                 <Text
                   style={[
@@ -296,25 +332,36 @@ export function SchoolDetailProfile({
           {activeTab === "about" ? (
             <View style={styles.aboutCard}>
               <Text style={styles.sectionEyebrow}>About</Text>
-              <Text style={styles.aboutText}>{school.about}</Text>
+              <Text style={styles.aboutText}>
+                {school.about ||
+                  "This school hasn't provided any information yet."}
+              </Text>
             </View>
           ) : (
             <View style={styles.reviewsList}>
-              {school.reviews.map((review) => (
-                <View key={review.id} style={styles.reviewCard}>
-                  <View style={styles.reviewHeader}>
-                    <Text style={styles.reviewAuthor}>{review.author}</Text>
-                    <Text style={styles.reviewDate}>{review.date}</Text>
+              {school.reviews && school.reviews.length > 0 ? (
+                school.reviews.map((review) => (
+                  <View key={review.id} style={styles.reviewCard}>
+                    <View style={styles.reviewHeader}>
+                      <Text style={styles.reviewAuthor}>{review.author}</Text>
+                      <Text style={styles.reviewDate}>{review.date}</Text>
+                    </View>
+                    <StarRating
+                      rating={review.rating}
+                      reviewCount={0}
+                      variant="detail"
+                      showReviewCount={false}
+                    />
+                    <Text style={styles.reviewComment}>{review.comment}</Text>
                   </View>
-                  <StarRating
-                    rating={review.rating}
-                    reviewCount={0}
-                    variant="detail"
-                    showReviewCount={false}
-                  />
-                  <Text style={styles.reviewComment}>{review.comment}</Text>
+                ))
+              ) : (
+                <View style={styles.reviewCard}>
+                  <Text style={styles.reviewComment}>
+                    No reviews available yet.
+                  </Text>
                 </View>
-              ))}
+              )}
             </View>
           )}
         </View>
@@ -398,6 +445,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0, 0, 0, 0.35)",
     alignItems: "center",
     justifyContent: "center",
+    zIndex: 10,
   },
   profileSection: {
     paddingHorizontal: spacing.xl,
@@ -413,6 +461,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginTop: -38,
     marginBottom: spacing.md,
+    overflow: "hidden",
   },
   avatarText: {
     fontSize: 24,
@@ -426,30 +475,8 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
     marginBottom: 8,
   },
-  statusRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginTop: 8,
-    marginBottom: spacing.lg,
-  },
-  serviceTypes: {
-    fontSize: 14,
-    color: colors.textSecondary,
-  },
-  statusDot: {
-    fontSize: 14,
-    color: colors.textMuted,
-  },
-  openStatus: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#16a34a",
-  },
-  closedStatus: {
-    color: colors.textMuted,
-  },
   contactList: {
+    marginTop: spacing.md,
     gap: spacing.md,
     marginBottom: spacing.xl,
   },
@@ -535,6 +562,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: spacing.lg,
     gap: spacing.sm,
+    backgroundColor: "#f9f9f9",
   },
   reviewHeader: {
     flexDirection: "row",

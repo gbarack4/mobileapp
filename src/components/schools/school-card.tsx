@@ -1,6 +1,13 @@
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Image,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 import { MapPinIcon } from "../icons/dashboard-icons";
 import { colors, spacing } from "../../constants/theme";
@@ -11,6 +18,7 @@ import {
   type SchoolJoinStatus,
 } from "../../services/school-membership";
 import type { School } from "../../types/school";
+import { getSchoolUIData } from "../../utils/school-ui";
 import { StarRating } from "./star-rating";
 
 type SchoolCardProps = {
@@ -75,12 +83,22 @@ export function SchoolCard({ school, onJoin }: Readonly<SchoolCardProps>) {
   const joinLabel =
     joinStatus === "paused" ? "Resume" : getJoinButtonLabel(joinStatus);
 
+  const { initials, avatarColor } = getSchoolUIData(school);
+
   return (
     <View style={styles.card}>
       <View style={styles.headerRow}>
-        <View style={[styles.avatar, { backgroundColor: school.avatarColor }]}>
-          <Text style={styles.avatarText}>{school.initials}</Text>
-        </View>
+        {school.logoUrl ? (
+          <Image
+            source={{ uri: school.logoUrl }}
+            style={styles.avatar}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={[styles.avatar, { backgroundColor: avatarColor }]}>
+            <Text style={styles.avatarText}>{initials}</Text>
+          </View>
+        )}
 
         <View style={styles.headerText}>
           <Text style={styles.name}>{school.name}</Text>
@@ -88,12 +106,11 @@ export function SchoolCard({ school, onJoin }: Readonly<SchoolCardProps>) {
         </View>
       </View>
 
-      <Text style={styles.serviceTypes}>{school.serviceTypes}</Text>
-
       <View style={styles.locationRow}>
         <MapPinIcon size={14} color={colors.textMuted} />
-        <Text style={styles.locationText}>
-          {school.address}, {school.suburb}
+        <Text style={styles.locationText} numberOfLines={1}>
+          {school.address}
+          {school.suburb ? `, ${school.suburb}` : ""}
         </Text>
       </View>
 
@@ -150,6 +167,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden", // Додано, щоб картинка не вилазила за межі кола
   },
   avatarText: {
     fontSize: 16,
@@ -165,10 +183,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: colors.text,
   },
-  serviceTypes: {
-    fontSize: 14,
-    color: colors.textSecondary,
-  },
   locationRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -178,6 +192,10 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     color: colors.textSecondary,
+  },
+  distanceText: {
+    fontWeight: "600",
+    color: colors.text,
   },
   actions: {
     flexDirection: "row",

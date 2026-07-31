@@ -1,5 +1,5 @@
-import { router } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { router } from "expo-router";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   Easing,
@@ -9,52 +9,56 @@ import {
   StyleSheet,
   Text,
   View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import { AccountScreen } from '../../components/account/account-screen';
-import { DashboardBottomNav } from '../../components/dashboard/dashboard-bottom-nav';
-import { LessonCard } from '../../components/dashboard/lesson-card';
-import { LessonTabs } from '../../components/dashboard/lesson-tabs';
-import { SearchBar } from '../../components/dashboard/search-bar';
-import { WeeklyEarningsScreen } from '../../components/earnings/weekly-earnings-screen';
-import { SchoolsScreen } from '../../components/schools/schools-screen';
-import { CalendarIcon } from '../../components/icons/dashboard-icons';
-import { colors, spacing } from '../../constants/theme';
-import { useBottomNavScroll } from '../../hooks/use-bottom-nav-scroll';
-import { MOCK_LESSONS } from '../../data/mock-lessons';
-import type { DashboardTab, LessonTab } from '../../types/dashboard';
+import { AccountScreen } from "../../components/account/account-screen";
+import { DashboardBottomNav } from "../../components/dashboard/dashboard-bottom-nav";
+import { LessonCard } from "../../components/dashboard/lesson-card";
+import { LessonTabs } from "../../components/dashboard/lesson-tabs";
+import { SearchBar } from "../../components/dashboard/search-bar";
+import { WeeklyEarningsScreen } from "../../components/earnings/weekly-earnings-screen";
+import { SchoolsScreen } from "../../components/schools/schools-screen";
+import { CalendarIcon } from "../../components/icons/dashboard-icons";
+import { colors, spacing } from "../../constants/theme";
+import { useBottomNavScroll } from "../../hooks/use-bottom-nav-scroll";
+import { MOCK_LESSONS } from "../../data/mock-lessons";
+import type { DashboardTab, LessonTab } from "../../types/dashboard";
 
 const SECTION_TITLES: Record<LessonTab, string> = {
-  upcoming: 'Upcoming lessons',
-  completed: 'Completed lessons',
-  cancelled: 'Cancelled lessons',
+  upcoming: "Upcoming lessons",
+  completed: "Completed lessons",
+  cancelled: "Cancelled lessons",
 };
 
 const ANDROID_RIPPLE =
-  Platform.OS === 'android' ? { color: 'rgba(0, 94, 255, 0.08)' } : undefined;
+  Platform.OS === "android" ? { color: "rgba(0, 94, 255, 0.08)" } : undefined;
 
 const FADE_OUT_MS = 120;
 const FADE_IN_MS = 160;
-/** Native-driver opacity on web often leaves the pane unclickable after tab fades. */
-const USE_NATIVE_DRIVER = Platform.OS !== 'web';
+const USE_NATIVE_DRIVER = Platform.OS !== "web";
 
 export default function DashboardScreen() {
-  const [lessonTab, setLessonTab] = useState<LessonTab>('upcoming');
-  const [activeTab, setActiveTab] = useState<DashboardTab>('bookings');
-  const [displayedTab, setDisplayedTab] = useState<DashboardTab>('bookings');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [lessonTab, setLessonTab] = useState<LessonTab>("upcoming");
+  const [activeTab, setActiveTab] = useState<DashboardTab>("bookings");
+  const [displayedTab, setDisplayedTab] = useState<DashboardTab>("bookings");
+  const [searchQuery, setSearchQuery] = useState("");
   const contentOpacity = useRef(new Animated.Value(1)).current;
   const contentTranslateY = useRef(new Animated.Value(0)).current;
   const animationRef = useRef<Animated.CompositeAnimation | null>(null);
   const isAnimatingRef = useRef(false);
   const pendingTabRef = useRef<DashboardTab | null>(null);
-  const displayedTabRef = useRef<DashboardTab>('bookings');
-  const { translateY: bottomNavTranslateY, onScroll: onBottomNavScroll, resetNav } =
-    useBottomNavScroll();
+  const displayedTabRef = useRef<DashboardTab>("bookings");
+  const {
+    translateY: bottomNavTranslateY,
+    onScroll: onBottomNavScroll,
+    resetNav,
+  } = useBottomNavScroll();
 
   const lessons = useMemo(() => {
-    const tabLessons = MOCK_LESSONS.filter((lesson) => lesson.status === lessonTab);
+    const tabLessons = MOCK_LESSONS.filter(
+      (lesson) => lesson.status === lessonTab,
+    );
     const trimmedQuery = searchQuery.trim().toLowerCase();
 
     if (!trimmedQuery) {
@@ -72,7 +76,7 @@ export default function DashboardScreen() {
         lesson.time,
         lesson.duration,
       ]
-        .join(' ')
+        .join(" ")
         .toLowerCase();
 
       return searchableText.includes(trimmedQuery);
@@ -165,22 +169,23 @@ export default function DashboardScreen() {
 
   function renderTab(tab: DashboardTab) {
     switch (tab) {
-      case 'school':
+      case "school":
         return <SchoolsScreen onScroll={onBottomNavScroll} />;
-      case 'bookings':
+      case "bookings":
         return (
           <View style={styles.screen}>
             <View style={styles.header}>
               <SearchBar value={searchQuery} onChangeText={setSearchQuery} />
-
               <LessonTabs activeTab={lessonTab} onTabChange={setLessonTab} />
-
               <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>{SECTION_TITLES[lessonTab]}</Text>
+                <Text style={styles.sectionTitle}>
+                  {SECTION_TITLES[lessonTab]}
+                </Text>
                 <Pressable
-                  onPress={() => router.push('/dashboard/calendar')}
+                  onPress={() => router.push("/dashboard/calendar")}
                   android_ripple={ANDROID_RIPPLE}
-                  style={styles.calendarLink}>
+                  style={styles.calendarLink}
+                >
                   <Text style={styles.calendarText}>View calendar</Text>
                   <CalendarIcon />
                 </Pressable>
@@ -193,33 +198,38 @@ export default function DashboardScreen() {
               contentContainerStyle={styles.lessonScrollContent}
               showsVerticalScrollIndicator={false}
               onScroll={onBottomNavScroll}
-              scrollEventThrottle={8}>
+              scrollEventThrottle={8}
+            >
               {lessons.length > 0 ? (
-                lessons.map((lesson) => <LessonCard key={lesson.id} lesson={lesson} />)
+                lessons.map((lesson) => (
+                  <LessonCard key={lesson.id} lesson={lesson} />
+                ))
               ) : (
                 <View style={styles.emptyState}>
                   <Text style={styles.emptyTitle}>
-                    {searchQuery.trim() ? 'No matching lessons' : `No ${lessonTab} lessons`}
+                    {searchQuery.trim()
+                      ? "No matching lessons"
+                      : `No ${lessonTab} lessons`}
                   </Text>
                   <Text style={styles.emptySubtitle}>
                     {searchQuery.trim()
-                      ? 'Try a different search term.'
-                      : 'Lessons will appear here once scheduled.'}
+                      ? "Try a different search term."
+                      : "Lessons will appear here once scheduled."}
                   </Text>
                 </View>
               )}
             </ScrollView>
           </View>
         );
-      case 'earnings':
+      case "earnings":
         return <WeeklyEarningsScreen onScroll={onBottomNavScroll} />;
-      case 'profile':
-        return <AccountScreen onClose={() => transitionToTab('bookings')} />;
+      case "profile":
+        return <AccountScreen onClose={() => transitionToTab("bookings")} />;
     }
   }
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <View style={styles.content}>
         <Animated.View
           pointerEvents="auto"
@@ -229,12 +239,13 @@ export default function DashboardScreen() {
               opacity: contentOpacity,
               transform: [{ translateY: contentTranslateY }],
             },
-          ]}>
+          ]}
+        >
           {renderTab(displayedTab)}
         </Animated.View>
       </View>
 
-      {activeTab !== 'profile' && displayedTab !== 'profile' ? (
+      {activeTab !== "profile" && displayedTab !== "profile" ? (
         <DashboardBottomNav
           activeTab={activeTab}
           onTabChange={transitionToTab}
@@ -259,7 +270,7 @@ const styles = StyleSheet.create({
   },
   screen: {
     flex: 1,
-    position: 'relative',
+    position: "relative",
   },
   header: {
     paddingHorizontal: spacing.xl,
@@ -276,45 +287,45 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   sectionTitle: {
     fontSize: 17,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text,
     letterSpacing: -0.1,
   },
   calendarLink: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
     paddingVertical: 4,
     paddingHorizontal: 2,
   },
   calendarText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.primary,
   },
   emptyState: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: "#f8fafc",
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#eef2f7',
+    borderColor: "#eef2f7",
     padding: spacing.xl,
-    alignItems: 'center',
+    alignItems: "center",
     gap: spacing.sm,
   },
   emptyTitle: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text,
   },
   emptySubtitle: {
     fontSize: 14,
     color: colors.textSecondary,
-    textAlign: 'center',
+    textAlign: "center",
   },
 });
