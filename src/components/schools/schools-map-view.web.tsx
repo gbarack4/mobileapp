@@ -1,6 +1,17 @@
-import L from "leaflet";
-import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
-import { StyleSheet, View } from "react-native";
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
+import { StyleSheet, View, ActivityIndicator, Text } from "react-native";
+import {
+  GoogleMap,
+  useJsApiLoader,
+  OverlayViewF,
+  OverlayView,
+} from "@react-google-maps/api";
 
 import { colors } from "../../constants/theme";
 import type { School } from "../../types/school";
@@ -9,7 +20,6 @@ import {
   schoolToLatLng,
 } from "./school-map-marker-html";
 
-import "leaflet/dist/leaflet.css";
 import "./schools-map.web.css";
 
 export type SchoolsMapViewHandle = {
@@ -23,7 +33,12 @@ type SchoolsMapViewProps = {
   userLocation?: { lat: number; lng: number } | null;
 };
 
-const MAP_PADDING: L.PointExpression = [120, 64];
+const mapContainerStyle = {
+  width: "100%",
+  height: "100%",
+};
+
+const defaultCenter = { lat: 0, lng: 0 };
 
 export const SchoolsMapView = forwardRef<
   SchoolsMapViewHandle,
@@ -32,12 +47,13 @@ export const SchoolsMapView = forwardRef<
   { schools, selectedSchoolId, onSelectSchool, userLocation },
   ref,
 ) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<L.Map | null>(null);
-  const markersLayerRef = useRef<L.LayerGroup | null>(null);
-  const onSelectSchoolRef = useRef(onSelectSchool);
+  const { isLoaded, loadError } = useJsApiLoader({
+    id: "google-map-script",
+    googleMapsApiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || "",
+  });
 
-  onSelectSchoolRef.current = onSelectSchool;
+  const mapRef = useRef<google.maps.Map | null>(null);
+  const [mapReady, setMapReady] = useState(false);
 
   const getValidSchools = () =>
     schools.filter(
@@ -45,31 +61,37 @@ export const SchoolsMapView = forwardRef<
         s.latitude != null && s.longitude != null,
     );
 
-  function fitSchools(map: L.Map) {
-    if (!containerRef.current || containerRef.current.clientHeight === 0) {
-      return;
-    }
-
+  const fitSchools = (mapInstance: google.maps.Map) => {
     const validSchools = getValidSchools();
+
     if (validSchools.length === 0) {
+      if (userLocation) {
+        mapInstance.panTo({ lat: userLocation.lat, lng: userLocation.lng });
+        mapInstance.setZoom(13);
+      }
       return;
     }
 
-    try {
-      if (validSchools.length === 1) {
-        const [lat, lng] = schoolToLatLng(validSchools[0]);
-        map.setView([lat, lng], 13, { animate: false });
-        return;
-      }
-
-      const bounds = L.latLngBounds(
-        validSchools.map((school) => schoolToLatLng(school)),
-      );
-      map.fitBounds(bounds, { padding: MAP_PADDING, animate: false });
-    } catch (err) {
-      console.warn("Leaflet fitBounds error:", err);
+    if (validSchools.length === 1) {
+      const [lat, lng] = schoolToLatLng(validSchools[0]);
+      mapInstance.panTo({ lat, lng });
+      mapInstance.setZoom(13);
+      return;
     }
-  }
+
+    const bounds = new window.google.maps.LatLngBounds();
+    validSchools.forEach((school) => {
+      const [lat, lng] = schoolToLatLng(school);
+      bounds.extend({ lat, lng });
+    });
+
+    mapInstance.fitBounds(bounds, {
+      top: 120,
+      right: 64,
+      bottom: 64,
+      left: 64,
+    });
+  };
 
   useImperativeHandle(ref, () => ({
     recenter: () => {
@@ -80,83 +102,82 @@ export const SchoolsMapView = forwardRef<
   }));
 
   useEffect(() => {
-    if (!containerRef.current || mapRef.current) {
-      return;
+    if (mapRef.current && mapReady) {
+      fitSchools(mapRef.current);
     }
+  }, [schools, userLocation, mapReady]);
 
-    const map = L.map(containerRef.current, {
-      zoomControl: false,
-      attributionControl: true,
-      fadeAnimation: false,
-      zoomAnimation: false,
-      markerZoomAnimation: false,
-    }).setView([0, 0], 2);
-
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "&copy; OpenStreetMap contributors",
-      maxZoom: 19,
-    }).addTo(map);
-
-    markersLayerRef.current = L.layerGroup().addTo(map);
+  const onLoad = (map: google.maps.Map) => {
     mapRef.current = map;
+    setMapReady(true);
+    fitSchools(map);
+  };
 
-    const rafId = requestAnimationFrame(() => {
-      if (
-        mapRef.current &&
-        containerRef.current &&
-        containerRef.current.clientHeight > 0
-      ) {
-        mapRef.current.invalidateSize(false);
-      }
-    });
+  const onUnmount = () => {
+    mapRef.current = null;
+    setMapReady(false);
+  };
 
-    return () => {
-      cancelAnimationFrame(rafId);
-      if (mapRef.current) {
-        mapRef.current.remove();
-        mapRef.current = null;
-        markersLayerRef.current = null;
-      }
-    };
-  }, []);
+  if (loadError) {
+    return (
+      <View style={styles.centerContainer}>
+        <Text style={styles.errorText}>Error loading Google Maps</Text>
+      </View>
+    );
+  }
 
-  useEffect(() => {
-    const map = mapRef.current;
-    const markersLayer = markersLayerRef.current;
+  if (!isLoaded) {
+    return (
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
 
-    if (!map || !markersLayer) {
-      return;
-    }
+  const validSchools = getValidSchools();
+  const initialCenter = userLocation
+    ? { lat: userLocation.lat, lng: userLocation.lng }
+    : defaultCenter;
 
-    markersLayer.clearLayers();
-    const validSchools = getValidSchools();
-
-    validSchools.forEach((school) => {
-      const selected = school.id === selectedSchoolId;
-      const [lat, lng] = schoolToLatLng(school);
-
-      const icon = L.divIcon({
-        className: "school-map-marker",
-        html: buildSchoolMarkerHtml(school, selected),
-        iconSize: [48, 66],
-        iconAnchor: [24, 66],
-      });
-
-      const marker = L.marker([lat, lng], { icon });
-      marker.on("click", () => onSelectSchoolRef.current(school.id));
-      marker.addTo(markersLayer);
-    });
-
-    if (validSchools.length > 0) {
-      fitSchools(map);
-    } else if (userLocation) {
-      map.setView([userLocation.lat, userLocation.lng], 13, { animate: false });
-    }
-  }, [schools, selectedSchoolId, userLocation]);
+  const initialZoom = validSchools.length === 0 && !userLocation ? 2 : 13;
 
   return (
     <View style={styles.container}>
-      <div ref={containerRef} style={styles.mapElement} />
+      <GoogleMap
+        mapContainerStyle={mapContainerStyle}
+        center={initialCenter}
+        zoom={initialZoom}
+        onLoad={onLoad}
+        onUnmount={onUnmount}
+        options={{
+          disableDefaultUI: true,
+          zoomControl: true,
+        }}
+      >
+        {validSchools.map((school) => {
+          const selected = school.id === selectedSchoolId;
+          const [lat, lng] = schoolToLatLng(school);
+          const htmlContent = buildSchoolMarkerHtml(school, selected);
+
+          return (
+            <OverlayViewF
+              key={school.locationId ?? school.id}
+              position={{ lat, lng }}
+              mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
+              getPixelPositionOffset={(width, height) => ({
+                x: -(width / 2),
+                y: -height,
+              })}
+            >
+              <div
+                onClick={() => onSelectSchool(school.id)}
+                style={{ cursor: "pointer" }}
+                dangerouslySetInnerHTML={{ __html: htmlContent }}
+              />
+            </OverlayViewF>
+          );
+        })}
+      </GoogleMap>
     </View>
   );
 });
@@ -166,8 +187,14 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.inputBackground,
   },
-  mapElement: {
-    width: "100%",
-    height: "100%",
-  } as const,
+  centerContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: colors.inputBackground,
+  },
+  errorText: {
+    color: "red",
+    fontSize: 16,
+  },
 });
