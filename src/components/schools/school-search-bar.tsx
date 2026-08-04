@@ -13,6 +13,7 @@ import { colors, spacing } from "../../constants/theme";
 import { searchSchools } from "../../services/schools";
 import type { School } from "../../types/school";
 import { SearchIcon } from "../icons/dashboard-icons";
+import { getSchoolUIData } from "@/utils/school-ui";
 
 type SchoolSearchBarProps = {
   value: string;
@@ -191,28 +192,38 @@ export function SchoolSearchBar({
                   pressed && styles.pressed,
                 ]}
               >
-                <View
-                  style={[
-                    styles.suggestionAvatar,
-                    { backgroundColor: school.avatarColor },
-                  ]}
-                >
-                  <Text style={styles.suggestionAvatarText}>
-                    {school.initials}
-                  </Text>
-                </View>
-                <View style={styles.suggestionText}>
-                  <Text style={styles.suggestionName} numberOfLines={1}>
-                    {school.name}
-                  </Text>
-                  {school.suburb || school.address ? (
-                    <Text style={styles.suggestionSubtitle} numberOfLines={1}>
-                      {[school.suburb, school.address]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </Text>
-                  ) : null}
-                </View>
+                {(() => {
+                  const uiData = getSchoolUIData(school);
+                  return (
+                    <>
+                      <View
+                        style={[
+                          styles.suggestionAvatar,
+                          { backgroundColor: uiData.avatarColor },
+                        ]}
+                      >
+                        <Text style={styles.suggestionAvatarText}>
+                          {uiData.initials}
+                        </Text>
+                      </View>
+                      <View style={styles.suggestionText}>
+                        <Text style={styles.suggestionName} numberOfLines={1}>
+                          {school.name}
+                        </Text>
+                        {school.suburb || school.address ? (
+                          <Text
+                            style={styles.suggestionSubtitle}
+                            numberOfLines={1}
+                          >
+                            {[school.suburb, school.address]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </Text>
+                        ) : null}
+                      </View>
+                    </>
+                  );
+                })()}
               </Pressable>
             ))
           )}
