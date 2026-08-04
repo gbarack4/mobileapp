@@ -80,7 +80,7 @@ export function SchoolsScreen({
             q: query.trim(),
             originLat: location?.lat,
             originLng: location?.lng,
-            radiusKm: 5,
+            radiusKm: query.trim() ? undefined : 5,
           },
           () => getTokenRef.current(),
         );
