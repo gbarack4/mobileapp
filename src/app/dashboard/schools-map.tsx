@@ -62,7 +62,6 @@ export default function SchoolsMapScreen() {
             q: q ?? "",
             originLat: lat,
             originLng: lng,
-            radiusKm: 5,
           },
           getToken,
         );

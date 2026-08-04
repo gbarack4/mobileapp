@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -7,12 +7,12 @@ import {
   Text,
   TextInput,
   View,
-} from 'react-native';
+} from "react-native";
 
-import { SearchIcon } from '../icons/dashboard-icons';
-import { colors, spacing } from '../../constants/theme';
-import { searchSchools } from '../../services/schools';
-import type { School } from '../../types/school';
+import { colors, spacing } from "../../constants/theme";
+import { searchSchools } from "../../services/schools";
+import type { School } from "../../types/school";
+import { SearchIcon } from "../icons/dashboard-icons";
 
 type SchoolSearchBarProps = {
   value: string;
@@ -27,7 +27,7 @@ type PressableState = {
 };
 
 const ANDROID_RIPPLE =
-  Platform.OS === 'android' ? { color: 'rgba(0, 94, 255, 0.12)' } : undefined;
+  Platform.OS === "android" ? { color: "rgba(0, 94, 255, 0.12)" } : undefined;
 
 const SUGGESTION_DEBOUNCE_MS = 250;
 const MIN_QUERY_LENGTH = 1;
@@ -45,14 +45,13 @@ function rankByNameSimilarity(schools: School[], query: string): School[] {
       else if (name.startsWith(q)) score = 200;
       else if (name.includes(` ${q}`)) score = 150;
       else if (name.includes(q)) score = 100;
-
-      // Prefer shorter names when scores tie (closer match).
       score += Math.max(0, 40 - name.length);
-
       return { school, score };
     })
     .filter((item) => item.score > 0)
-    .sort((a, b) => b.score - a.score || a.school.name.localeCompare(b.school.name))
+    .sort(
+      (a, b) => b.score - a.score || a.school.name.localeCompare(b.school.name),
+    )
     .slice(0, MAX_SUGGESTIONS)
     .map((item) => item.school);
 }
@@ -62,7 +61,7 @@ export function SchoolSearchBar({
   onChangeText,
   onSearch,
   onSelectSuggestion,
-  placeholder = 'Enter school name',
+  placeholder = "Enter school name",
 }: Readonly<SchoolSearchBarProps>) {
   const [suggestions, setSuggestions] = useState<School[]>([]);
   const [isSuggesting, setIsSuggesting] = useState(false);
@@ -135,7 +134,9 @@ export function SchoolSearchBar({
   }
 
   const shouldShowDropdown =
-    showSuggestions && value.trim().length >= MIN_QUERY_LENGTH && (isSuggesting || suggestions.length > 0);
+    showSuggestions &&
+    value.trim().length >= MIN_QUERY_LENGTH &&
+    (isSuggesting || suggestions.length > 0);
 
   return (
     <View style={styles.wrapper}>
@@ -166,7 +167,11 @@ export function SchoolSearchBar({
           accessibilityLabel="Search schools by name"
         />
         {isSuggesting ? (
-          <ActivityIndicator size="small" color={colors.primary} style={styles.spinner} />
+          <ActivityIndicator
+            size="small"
+            color={colors.primary}
+            style={styles.spinner}
+          />
         ) : null}
       </View>
 
@@ -184,9 +189,17 @@ export function SchoolSearchBar({
                   styles.suggestionRow,
                   index < suggestions.length - 1 && styles.suggestionRowDivider,
                   pressed && styles.pressed,
-                ]}>
-                <View style={[styles.suggestionAvatar, { backgroundColor: school.avatarColor }]}>
-                  <Text style={styles.suggestionAvatarText}>{school.initials}</Text>
+                ]}
+              >
+                <View
+                  style={[
+                    styles.suggestionAvatar,
+                    { backgroundColor: school.avatarColor },
+                  ]}
+                >
+                  <Text style={styles.suggestionAvatarText}>
+                    {school.initials}
+                  </Text>
                 </View>
                 <View style={styles.suggestionText}>
                   <Text style={styles.suggestionName} numberOfLines={1}>
@@ -194,7 +207,9 @@ export function SchoolSearchBar({
                   </Text>
                   {school.suburb || school.address ? (
                     <Text style={styles.suggestionSubtitle} numberOfLines={1}>
-                      {[school.suburb, school.address].filter(Boolean).join(' · ')}
+                      {[school.suburb, school.address]
+                        .filter(Boolean)
+                        .join(" · ")}
                     </Text>
                   ) : null}
                 </View>
@@ -210,13 +225,13 @@ export function SchoolSearchBar({
 const styles = StyleSheet.create({
   wrapper: {
     zIndex: 20,
-    ...(Platform.OS === 'web' ? ({ position: 'relative' } as object) : {}),
+    ...(Platform.OS === "web" ? ({ position: "relative" } as object) : {}),
   },
   container: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
-    backgroundColor: '#f9f9f9',
+    backgroundColor: "#f9f9f9",
     borderRadius: 14,
     paddingHorizontal: 16,
     paddingVertical: 6,
@@ -227,9 +242,9 @@ const styles = StyleSheet.create({
     minWidth: 0,
     fontSize: 16,
     color: colors.text,
-    paddingVertical: Platform.OS === 'web' ? 8 : 0,
-    ...(Platform.OS === 'web'
-      ? ({ outlineStyle: 'none', width: '100%' } as object)
+    paddingVertical: Platform.OS === "web" ? 8 : 0,
+    ...(Platform.OS === "web"
+      ? ({ outlineStyle: "none", width: "100%" } as object)
       : {}),
   },
   spinner: {
@@ -240,12 +255,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#eef2f7',
-    overflow: 'hidden',
-    ...(Platform.OS === 'web'
-      ? ({ boxShadow: '0 8px 24px rgba(15, 23, 42, 0.08)' } as object)
+    borderColor: "#eef2f7",
+    overflow: "hidden",
+    ...(Platform.OS === "web"
+      ? ({ boxShadow: "0 8px 24px rgba(15, 23, 42, 0.08)" } as object)
       : {
-          shadowColor: '#0f172a',
+          shadowColor: "#0f172a",
           shadowOffset: { width: 0, height: 8 },
           shadowOpacity: 0.08,
           shadowRadius: 16,
@@ -253,27 +268,27 @@ const styles = StyleSheet.create({
         }),
   },
   suggestionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.sm,
     paddingHorizontal: spacing.md,
     paddingVertical: 10,
   },
   suggestionRowDivider: {
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#eef2f7',
+    borderBottomColor: "#eef2f7",
   },
   suggestionAvatar: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   suggestionAvatarText: {
     color: colors.white,
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   suggestionText: {
     flex: 1,
@@ -282,7 +297,7 @@ const styles = StyleSheet.create({
   },
   suggestionName: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text,
   },
   suggestionSubtitle: {
