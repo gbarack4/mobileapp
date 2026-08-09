@@ -9,11 +9,13 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { colors } from "../../constants/theme";
+import { UNREAD_INBOX_COUNT } from "../../data/mock-inbox";
 import type { DashboardTab } from "../../types/dashboard";
 import {
   BookingsNavIcon,
   EarningsNavIcon,
   HomeNavIcon,
+  InboxNavIcon,
   ProfileNavIcon,
 } from "../icons/dashboard-icons";
 
@@ -21,6 +23,7 @@ type DashboardBottomNavProps = {
   activeTab: DashboardTab;
   onTabChange: (tab: DashboardTab) => void;
   translateY?: Animated.Value;
+  inboxBadgeCount?: number;
 };
 
 const NAV_ITEMS: {
@@ -30,6 +33,7 @@ const NAV_ITEMS: {
 }[] = [
   { id: "school", label: "School", Icon: HomeNavIcon },
   { id: "bookings", label: "Bookings", Icon: BookingsNavIcon },
+  { id: "inbox", label: "Inbox", Icon: InboxNavIcon },
   { id: "earnings", label: "Earnings", Icon: EarningsNavIcon },
   { id: "profile", label: "Account", Icon: ProfileNavIcon },
 ];
@@ -39,10 +43,15 @@ const ANDROID_RIPPLE =
 
 const NAV_ICON_SIZE = 18;
 
+function formatBadgeCount(count: number) {
+  return count > 99 ? "99+" : String(count);
+}
+
 export function DashboardBottomNav({
   activeTab,
   onTabChange,
   translateY,
+  inboxBadgeCount = UNREAD_INBOX_COUNT,
 }: Readonly<DashboardBottomNavProps>) {
   const insets = useSafeAreaInsets();
 
@@ -59,6 +68,8 @@ export function DashboardBottomNav({
           const active = activeTab === item.id;
           const iconColor = active ? colors.text : colors.textMuted;
           const { Icon } = item;
+          const showInboxBadge =
+            item.id === "inbox" && inboxBadgeCount > 0;
 
           return (
             <Pressable
@@ -73,6 +84,13 @@ export function DashboardBottomNav({
             >
               <View style={styles.iconWrap}>
                 <Icon color={iconColor} size={NAV_ICON_SIZE} />
+                {showInboxBadge ? (
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>
+                      {formatBadgeCount(inboxBadgeCount)}
+                    </Text>
+                  </View>
+                ) : null}
               </View>
               <Text style={[styles.label, active && styles.labelActive]}>
                 {item.label}
@@ -129,6 +147,26 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     alignItems: "center",
     justifyContent: "center",
+  },
+  badge: {
+    position: "absolute",
+    top: -2,
+    right: -6,
+    minWidth: 16,
+    height: 16,
+    paddingHorizontal: 4,
+    borderRadius: 8,
+    backgroundColor: colors.error,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: colors.white,
+  },
+  badgeText: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: colors.white,
+    lineHeight: 11,
   },
   label: {
     fontSize: 11,

@@ -40,20 +40,20 @@ const WEEKLY_AMOUNTS = [18500, 14200, 22800, 19600, 25400, 16800, 7200];
 const WEEKLY_LESSONS = [3, 2, 4, 3, 4, 3, 1];
 
 const BASE_ENTRIES = [
-  { studentName: 'Mark Thompson', studentInitials: 'MT', time: '10:00 AM', amountCents: 8500 },
-  { studentName: 'Rachel Andre', studentInitials: 'RA', time: '11:00 AM', amountCents: 6500 },
-  { studentName: 'Sophie Chen', studentInitials: 'SC', time: '2:00 PM', amountCents: 7500 },
-  { studentName: 'James Wilson', studentInitials: 'JW', time: '9:00 AM', amountCents: 9000 },
-  { studentName: 'Emma Davis', studentInitials: 'ED', time: '3:30 PM', amountCents: 7000 },
-  { studentName: 'Liam O’Brien', studentInitials: 'LO', time: '4:00 PM', amountCents: 6500 },
-  { studentName: 'Priya Sharma', studentInitials: 'PS', time: '8:30 AM', amountCents: 8000 },
-  { studentName: 'Noah Brown', studentInitials: 'NB', time: '1:00 PM', amountCents: 7200 },
-  { studentName: 'Ava Martinez', studentInitials: 'AM', time: '5:00 PM', amountCents: 6800 },
-  { studentName: 'Ethan Lee', studentInitials: 'EL', time: '12:00 PM', amountCents: 8500 },
-  { studentName: 'Chloe Nguyen', studentInitials: 'CN', time: '10:30 AM', amountCents: 7500 },
-  { studentName: 'Oliver King', studentInitials: 'OK', time: '2:30 PM', amountCents: 9000 },
-  { studentName: 'Mia Taylor', studentInitials: 'MT', time: '11:30 AM', amountCents: 6500 },
-  { studentName: 'Jack Harris', studentInitials: 'JH', time: '4:30 PM', amountCents: 7200 },
+  { studentName: 'Mark Thompson', studentInitials: 'MT', time: '10:00 AM', hours: 1.5, amountCents: 8500 },
+  { studentName: 'Rachel Andre', studentInitials: 'RA', time: '11:00 AM', hours: 1, amountCents: 6500 },
+  { studentName: 'Sophie Chen', studentInitials: 'SC', time: '2:00 PM', hours: 1.25, amountCents: 7500 },
+  { studentName: 'James Wilson', studentInitials: 'JW', time: '9:00 AM', hours: 2, amountCents: 9000 },
+  { studentName: 'Emma Davis', studentInitials: 'ED', time: '3:30 PM', hours: 1, amountCents: 7000 },
+  { studentName: 'Liam O’Brien', studentInitials: 'LO', time: '4:00 PM', hours: 1, amountCents: 6500 },
+  { studentName: 'Priya Sharma', studentInitials: 'PS', time: '8:30 AM', hours: 1.5, amountCents: 8000 },
+  { studentName: 'Noah Brown', studentInitials: 'NB', time: '1:00 PM', hours: 1.25, amountCents: 7200 },
+  { studentName: 'Ava Martinez', studentInitials: 'AM', time: '5:00 PM', hours: 1, amountCents: 6800 },
+  { studentName: 'Ethan Lee', studentInitials: 'EL', time: '12:00 PM', hours: 1.5, amountCents: 8500 },
+  { studentName: 'Chloe Nguyen', studentInitials: 'CN', time: '10:30 AM', hours: 1.25, amountCents: 7500 },
+  { studentName: 'Oliver King', studentInitials: 'OK', time: '2:30 PM', hours: 2, amountCents: 9000 },
+  { studentName: 'Mia Taylor', studentInitials: 'MT', time: '11:30 AM', hours: 1, amountCents: 6500 },
+  { studentName: 'Jack Harris', studentInitials: 'JH', time: '4:30 PM', hours: 1.25, amountCents: 7200 },
 ] as const;
 
 export function getWeeklyEarnings(weekOffset = 0): WeeklyEarnings {
@@ -76,24 +76,34 @@ export function getWeeklyEarnings(weekOffset = 0): WeeklyEarnings {
 
   const totalCents = days.reduce((sum, day) => sum + day.amountCents, 0);
   const lessonCount = days.reduce((sum, day) => sum + day.lessonCount, 0);
-  const hoursTaught = lessonCount * 1.25;
   const pendingCents = weekOffset === 0 ? 7200 : 0;
 
-  const entries = BASE_ENTRIES.slice(0, lessonCount).map((entry, index) => {
-    const dayIndex = index % 7;
+  const entries: WeeklyEarnings['entries'] = [];
+  let entryCursor = 0;
+  days.forEach((day, dayIndex) => {
     const date = new Date(weekStart);
     date.setDate(weekStart.getDate() + dayIndex);
 
-    return {
-      id: `${weekOffset}-${index}`,
-      studentName: entry.studentName,
-      studentInitials: entry.studentInitials,
-      dateLabel: `${DAY_LABELS[dayIndex]} ${formatDayDate(date)}`,
-      time: entry.time,
-      amountCents: entry.amountCents,
-      status: weekOffset === 0 && index >= lessonCount - 1 ? 'pending' : 'paid',
-    } as const;
+    for (let i = 0; i < day.lessonCount; i += 1) {
+      const entry = BASE_ENTRIES[entryCursor % BASE_ENTRIES.length];
+      const isLast =
+        weekOffset === 0 && entryCursor === lessonCount - 1;
+
+      entries.push({
+        id: `${weekOffset}-${entryCursor}`,
+        studentName: entry.studentName,
+        studentInitials: entry.studentInitials,
+        dateLabel: `${day.dayLabel} ${day.dateLabel}`,
+        time: entry.time,
+        hours: entry.hours,
+        amountCents: entry.amountCents,
+        status: isLast ? 'pending' : 'paid',
+      });
+      entryCursor += 1;
+    }
   });
+
+  const hoursTaught = entries.reduce((sum, entry) => sum + entry.hours, 0);
 
   return {
     weekLabel: formatWeekLabel(weekStart),

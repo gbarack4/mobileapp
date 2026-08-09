@@ -1,12 +1,22 @@
-import { useSiteLoaderVisible } from '@/hooks/use-site-loader-state';
-import { SiteLoader } from './site-loader';
+import { type ReactNode, useEffect } from "react";
 
-export function SiteLoaderGate() {
-  const visible = useSiteLoaderVisible();
+const SPLASH_MS = 2000;
 
-  if (!visible) {
-    return null;
-  }
+type SiteLoaderGateProps = Readonly<{
+  children: ReactNode;
+}>;
 
-  return <SiteLoader />;
+/**
+ * Single splash only: keep the HTML initial loader for 2 seconds.
+ */
+export function SiteLoaderGate({ children }: SiteLoaderGateProps) {
+  useEffect(() => {
+    const t = setTimeout(() => {
+      document.getElementById("initial-site-loader")?.remove();
+    }, SPLASH_MS);
+
+    return () => clearTimeout(t);
+  }, []);
+
+  return <>{children}</>;
 }

@@ -1,5 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  Animated,
+  Easing,
   Platform,
   Pressable,
   ScrollView,
@@ -15,10 +17,10 @@ import {
 } from "../../data/mock-earnings";
 import { ACTIVE_SCHOOL_COUNT } from "../../data/mock-active-schools";
 import { colors, spacing } from "../../constants/theme";
+import type { WeeklyEarningDay, WeeklyEarningEntry } from "../../types/earnings";
 import { formatCurrency, formatHours } from "../../utils/earnings";
 import { EarningsBySchoolScreen } from "./earnings-by-school-screen";
 import {
-  CarIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   HomeNavIcon,
@@ -27,15 +29,143 @@ import {
 const ANDROID_RIPPLE =
   Platform.OS === "android" ? { color: "rgba(0, 94, 255, 0.08)" } : undefined;
 
+const ENTRY_ROW_HEIGHT = 72;
+const EXPAND_MS = 260;
+
 type WeeklyEarningsScreenProps = {
   onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
 };
+
+type DayDropdownProps = Readonly<{
+  day: WeeklyEarningDay;
+  entries: WeeklyEarningEntry[];
+  expanded: boolean;
+  showDivider: boolean;
+  onToggle: () => void;
+}>;
+
+function DayDropdown({
+  day,
+  entries,
+  expanded,
+  showDivider,
+  onToggle,
+}: DayDropdownProps) {
+  const progress = useRef(new Animated.Value(expanded ? 1 : 0)).current;
+  const contentHeight = Math.max(entries.length, 1) * ENTRY_ROW_HEIGHT;
+
+  useEffect(() => {
+    Animated.timing(progress, {
+      toValue: expanded ? 1 : 0,
+      duration: EXPAND_MS,
+      easing: expanded ? Easing.out(Easing.cubic) : Easing.in(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, [expanded, progress]);
+
+  const panelHeight = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, contentHeight],
+  });
+
+  const panelOpacity = progress.interpolate({
+    inputRange: [0, 0.35, 1],
+    outputRange: [0, 0.45, 1],
+  });
+
+  const chevronRotate = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0deg", "90deg"],
+  });
+
+  return (
+    <View>
+      <Pressable
+        onPress={onToggle}
+        android_ripple={ANDROID_RIPPLE}
+        accessibilityRole="button"
+        accessibilityState={{ expanded }}
+        accessibilityLabel={`${day.dayLabel} ${day.dateLabel}, ${formatCurrency(day.amountCents)}, ${day.lessonCount} lessons`}
+        style={({ pressed }) => [
+          styles.breakdownRow,
+          pressed && styles.pressed,
+        ]}
+      >
+        <View style={styles.breakdownDay}>
+          <Text style={styles.breakdownDayLabel}>{day.dayLabel}</Text>
+          <Text style={styles.breakdownDate}>{day.dateLabel}</Text>
+        </View>
+
+        <View style={styles.breakdownAmountWrap}>
+          <Text style={styles.breakdownAmount}>
+            {formatCurrency(day.amountCents)}
+          </Text>
+          <Text style={styles.breakdownLessons}>
+            {day.lessonCount} {day.lessonCount === 1 ? "lesson" : "lessons"}
+          </Text>
+        </View>
+
+        <Animated.View style={{ transform: [{ rotate: chevronRotate }] }}>
+          <ChevronRightIcon size={16} color={colors.textMuted} />
+        </Animated.View>
+      </Pressable>
+
+      <Animated.View
+        pointerEvents={expanded ? "auto" : "none"}
+        style={[
+          styles.dayPanel,
+          {
+            height: panelHeight,
+            opacity: panelOpacity,
+          },
+        ]}
+      >
+        <View style={styles.dayEntries}>
+          {entries.map((entry) => (
+            <View key={entry.id} style={styles.entryCard}>
+              <View style={styles.entryLeft}>
+                <View style={styles.entryAvatar}>
+                  <Text style={styles.entryAvatarText}>
+                    {entry.studentInitials}
+                  </Text>
+                </View>
+                <View style={styles.entryText}>
+                  <Text style={styles.entryName}>{entry.studentName}</Text>
+                  <Text style={styles.entryMeta}>
+                    {formatHours(entry.hours)}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.entryRight}>
+                <Text style={styles.entryAmount}>
+                  {formatCurrency(entry.amountCents)}
+                </Text>
+                <Text
+                  style={[
+                    styles.entryStatus,
+                    entry.status === "pending" && styles.entryStatusPending,
+                  ]}
+                >
+                  {entry.status === "paid" ? "Paid" : "Pending"}
+                </Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      </Animated.View>
+
+      {showDivider ? <View style={styles.breakdownRowDivider} /> : null}
+    </View>
+  );
+}
 
 export function WeeklyEarningsScreen({
   onScroll,
 }: Readonly<WeeklyEarningsScreenProps>) {
   const [weekOffset, setWeekOffset] = useState(0);
   const [schoolEarningsVisible, setSchoolEarningsVisible] = useState(false);
+  const [expandedDayKey, setExpandedDayKey] = useState<string | null>(null);
   const earnings = useMemo(() => getWeeklyEarnings(weekOffset), [weekOffset]);
   const schoolEarnings = useMemo(
     () => getSchoolWeeklyEarnings(weekOffset),
@@ -44,6 +174,22 @@ export function WeeklyEarningsScreen({
   const avgPerLessonCents = Math.round(
     earnings.totalCents / Math.max(earnings.lessonCount, 1),
   );
+
+  const entriesByDay = useMemo(() => {
+    const map = new Map<string, WeeklyEarningEntry[]>();
+    for (const day of earnings.days) {
+      const key = `${day.dayLabel} ${day.dateLabel}`;
+      map.set(
+        key,
+        earnings.entries.filter((entry) => entry.dateLabel === key),
+      );
+    }
+    return map;
+  }, [earnings]);
+
+  useEffect(() => {
+    setExpandedDayKey(null);
+  }, [weekOffset]);
 
   return (
     <View style={styles.screen}>
@@ -148,71 +294,24 @@ export function WeeklyEarningsScreen({
         <Text style={styles.sectionLabel}>Daily breakdown</Text>
         <View style={styles.breakdownCard}>
           {earnings.days.map((day, index) => {
+            const dayKey = `${day.dayLabel} ${day.dateLabel}`;
             const isLastDay = index === earnings.days.length - 1;
 
             return (
-              <View
-                key={day.dayLabel}
-                style={[
-                  styles.breakdownRow,
-                  !isLastDay && styles.breakdownRowDivider,
-                ]}
-              >
-                <View style={styles.breakdownDay}>
-                  <Text style={styles.breakdownDayLabel}>{day.dayLabel}</Text>
-                  <Text style={styles.breakdownDate}>{day.dateLabel}</Text>
-                </View>
-
-                <View style={styles.breakdownAmountWrap}>
-                  <Text style={styles.breakdownAmount}>
-                    {formatCurrency(day.amountCents)}
-                  </Text>
-                  <Text style={styles.breakdownLessons}>
-                    {day.lessonCount}{" "}
-                    {day.lessonCount === 1 ? "lesson" : "lessons"}
-                  </Text>
-                </View>
-              </View>
+              <DayDropdown
+                key={dayKey}
+                day={day}
+                entries={entriesByDay.get(dayKey) ?? []}
+                expanded={expandedDayKey === dayKey}
+                showDivider={!isLastDay}
+                onToggle={() =>
+                  setExpandedDayKey((current) =>
+                    current === dayKey ? null : dayKey,
+                  )
+                }
+              />
             );
           })}
-        </View>
-
-        <Text style={styles.sectionLabel}>This week&apos;s lessons</Text>
-        <View style={styles.entriesList}>
-          {earnings.entries.map((entry) => (
-            <View key={entry.id} style={styles.entryCard}>
-              <View style={styles.entryLeft}>
-                <View style={styles.entryAvatar}>
-                  <Text style={styles.entryAvatarText}>
-                    {entry.studentInitials}
-                  </Text>
-                </View>
-                <View style={styles.entryText}>
-                  <Text style={styles.entryName}>{entry.studentName}</Text>
-                  <View style={styles.entryMetaRow}>
-                    <CarIcon size={14} color={colors.textMuted} />
-                    <Text style={styles.entryMeta}>
-                      {entry.dateLabel} · {entry.time}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-
-              <View style={styles.entryRight}>
-                <Text style={styles.entryAmount}>
-                  {formatCurrency(entry.amountCents)}
-                </Text>
-                <Text
-                  style={[
-                    styles.entryStatus,
-                    entry.status === "pending" && styles.entryStatusPending,
-                  ]}
-                >
-                  {entry.status === "paid" ? "Paid" : "Pending"}
-                </Text>
-              </View>
-            </View>
-          ))}
         </View>
       </ScrollView>
     </View>
@@ -364,8 +463,8 @@ const styles = StyleSheet.create({
   breakdownCard: {
     backgroundColor: "#f9f9f9",
     borderRadius: 16,
-    padding: spacing.lg,
-    gap: 0,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
   },
   breakdownRow: {
     flexDirection: "row",
@@ -379,7 +478,7 @@ const styles = StyleSheet.create({
     borderBottomColor: "#e8edf3",
   },
   breakdownDay: {
-    width: 52,
+    flex: 1,
     gap: 1,
   },
   breakdownDayLabel: {
@@ -392,9 +491,9 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
   },
   breakdownAmountWrap: {
-    width: 78,
     alignItems: "flex-end",
     gap: 1,
+    marginRight: spacing.xs,
   },
   breakdownAmount: {
     fontSize: 13,
@@ -405,17 +504,22 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: colors.textMuted,
   },
-  entriesList: {
+  dayPanel: {
+    overflow: "hidden",
+  },
+  dayEntries: {
     gap: spacing.sm,
+    paddingBottom: spacing.md,
   },
   entryCard: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#f9f9f9",
-    borderRadius: 14,
+    backgroundColor: colors.white,
+    borderRadius: 12,
     padding: spacing.md,
     gap: spacing.md,
+    height: ENTRY_ROW_HEIGHT - spacing.sm,
   },
   entryLeft: {
     flex: 1,
@@ -424,31 +528,26 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   entryAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: "#e8f1ff",
     alignItems: "center",
     justifyContent: "center",
   },
   entryAvatarText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "700",
     color: colors.primary,
   },
   entryText: {
     flex: 1,
-    gap: 4,
+    gap: 3,
   },
   entryName: {
     fontSize: 14,
     fontWeight: "700",
     color: colors.text,
-  },
-  entryMetaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
   },
   entryMeta: {
     fontSize: 12,
@@ -459,7 +558,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   entryAmount: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "700",
     color: colors.text,
   },

@@ -1,10 +1,17 @@
 import { SiteLoaderGate } from "@/components/site-loader/site-loader-gate";
 import { DEV_BYPASS_AUTH } from "@/constants/dev";
+import { colors } from "@/constants/theme";
 import { ClerkProvider, useAuth } from "@clerk/clerk-expo";
 import { Stack, useRouter, useSegments } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
 import * as SecureStore from "expo-secure-store";
+import * as SystemUI from "expo-system-ui";
 import { useEffect } from "react";
 import { Platform, StatusBar } from "react-native";
+
+// Keep the native splash up until our blue loader has painted.
+SplashScreen.preventAutoHideAsync().catch(() => {});
+SystemUI.setBackgroundColorAsync(colors.primary).catch(() => {});
 
 const tokenCache =
   Platform.OS !== "web"
@@ -45,7 +52,8 @@ function RootLayoutNav() {
     const inPublicGroup =
       segments[0] === "login" ||
       segments[0] === "signup" ||
-      segments[0] === "sso-callback";
+      segments[0] === "sso-callback" ||
+      segments[0] === "invite";
 
     if (!isSignedIn && !inPublicGroup) {
       router.replace("/login");
@@ -56,9 +64,13 @@ function RootLayoutNav() {
 
   return (
     <>
-      <StatusBar barStyle="dark-content" />
-      <Stack screenOptions={{ headerShown: false }} />
-      <SiteLoaderGate />
+      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: colors.background },
+        }}
+      />
     </>
   );
 }
@@ -66,7 +78,9 @@ function RootLayoutNav() {
 export default function RootLayout() {
   return (
     <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
-      <RootLayoutNav />
+      <SiteLoaderGate>
+        <RootLayoutNav />
+      </SiteLoaderGate>
     </ClerkProvider>
   );
 }

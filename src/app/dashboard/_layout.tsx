@@ -26,6 +26,7 @@ export default function DashboardLayout() {
           <Stack.Screen name="schools-map" />
           <Stack.Screen name="school/[id]" />
           <Stack.Screen name="lesson/[id]" />
+          <Stack.Screen name="inbox/[id]" />
           <Stack.Screen name="account/vehicles" />
           <Stack.Screen name="account/documents" />
           <Stack.Screen name="account/edit-address" />

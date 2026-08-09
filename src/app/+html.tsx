@@ -1,43 +1,37 @@
-import { ScrollViewStyleReset } from 'expo-router/html';
-import type { PropsWithChildren } from 'react';
+import { ScrollViewStyleReset } from "expo-router/html";
+import type { PropsWithChildren } from "react";
 
 const SITE_LOADER_CSS = `
+html, body {
+  margin: 0;
+  background: #005eff;
+}
+
 .site-loader {
   position: fixed;
   inset: 0;
   z-index: 9999;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: #ffffff;
-}
-
-.site-loader__spinner {
-  position: relative;
-  width: 40px;
-  height: 40px;
-}
-
-.site-loader__bar {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 3px;
-  height: 10px;
-  margin-top: -20px;
-  margin-left: -1.5px;
-  border-radius: 2px;
+  gap: 20px;
   background: #005eff;
-  transform-origin: 50% 20px;
-  transform: rotate(calc(var(--bar-index) * 30deg));
-  opacity: 0.2;
-  animation: site-loader-pulse 1s linear infinite;
-  animation-delay: calc(var(--bar-index) * -0.083s);
 }
 
-@keyframes site-loader-pulse {
-  0%, 100% { opacity: 0.2; }
-  50% { opacity: 1; }
+.site-loader__logo {
+  width: 88px;
+  height: 88px;
+  display: block;
+}
+
+.site-loader__brand {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  color: #ffffff;
 }
 
 /* Prevent iOS Safari zoom on focus for inputs under 16px */
@@ -47,8 +41,6 @@ select {
   font-size: 16px !important;
 }
 `;
-
-const SITE_LOADER_BARS = Array.from({ length: 12 }, (_, index) => index);
 
 export default function Root({ children }: Readonly<PropsWithChildren>) {
   return (
@@ -71,15 +63,21 @@ export default function Root({ children }: Readonly<PropsWithChildren>) {
           aria-live="polite"
           aria-label="Loading"
         >
-          <div className="site-loader__spinner" aria-hidden="true">
-            {SITE_LOADER_BARS.map((index) => (
-              <span
-                key={index}
-                className="site-loader__bar"
-                style={{ '--bar-index': index } as React.CSSProperties}
-              />
-            ))}
-          </div>
+          <svg
+            className="site-loader__logo"
+            viewBox="0 0 40 40"
+            fill="none"
+            aria-hidden="true"
+          >
+            <rect width="40" height="40" rx="10" fill="#ffffff" />
+            <rect x="7" y="11" width="3" height="18" rx="1" fill="#005eff" />
+            <rect x="7" y="18.5" width="10" height="3" rx="1" fill="#005eff" />
+            <rect x="14" y="11" width="3" height="18" rx="1" fill="#005eff" />
+            <rect x="21" y="11" width="3" height="18" rx="1" fill="#005eff" />
+            <path d="M24 11h5a4 4 0 010 8h-5z" fill="#005eff" />
+            <path d="M24 19h5.5a4.5 4.5 0 010 9H24z" fill="#005eff" />
+          </svg>
+          <p className="site-loader__brand">Instructor Hub</p>
         </div>
         {children}
       </body>

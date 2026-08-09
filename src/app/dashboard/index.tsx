@@ -1,4 +1,4 @@
-import { router } from "expo-router";
+import { router, usePathname } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
@@ -18,6 +18,7 @@ import { LessonCard } from "../../components/dashboard/lesson-card";
 import { LessonTabs } from "../../components/dashboard/lesson-tabs";
 import { SearchBar } from "../../components/dashboard/search-bar";
 import { WeeklyEarningsScreen } from "../../components/earnings/weekly-earnings-screen";
+import { InboxScreen } from "../../components/inbox/inbox-screen";
 import { SchoolsScreen } from "../../components/schools/schools-screen";
 import { CalendarIcon } from "../../components/icons/dashboard-icons";
 import { colors, spacing } from "../../constants/theme";
@@ -39,6 +40,7 @@ const FADE_IN_MS = 160;
 const USE_NATIVE_DRIVER = Platform.OS !== "web";
 
 export default function DashboardScreen() {
+  const pathname = usePathname();
   const [lessonTab, setLessonTab] = useState<LessonTab>("upcoming");
   const [activeTab, setActiveTab] = useState<DashboardTab>("bookings");
   const [displayedTab, setDisplayedTab] = useState<DashboardTab>("bookings");
@@ -54,6 +56,10 @@ export default function DashboardScreen() {
     onScroll: onBottomNavScroll,
     resetNav,
   } = useBottomNavScroll();
+  const isDashboardRoot =
+    pathname === "/dashboard" || pathname === "/dashboard/";
+  const showBottomNav =
+    isDashboardRoot && activeTab !== "profile" && displayedTab !== "profile";
 
   const lessons = useMemo(() => {
     const tabLessons = MOCK_LESSONS.filter(
@@ -221,6 +227,8 @@ export default function DashboardScreen() {
             </ScrollView>
           </View>
         );
+      case "inbox":
+        return <InboxScreen onScroll={onBottomNavScroll} />;
       case "earnings":
         return <WeeklyEarningsScreen onScroll={onBottomNavScroll} />;
       case "profile":
@@ -229,10 +237,17 @@ export default function DashboardScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
-      <View style={styles.content}>
+    <SafeAreaView
+      style={styles.safeArea}
+      edges={["top"]}
+      pointerEvents={isDashboardRoot ? "auto" : "none"}
+    >
+      <View
+        style={styles.content}
+        pointerEvents={isDashboardRoot ? "auto" : "none"}
+      >
         <Animated.View
-          pointerEvents="auto"
+          pointerEvents={isDashboardRoot ? "auto" : "none"}
           style={[
             styles.animatedContent,
             {
@@ -245,7 +260,7 @@ export default function DashboardScreen() {
         </Animated.View>
       </View>
 
-      {activeTab !== "profile" && displayedTab !== "profile" ? (
+      {showBottomNav ? (
         <DashboardBottomNav
           activeTab={activeTab}
           onTabChange={transitionToTab}

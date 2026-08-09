@@ -81,6 +81,25 @@ export function BookingsNavIcon({ size = 22, color = '#111827' }: IconProps) {
   );
 }
 
+export function InboxNavIcon({ size = 22, color = '#9ca3af' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M4 6.5A2.5 2.5 0 016.5 4h11A2.5 2.5 0 0120 6.5v11a2.5 2.5 0 01-2.5 2.5h-11A2.5 2.5 0 014 17.5v-11z"
+        stroke={color}
+        strokeWidth="1.75"
+      />
+      <Path
+        d="M4.5 7l7.5 5.5L19.5 7"
+        stroke={color}
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
 export function EarningsNavIcon({ size = 22, color = '#9ca3af' }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 -960 960 960" fill={color}>

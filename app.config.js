@@ -6,9 +6,18 @@ export default {
     scheme: "instructorhub",
     orientation: "portrait",
     userInterfaceStyle: "automatic",
+    backgroundColor: "#005eff",
+    icon: "./assets/icon.png",
+    splash: {
+      image: "./assets/splash.png",
+      backgroundColor: "#005eff",
+      resizeMode: "contain",
+    },
     ios: {
       supportsTablet: true,
       bundleIdentifier: "pro.driveinstructor.instructorhub",
+      backgroundColor: "#005eff",
+      icon: "./assets/icon.png",
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
       },
@@ -18,8 +27,10 @@ export default {
     },
     android: {
       package: "pro.driveinstructor.instructorhub",
+      backgroundColor: "#005eff",
       adaptiveIcon: {
-        backgroundColor: "#ffffff",
+        foregroundImage: "./assets/adaptive-icon.png",
+        backgroundColor: "#005eff",
       },
       config: {
         googleMaps: {
@@ -32,9 +43,12 @@ export default {
       [
         "expo-splash-screen",
         {
-          backgroundColor: "#ffffff",
+          image: "./assets/splash.png",
+          backgroundColor: "#005eff",
+          resizeMode: "contain",
         },
       ],
+      "expo-system-ui",
       "react-native-maps",
       "expo-secure-store",
     ],

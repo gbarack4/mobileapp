@@ -1,5 +1,5 @@
 export type LessonTab = 'upcoming' | 'completed' | 'cancelled';
-export type DashboardTab = 'school' | 'bookings' | 'earnings' | 'profile';
+export type DashboardTab = 'school' | 'bookings' | 'inbox' | 'earnings' | 'profile';
 
 export type LessonStatus = 'upcoming' | 'completed' | 'cancelled';
 

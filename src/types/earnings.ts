@@ -13,6 +13,7 @@ export type WeeklyEarningEntry = {
   studentInitials: string;
   dateLabel: string;
   time: string;
+  hours: number;
   amountCents: number;
   status: EarningEntryStatus;
 };
