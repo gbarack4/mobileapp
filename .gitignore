@@ -3,6 +3,12 @@
 # Cursor
 .cursor/
 
+# IDEs and Editors
+.vscode/
+
+# AI Assistants
+.claude/
+
 .env
 
 # dependencies
