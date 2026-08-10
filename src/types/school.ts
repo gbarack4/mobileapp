@@ -21,6 +21,7 @@ export type School = {
   distance: number | null;
   rating: number;
   reviewCount: number;
+  joinStatus: "none" | "pending" | "accepted" | "rejected" | "blocked";
 };
 
 export type SchoolDetail = School & {

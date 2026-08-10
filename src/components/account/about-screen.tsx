@@ -6,42 +6,42 @@ import {
   StyleSheet,
   Text,
   View,
-} from 'react-native';
+} from "react-native";
 
-import { ChevronLeftIcon, ChevronRightIcon } from '../icons/dashboard-icons';
-import { colors, spacing } from '../../constants/theme';
-import { AboutIcon } from './account-icons';
+import { ChevronLeftIcon, ChevronRightIcon } from "../icons/dashboard-icons";
+import { colors, spacing } from "../../constants/theme";
+import { AboutIcon } from "./account-icons";
 
 type AboutScreenProps = {
   onClose: () => void;
 };
 
 const ANDROID_RIPPLE =
-  Platform.OS === 'android' ? { color: 'rgba(0, 0, 0, 0.06)' } : undefined;
+  Platform.OS === "android" ? { color: "rgba(0, 0, 0, 0.06)" } : undefined;
 
-const APP_VERSION = '1.0.0';
-const BUILD_LABEL = 'Instructor Hub for Australia';
+const APP_VERSION = "1.0.0";
+const BUILD_LABEL = "Instructor Hub for Australia";
 
 const LEGAL_LINKS = [
   {
-    id: 'terms',
-    label: 'Terms of Service',
-    url: 'https://instructorhub.com.au/terms',
+    id: "terms",
+    label: "Terms of Service",
+    url: "https://instructorhub.com.au/terms",
   },
   {
-    id: 'privacy',
-    label: 'Privacy Policy',
-    url: 'https://instructorhub.com.au/privacy',
+    id: "privacy",
+    label: "Privacy Policy",
+    url: "https://instructorhub.com.au/privacy",
   },
   {
-    id: 'licenses',
-    label: 'Open source licenses',
-    url: 'https://instructorhub.com.au/licenses',
+    id: "licenses",
+    label: "Open source licenses",
+    url: "https://instructorhub.com.au/licenses",
   },
   {
-    id: 'support',
-    label: 'Contact support',
-    url: 'mailto:support@instructorhub.com.au',
+    id: "support",
+    label: "Contact support",
+    url: "mailto:support@instructorhub.com.au",
   },
 ] as const;
 
@@ -51,13 +51,18 @@ type LinkRowProps = {
   showDivider?: boolean;
 };
 
-function LinkRow({ label, onPress, showDivider = true }: LinkRowProps) {
+function LinkRow({
+  label,
+  onPress,
+  showDivider = true,
+}: Readonly<LinkRowProps>) {
   return (
     <View>
       <Pressable
         onPress={onPress}
         android_ripple={ANDROID_RIPPLE}
-        style={({ pressed }) => [styles.linkRow, pressed && styles.pressed]}>
+        style={({ pressed }) => [styles.linkRow, pressed && styles.pressed]}
+      >
         <Text style={styles.linkLabel}>{label}</Text>
         <ChevronRightIcon size={18} color={colors.textMuted} />
       </Pressable>
@@ -74,7 +79,7 @@ async function openLink(url: string) {
   }
 }
 
-export function AboutScreen({ onClose }: AboutScreenProps) {
+export function AboutScreen({ onClose }: Readonly<AboutScreenProps>) {
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
@@ -83,7 +88,11 @@ export function AboutScreen({ onClose }: AboutScreenProps) {
           hitSlop={8}
           android_ripple={ANDROID_RIPPLE}
           accessibilityLabel="Back"
-          style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}>
+          style={({ pressed }) => [
+            styles.backButton,
+            pressed && styles.pressed,
+          ]}
+        >
           <ChevronLeftIcon size={22} />
         </Pressable>
 
@@ -94,15 +103,16 @@ export function AboutScreen({ onClose }: AboutScreenProps) {
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}>
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.brandCard}>
           <View style={styles.brandIcon}>
             <AboutIcon size={28} color={colors.primary} />
           </View>
           <Text style={styles.brandName}>Instructor Hub</Text>
           <Text style={styles.brandTagline}>
-            Tools for driving instructors to manage lessons, schools, availability,
-            and payouts in one place.
+            Tools for driving instructors to manage lessons, schools,
+            availability, and payouts in one place.
           </Text>
           <View style={styles.versionBadge}>
             <Text style={styles.versionText}>Version {APP_VERSION}</Text>
@@ -142,8 +152,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.md,
     gap: spacing.sm,
@@ -151,16 +161,16 @@ const styles = StyleSheet.create({
   backButton: {
     width: 40,
     height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginLeft: -8,
   },
   headerTitle: {
     flex: 1,
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
-    textAlign: 'center',
+    textAlign: "center",
   },
   headerSpacer: {
     width: 32,
@@ -180,7 +190,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   brandCard: {
-    alignItems: 'center',
+    alignItems: "center",
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 16,
@@ -193,14 +203,14 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 18,
-    backgroundColor: '#e8f1ff',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#e8f1ff",
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: spacing.xs,
   },
   brandName: {
     fontSize: 22,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
     letterSpacing: -0.2,
   },
@@ -208,7 +218,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 22,
     color: colors.textSecondary,
-    textAlign: 'center',
+    textAlign: "center",
   },
   versionBadge: {
     marginTop: spacing.sm,
@@ -219,7 +229,7 @@ const styles = StyleSheet.create({
   },
   versionText: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
   },
   buildLabel: {
@@ -231,9 +241,9 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.textSecondary,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     letterSpacing: 0.4,
   },
   card: {
@@ -241,12 +251,12 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: 16,
     backgroundColor: colors.background,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   linkRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     gap: spacing.md,
     paddingHorizontal: spacing.lg,
     paddingVertical: 16,
@@ -254,7 +264,7 @@ const styles = StyleSheet.create({
   linkLabel: {
     flex: 1,
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text,
   },
   divider: {
@@ -266,7 +276,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
     color: colors.textMuted,
-    textAlign: 'center',
+    textAlign: "center",
   },
   pressed: {
     opacity: 0.85,

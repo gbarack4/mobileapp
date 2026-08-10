@@ -1,5 +1,5 @@
 import * as Linking from "expo-linking";
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   Dimensions,
   Image,
@@ -23,10 +23,7 @@ import {
 import { colors, spacing } from "../../constants/theme";
 import {
   deactivateSchoolMembership,
-  getSchoolJoinStatus,
   pauseSchoolMembership,
-  subscribeSchoolMemberships,
-  type SchoolJoinStatus,
 } from "../../services/school-membership";
 import type { SchoolDetail } from "../../types/school";
 import { getSchoolUIData } from "../../utils/school-ui";
@@ -132,7 +129,8 @@ function ContactRow({ icon, label, onPress }: Readonly<ContactRowProps>) {
   );
 }
 
-function detailJoinStyles(status: SchoolJoinStatus) {
+// Переходимо на типи з бекенду
+function detailJoinStyles(status: SchoolDetail["joinStatus"]) {
   if (status === "pending") {
     return {
       button: styles.joinButtonPending,
@@ -142,7 +140,7 @@ function detailJoinStyles(status: SchoolJoinStatus) {
     };
   }
 
-  if (status === "joined") {
+  if (status === "accepted") {
     return {
       button: styles.joinButtonJoined,
       hovered: styles.joinButtonJoinedHovered,
@@ -151,12 +149,12 @@ function detailJoinStyles(status: SchoolJoinStatus) {
     };
   }
 
-  if (status === "paused") {
+  if (status === "rejected") {
     return {
       button: styles.joinButtonPaused,
       hovered: styles.joinButtonPausedHovered,
       text: styles.joinButtonPausedText,
-      label: "Paused",
+      label: "Rejected",
     };
   }
 
@@ -175,17 +173,9 @@ export function SchoolDetailProfile({
 }: Readonly<SchoolDetailProfileProps>) {
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<DetailTab>("about");
-  const [joinStatus, setJoinStatus] = useState<SchoolJoinStatus>(() =>
-    getSchoolJoinStatus(school.id),
-  );
   const [deactivateOpen, setDeactivateOpen] = useState(false);
 
-  useEffect(() => {
-    setJoinStatus(getSchoolJoinStatus(school.id));
-    return subscribeSchoolMemberships(() => {
-      setJoinStatus(getSchoolJoinStatus(school.id));
-    });
-  }, [school.id]);
+  const status = school.joinStatus || "none";
 
   const { initials, avatarColor } = getSchoolUIData(school);
 
@@ -195,12 +185,10 @@ export function SchoolDetailProfile({
       ? locationParts.join(", ")
       : "No location provided";
 
-  const canJoin = joinStatus === "none" || joinStatus === "paused";
-  const joinStyles = detailJoinStyles(joinStatus);
-  const showDeactive =
-    joinStatus === "pending" ||
-    joinStatus === "joined" ||
-    joinStatus === "paused";
+  const canJoin = status === "none" || status === "rejected";
+  const joinStyles = detailJoinStyles(status);
+
+  const showDeactive = status === "pending" || status === "accepted";
 
   function openPhone() {
     if (school.phone) {
@@ -388,9 +376,7 @@ export function SchoolDetailProfile({
             pressed && canJoin && styles.pressed,
           ]}
         >
-          <Text style={joinStyles.text}>
-            {joinStatus === "paused" ? "Resume" : joinStyles.label}
-          </Text>
+          <Text style={joinStyles.text}>{joinStyles.label}</Text>
         </Pressable>
       </View>
 

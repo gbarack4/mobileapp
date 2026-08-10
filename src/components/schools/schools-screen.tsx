@@ -14,8 +14,8 @@ import {
 } from "react-native";
 
 import { colors, spacing } from "../../constants/theme";
-import { requestSchoolJoin } from "../../services/school-membership";
-import { searchSchools } from "../../services/schools";
+
+import { requestSchoolJoin, searchSchools } from "../../services/schools";
 import type { School } from "../../types/school";
 import { FoldedMapIcon } from "../icons/school-icons";
 import { SchoolCard } from "./school-card";
@@ -108,8 +108,17 @@ export function SchoolsScreen({
     setSearchInput(school.name);
   }
 
-  function handleJoin(school: School) {
-    requestSchoolJoin(school.id);
+  async function handleJoin(school: School) {
+    setIsLoading(true);
+    try {
+      await requestSchoolJoin(school.id, () => getTokenRef.current());
+      await loadSchools(searchInput, userLocation);
+    } catch (err) {
+      console.error("Failed to join school:", err);
+      setError("Failed to send request. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   const renderContent = () => {

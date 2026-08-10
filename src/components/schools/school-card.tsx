@@ -1,5 +1,4 @@
 import { router } from "expo-router";
-import { useEffect, useState } from "react";
 import {
   Image,
   Platform,
@@ -11,12 +10,6 @@ import {
 
 import { MapPinIcon } from "../icons/dashboard-icons";
 import { colors, spacing } from "../../constants/theme";
-import {
-  getJoinButtonLabel,
-  getSchoolJoinStatus,
-  subscribeSchoolMemberships,
-  type SchoolJoinStatus,
-} from "../../services/school-membership";
 import type { School } from "../../types/school";
 import { getSchoolUIData } from "../../utils/school-ui";
 import { StarRating } from "./star-rating";
@@ -34,28 +27,31 @@ type PressableState = {
 const ANDROID_RIPPLE =
   Platform.OS === "android" ? { color: "rgba(0, 94, 255, 0.08)" } : undefined;
 
-function joinButtonStyles(status: SchoolJoinStatus) {
+function joinButtonStyles(status: School["joinStatus"]) {
   if (status === "pending") {
     return {
       button: styles.pendingButton,
       hovered: styles.pendingButtonHovered,
       text: styles.pendingButtonText,
+      label: "Pending",
     };
   }
 
-  if (status === "joined") {
+  if (status === "accepted") {
     return {
       button: styles.joinedButton,
       hovered: styles.joinedButtonHovered,
       text: styles.joinedButtonText,
+      label: "Joined",
     };
   }
 
-  if (status === "paused") {
+  if (status === "rejected") {
     return {
       button: styles.pausedButton,
       hovered: styles.pausedButtonHovered,
       text: styles.pausedButtonText,
+      label: "Rejected",
     };
   }
 
@@ -63,25 +59,14 @@ function joinButtonStyles(status: SchoolJoinStatus) {
     button: styles.primaryButton,
     hovered: styles.primaryButtonHovered,
     text: styles.primaryButtonText,
+    label: "Join",
   };
 }
 
 export function SchoolCard({ school, onJoin }: Readonly<SchoolCardProps>) {
-  const [joinStatus, setJoinStatus] = useState<SchoolJoinStatus>(() =>
-    getSchoolJoinStatus(school.id),
-  );
-
-  useEffect(() => {
-    setJoinStatus(getSchoolJoinStatus(school.id));
-    return subscribeSchoolMemberships(() => {
-      setJoinStatus(getSchoolJoinStatus(school.id));
-    });
-  }, [school.id]);
-
-  const canJoin = joinStatus === "none" || joinStatus === "paused";
-  const joinStyles = joinButtonStyles(joinStatus);
-  const joinLabel =
-    joinStatus === "paused" ? "Resume" : getJoinButtonLabel(joinStatus);
+  const status = school.joinStatus || "none";
+  const canJoin = status === "none" || status === "rejected";
+  const joinStyles = joinButtonStyles(status);
 
   const { initials, avatarColor } = getSchoolUIData(school);
 
@@ -142,7 +127,7 @@ export function SchoolCard({ school, onJoin }: Readonly<SchoolCardProps>) {
             pressed && canJoin && styles.pressed,
           ]}
         >
-          <Text style={joinStyles.text}>{joinLabel}</Text>
+          <Text style={joinStyles.text}>{joinStyles.label}</Text>
         </Pressable>
       </View>
     </View>
@@ -167,7 +152,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     alignItems: "center",
     justifyContent: "center",
-    overflow: "hidden", // Додано, щоб картинка не вилазила за межі кола
+    overflow: "hidden",
   },
   avatarText: {
     fontSize: 16,

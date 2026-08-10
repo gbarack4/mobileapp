@@ -14,7 +14,16 @@ export class SchoolsApiError extends Error {
 
 type GetTokenFn = () => Promise<string | null>;
 
-async function request<T>(path: string, getToken?: GetTokenFn): Promise<T> {
+interface RequestOptions {
+  method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
+  body?: unknown;
+}
+
+async function request<T>(
+  path: string,
+  options: RequestOptions = {},
+  getToken?: GetTokenFn,
+): Promise<T> {
   if (!API_BASE_URL) {
     throw new SchoolsApiError("EXPO_PUBLIC_API_URL is not defined", 0);
   }
@@ -30,12 +39,17 @@ async function request<T>(path: string, getToken?: GetTokenFn): Promise<T> {
     }
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, { headers });
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: options.method || "GET",
+    headers,
+    body: options.body ? JSON.stringify(options.body) : undefined,
+    cache: "no-store",
+  });
 
   if (!response.ok) {
     const body = await response.json().catch(() => null);
 
-    let message = "Unable to load schools.";
+    let message = "Request failed.";
 
     if (typeof body?.message === "string") {
       message = body.message;
@@ -46,7 +60,8 @@ async function request<T>(path: string, getToken?: GetTokenFn): Promise<T> {
     throw new SchoolsApiError(message, response.status);
   }
 
-  return response.json() as Promise<T>;
+  const text = await response.text();
+  return text ? (JSON.parse(text) as T) : ({} as T);
 }
 
 export interface SearchSchoolsParams {
@@ -80,12 +95,26 @@ export async function searchSchools(
   const path = queryString
     ? `/schools/search?${queryString}`
     : "/schools/search";
-  return request<School[]>(path, getToken);
+  return request<School[]>(path, {}, getToken);
 }
 
 export async function getSchool(
   id: string,
   getToken?: GetTokenFn,
 ): Promise<SchoolDetail> {
-  return request<SchoolDetail>(`/schools/${id}`, getToken);
+  return request<SchoolDetail>(`/schools/${id}`, {}, getToken);
+}
+
+export async function requestSchoolJoin(
+  schoolId: string,
+  getToken?: GetTokenFn,
+): Promise<void> {
+  return request<void>(
+    `/join-requests`,
+    {
+      method: "POST",
+      body: { schoolId },
+    },
+    getToken,
+  );
 }
