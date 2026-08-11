@@ -110,10 +110,51 @@ export async function requestSchoolJoin(
   getToken?: GetTokenFn,
 ): Promise<void> {
   return request<void>(
-    `/join-requests`,
+    `/instructor/requests`,
     {
       method: "POST",
       body: { schoolId },
+    },
+    getToken,
+  );
+}
+
+export async function cancelSchoolRequest(
+  schoolId: string,
+  getToken?: GetTokenFn,
+): Promise<void> {
+  return request<void>(
+    `/instructor/requests/${schoolId}`,
+    {
+      method: "DELETE",
+    },
+    getToken,
+  );
+}
+
+export async function leaveSchool(
+  schoolId: string,
+  getToken?: GetTokenFn,
+): Promise<void> {
+  return request<void>(
+    `/instructor/schools/${schoolId}/leave`,
+    {
+      method: "DELETE",
+    },
+    getToken,
+  );
+}
+
+export async function toggleSchoolPause(
+  schoolId: string,
+  pause: boolean,
+  getToken?: GetTokenFn,
+): Promise<void> {
+  const action = pause ? "pause" : "resume";
+  return request<void>(
+    `/instructor/schools/${schoolId}/${action}`,
+    {
+      method: "PATCH",
     },
     getToken,
   );

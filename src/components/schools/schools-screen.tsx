@@ -1,6 +1,6 @@
 import { useAuth } from "@clerk/clerk-expo";
 import * as Location from "expo-location";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { NativeScrollEvent, NativeSyntheticEvent } from "react-native";
 import {
@@ -99,10 +99,12 @@ export function SchoolsScreen({
     [],
   );
 
-  useEffect(() => {
-    if (!isLocationReady) return;
-    void loadSchools(searchInput, userLocation);
-  }, [loadSchools, searchInput, userLocation, isLocationReady]);
+  useFocusEffect(
+    useCallback(() => {
+      if (!isLocationReady) return;
+      void loadSchools(searchInput, userLocation);
+    }, [loadSchools, searchInput, userLocation, isLocationReady]),
+  );
 
   function handleSelectSuggestion(school: School) {
     setSearchInput(school.name);

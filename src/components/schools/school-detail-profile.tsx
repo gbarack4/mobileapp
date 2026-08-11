@@ -21,10 +21,6 @@ import {
   ContactPhoneIcon,
 } from "../icons/school-detail-icons";
 import { colors, spacing } from "../../constants/theme";
-import {
-  deactivateSchoolMembership,
-  pauseSchoolMembership,
-} from "../../services/school-membership";
 import type { SchoolDetail } from "../../types/school";
 import { getSchoolUIData } from "../../utils/school-ui";
 import { DeactivateSchoolDialog } from "./deactivate-school-dialog";
@@ -37,6 +33,10 @@ type SchoolDetailProfileProps = {
   school: SchoolDetail;
   onClose: () => void;
   onJoin: () => void;
+  onCancelRequest?: () => void;
+  onPause?: () => void;
+  onResume?: () => void;
+  onDeactivate?: () => void;
 };
 
 type DetailTab = "about" | "reviews";
@@ -106,13 +106,11 @@ function SchoolBanner({
   );
 }
 
-type ContactRowProps = {
-  icon: ReactNode;
-  label: string;
-  onPress?: () => void;
-};
-
-function ContactRow({ icon, label, onPress }: Readonly<ContactRowProps>) {
+function ContactRow({
+  icon,
+  label,
+  onPress,
+}: Readonly<{ icon: ReactNode; label: string; onPress?: () => void }>) {
   return (
     <Pressable
       onPress={onPress}
@@ -129,7 +127,6 @@ function ContactRow({ icon, label, onPress }: Readonly<ContactRowProps>) {
   );
 }
 
-// Переходимо на типи з бекенду
 function detailJoinStyles(status: SchoolDetail["joinStatus"]) {
   if (status === "pending") {
     return {
@@ -139,7 +136,6 @@ function detailJoinStyles(status: SchoolDetail["joinStatus"]) {
       label: "Pending",
     };
   }
-
   if (status === "accepted") {
     return {
       button: styles.joinButtonJoined,
@@ -148,7 +144,14 @@ function detailJoinStyles(status: SchoolDetail["joinStatus"]) {
       label: "Joined",
     };
   }
-
+  if (status === "paused") {
+    return {
+      button: styles.joinButtonPaused,
+      hovered: styles.joinButtonPausedHovered,
+      text: styles.joinButtonPausedText,
+      label: "Paused",
+    };
+  }
   if (status === "rejected") {
     return {
       button: styles.joinButtonPaused,
@@ -157,7 +160,6 @@ function detailJoinStyles(status: SchoolDetail["joinStatus"]) {
       label: "Rejected",
     };
   }
-
   return {
     button: styles.joinButton,
     hovered: styles.joinButtonHovered,
@@ -170,13 +172,16 @@ export function SchoolDetailProfile({
   school,
   onClose,
   onJoin,
+  onCancelRequest,
+  onPause,
+  onResume,
+  onDeactivate,
 }: Readonly<SchoolDetailProfileProps>) {
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<DetailTab>("about");
-  const [deactivateOpen, setDeactivateOpen] = useState(false);
+  const [manageOpen, setManageOpen] = useState(false);
 
   const status = school.joinStatus || "none";
-
   const { initials, avatarColor } = getSchoolUIData(school);
 
   const locationParts = [school.address, school.suburb].filter(Boolean);
@@ -188,18 +193,15 @@ export function SchoolDetailProfile({
   const canJoin = status === "none" || status === "rejected";
   const joinStyles = detailJoinStyles(status);
 
-  const showDeactive = status === "pending" || status === "accepted";
+  const showManage =
+    status === "pending" || status === "accepted" || status === "paused";
 
   function openPhone() {
-    if (school.phone) {
-      Linking.openURL(`tel:${school.phone.replace(/\s/g, "")}`);
-    }
+    if (school.phone) Linking.openURL(`tel:${school.phone.replace(/\s/g, "")}`);
   }
 
   function openEmail() {
-    if (school.email) {
-      Linking.openURL(`mailto:${school.email}`);
-    }
+    if (school.email) Linking.openURL(`mailto:${school.email}`);
   }
 
   function openWebsite() {
@@ -243,7 +245,6 @@ export function SchoolDetailProfile({
 
           <View style={styles.contactList}>
             <ContactRow icon={<ContactLocationIcon />} label={locationLabel} />
-
             {school.phone ? (
               <ContactRow
                 icon={<ContactPhoneIcon />}
@@ -251,7 +252,6 @@ export function SchoolDetailProfile({
                 onPress={openPhone}
               />
             ) : null}
-
             {school.email ? (
               <ContactRow
                 icon={<ContactEmailIcon />}
@@ -259,7 +259,6 @@ export function SchoolDetailProfile({
                 onPress={openEmail}
               />
             ) : null}
-
             {school.website ? (
               <ContactRow
                 icon={<ContactGlobeIcon />}
@@ -302,17 +301,17 @@ export function SchoolDetailProfile({
               </Pressable>
             </View>
 
-            {showDeactive ? (
+            {showManage ? (
               <Pressable
-                onPress={() => setDeactivateOpen(true)}
+                onPress={() => setManageOpen(true)}
                 android_ripple={ANDROID_RIPPLE}
-                accessibilityLabel="Deactivate school membership"
+                accessibilityLabel="Manage school"
                 style={({ pressed }) => [
-                  styles.leaveButton,
+                  styles.manageButton,
                   pressed && styles.pressed,
                 ]}
               >
-                <Text style={styles.leaveButtonText}>Deactive</Text>
+                <Text style={styles.manageButtonText}>Manage</Text>
               </Pressable>
             ) : null}
           </View>
@@ -363,9 +362,7 @@ export function SchoolDetailProfile({
       >
         <Pressable
           onPress={() => {
-            if (canJoin) {
-              onJoin();
-            }
+            if (canJoin) onJoin();
           }}
           disabled={!canJoin}
           accessibilityState={{ disabled: !canJoin }}
@@ -381,16 +378,25 @@ export function SchoolDetailProfile({
       </View>
 
       <DeactivateSchoolDialog
-        visible={deactivateOpen}
+        visible={manageOpen}
         schoolName={school.name}
-        onClose={() => setDeactivateOpen(false)}
+        status={status}
+        onClose={() => setManageOpen(false)}
+        onCancelRequest={() => {
+          if (onCancelRequest) onCancelRequest();
+          setManageOpen(false);
+        }}
         onPause={() => {
-          pauseSchoolMembership(school.id);
-          setDeactivateOpen(false);
+          if (onPause) onPause();
+          setManageOpen(false);
+        }}
+        onResume={() => {
+          if (onResume) onResume();
+          setManageOpen(false);
         }}
         onDeactivate={() => {
-          deactivateSchoolMembership(school.id);
-          setDeactivateOpen(false);
+          if (onDeactivate) onDeactivate();
+          setManageOpen(false);
         }}
       />
     </View>
@@ -398,21 +404,10 @@ export function SchoolDetailProfile({
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingBottom: spacing.xl,
-  },
-  banner: {
-    height: BANNER_HEIGHT,
-    position: "relative",
-    overflow: "hidden",
-  },
+  screen: { flex: 1, backgroundColor: colors.background },
+  scroll: { flex: 1 },
+  scrollContent: { paddingBottom: spacing.xl },
+  banner: { height: BANNER_HEIGHT, position: "relative", overflow: "hidden" },
   bannerWatermark: {
     position: "absolute",
     right: 24,
@@ -433,10 +428,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     zIndex: 10,
   },
-  profileSection: {
-    paddingHorizontal: spacing.xl,
-    paddingTop: 0,
-  },
+  profileSection: { paddingHorizontal: spacing.xl, paddingTop: 0 },
   avatar: {
     width: 76,
     height: 76,
@@ -449,11 +441,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     overflow: "hidden",
   },
-  avatarText: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: colors.white,
-  },
+  avatarText: { fontSize: 24, fontWeight: "700", color: colors.white },
   name: {
     fontSize: 22,
     fontWeight: "700",
@@ -466,20 +454,9 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     marginBottom: spacing.xl,
   },
-  contactRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-  },
-  contactIcon: {
-    width: 24,
-    alignItems: "center",
-  },
-  contactText: {
-    flex: 1,
-    fontSize: 15,
-    color: colors.text,
-  },
+  contactRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  contactIcon: { width: 24, alignItems: "center" },
+  contactText: { flex: 1, fontSize: 15, color: colors.text },
   tabsRow: {
     flexDirection: "row",
     alignItems: "flex-end",
@@ -488,10 +465,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
     marginBottom: spacing.lg,
   },
-  tabs: {
-    flex: 1,
-    flexDirection: "row",
-  },
+  tabs: { flex: 1, flexDirection: "row" },
   tab: {
     flex: 1,
     alignItems: "center",
@@ -500,28 +474,22 @@ const styles = StyleSheet.create({
     borderBottomColor: "transparent",
     marginBottom: -1,
   },
-  tabActive: {
-    borderBottomColor: colors.primary,
-  },
-  tabLabel: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: colors.textMuted,
-  },
-  tabLabelActive: {
-    color: colors.primary,
-  },
-  leaveButton: {
-    paddingHorizontal: 12,
+  tabActive: { borderBottomColor: colors.primary },
+  tabLabel: { fontSize: 16, fontWeight: "600", color: colors.textMuted },
+  tabLabelActive: { color: colors.primary },
+  manageButton: {
+    paddingHorizontal: 14,
     paddingVertical: 6,
     marginBottom: spacing.sm,
     borderRadius: 999,
-    backgroundColor: "#fef2f2",
+    backgroundColor: "#f3f4f6",
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  leaveButtonText: {
+  manageButtonText: {
     fontSize: 13,
     fontWeight: "700",
-    color: colors.error,
+    color: colors.textSecondary,
   },
   aboutCard: {
     backgroundColor: "#f9f9f9",
@@ -536,14 +504,8 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     textTransform: "uppercase",
   },
-  aboutText: {
-    fontSize: 15,
-    lineHeight: 24,
-    color: colors.text,
-  },
-  reviewsList: {
-    gap: spacing.md,
-  },
+  aboutText: { fontSize: 15, lineHeight: 24, color: colors.text },
+  reviewsList: { gap: spacing.md },
   reviewCard: {
     borderRadius: 16,
     padding: spacing.lg,
@@ -556,20 +518,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: spacing.md,
   },
-  reviewAuthor: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: colors.text,
-  },
-  reviewDate: {
-    fontSize: 13,
-    color: colors.textMuted,
-  },
-  reviewComment: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: colors.textSecondary,
-  },
+  reviewAuthor: { fontSize: 15, fontWeight: "700", color: colors.text },
+  reviewDate: { fontSize: 13, color: colors.textMuted },
+  reviewComment: { fontSize: 15, lineHeight: 22, color: colors.textSecondary },
   footer: {
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.md,
@@ -590,14 +541,8 @@ const styles = StyleSheet.create({
         } as object)
       : {}),
   },
-  joinButtonHovered: {
-    backgroundColor: colors.primaryHover,
-  },
-  joinButtonText: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: colors.white,
-  },
+  joinButtonHovered: { backgroundColor: colors.primaryHover },
+  joinButtonText: { fontSize: 16, fontWeight: "700", color: colors.white },
   joinButtonPending: {
     minHeight: 52,
     borderRadius: 14,
@@ -611,9 +556,7 @@ const styles = StyleSheet.create({
         } as object)
       : {}),
   },
-  joinButtonPendingHovered: {
-    backgroundColor: "#d97706",
-  },
+  joinButtonPendingHovered: { backgroundColor: "#d97706" },
   joinButtonPendingText: {
     fontSize: 16,
     fontWeight: "700",
@@ -632,9 +575,7 @@ const styles = StyleSheet.create({
         } as object)
       : {}),
   },
-  joinButtonJoinedHovered: {
-    backgroundColor: "#16a34a",
-  },
+  joinButtonJoinedHovered: { backgroundColor: "#16a34a" },
   joinButtonJoinedText: {
     fontSize: 16,
     fontWeight: "700",
@@ -655,15 +596,11 @@ const styles = StyleSheet.create({
         } as object)
       : {}),
   },
-  joinButtonPausedHovered: {
-    backgroundColor: "#e5e7eb",
-  },
+  joinButtonPausedHovered: { backgroundColor: "#e5e7eb" },
   joinButtonPausedText: {
     fontSize: 16,
     fontWeight: "700",
     color: colors.textSecondary,
   },
-  pressed: {
-    opacity: 0.85,
-  },
+  pressed: { opacity: 0.85 },
 });

@@ -46,6 +46,15 @@ function joinButtonStyles(status: School["joinStatus"]) {
     };
   }
 
+  if (status === "paused") {
+    return {
+      button: styles.pausedButton,
+      hovered: styles.pausedButtonHovered,
+      text: styles.pausedButtonText,
+      label: "Paused",
+    };
+  }
+
   if (status === "rejected") {
     return {
       button: styles.pausedButton,

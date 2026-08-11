@@ -13,8 +13,11 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { SchoolDetailProfile } from "../../../components/schools/school-detail-profile";
 import { colors, spacing } from "../../../constants/theme";
 import {
+  cancelSchoolRequest,
   getSchool,
+  leaveSchool,
   requestSchoolJoin as requestApiJoin,
+  toggleSchoolPause,
 } from "../../../services/schools";
 import type { SchoolDetail } from "../../../types/school";
 import { goBackOr } from "../../../utils/navigation";
@@ -93,12 +96,56 @@ export default function SchoolDetailScreen() {
     }
   }
 
+  async function handleCancelRequest() {
+    if (!school) return;
+    try {
+      await cancelSchoolRequest(school.id, () => getTokenRef.current());
+      await loadSchool();
+    } catch (err) {
+      console.error("Failed to cancel request:", err);
+    }
+  }
+
+  async function handleDeactivate() {
+    if (!school) return;
+    try {
+      await leaveSchool(school.id, () => getTokenRef.current());
+      await loadSchool();
+    } catch (err) {
+      console.error("Failed to leave school:", err);
+    }
+  }
+
+  async function handlePause() {
+    if (!school) return;
+    try {
+      await toggleSchoolPause(school.id, true, () => getTokenRef.current());
+      await loadSchool();
+    } catch (err) {
+      console.error("Failed to pause school:", err);
+    }
+  }
+
+  async function handleResume() {
+    if (!school) return;
+    try {
+      await toggleSchoolPause(school.id, false, () => getTokenRef.current());
+      await loadSchool();
+    } catch (err) {
+      console.error("Failed to resume school:", err);
+    }
+  }
+
   return (
     <SafeAreaView style={styles.safeArea} edges={["bottom"]}>
       <SchoolDetailProfile
         school={school}
         onClose={() => goBackOr("/dashboard")}
         onJoin={handleJoin}
+        onCancelRequest={handleCancelRequest}
+        onPause={handlePause}
+        onResume={handleResume}
+        onDeactivate={handleDeactivate}
       />
     </SafeAreaView>
   );
