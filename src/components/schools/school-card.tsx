@@ -74,7 +74,7 @@ function joinButtonStyles(status: School["joinStatus"]) {
 
 export function SchoolCard({ school, onJoin }: Readonly<SchoolCardProps>) {
   const status = school.joinStatus || "none";
-  const canJoin = status === "none" || status === "rejected";
+  const canJoin = status === "none";
   const joinStyles = joinButtonStyles(status);
 
   const { initials, avatarColor } = getSchoolUIData(school);

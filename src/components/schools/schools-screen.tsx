@@ -35,6 +35,7 @@ export function SchoolsScreen({
   const [schools, setSchools] = useState<School[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [joinError, setJoinError] = useState<string | null>(null);
 
   const [userLocation, setUserLocation] = useState<{
     lat: number;
@@ -111,13 +112,18 @@ export function SchoolsScreen({
   }
 
   async function handleJoin(school: School) {
+    setJoinError(null);
     setIsLoading(true);
     try {
       await requestSchoolJoin(school.id, () => getTokenRef.current());
       await loadSchools(searchInput, userLocation);
     } catch (err) {
       console.error("Failed to join school:", err);
-      setError("Failed to send request. Please try again.");
+      setJoinError(
+        err instanceof Error
+          ? err.message
+          : "Failed to send request. Please try again.",
+      );
     } finally {
       setIsLoading(false);
     }
@@ -175,7 +181,10 @@ export function SchoolsScreen({
       <View style={styles.header}>
         <SchoolSearchBar
           value={searchInput}
-          onChangeText={setSearchInput}
+          onChangeText={(text) => {
+            setSearchInput(text);
+            if (joinError) setJoinError(null);
+          }}
           onSearch={() => void loadSchools(searchInput, userLocation)}
           onSelectSuggestion={handleSelectSuggestion}
         />
@@ -203,6 +212,11 @@ export function SchoolsScreen({
         onScroll={onScroll}
         scrollEventThrottle={8}
       >
+        {joinError ? (
+          <View style={styles.joinErrorBanner}>
+            <Text style={styles.joinErrorText}>{joinError}</Text>
+          </View>
+        ) : null}
         {renderContent()}
       </ScrollView>
     </View>
@@ -269,5 +283,16 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontWeight: "600",
     fontSize: 14,
+  },
+  joinErrorBanner: {
+    backgroundColor: "#fef2f2",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#fecaca",
+    padding: spacing.md,
+  },
+  joinErrorText: {
+    fontSize: 14,
+    color: "#dc2626",
   },
 });

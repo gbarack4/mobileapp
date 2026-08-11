@@ -1,6 +1,6 @@
 import { useClerk, useUser } from "@clerk/clerk-expo";
-import { router, useFocusEffect } from "expo-router"; // ДОДАНО useFocusEffect
-import { useCallback, useEffect, useRef, useState } from "react";
+import { router } from "expo-router";
+import { useEffect, useRef, useState } from "react";
 import type { NativeScrollEvent, NativeSyntheticEvent } from "react-native";
 import {
   Image,
@@ -18,7 +18,6 @@ import {
   ACCOUNT_MENU_SECTION_2,
   ACCOUNT_MENU_SECTION_3,
 } from "../../data/mock-account";
-import { getProfilePhotoUri } from "../../services/profile-photo";
 import {
   clearSession,
   getSessionEmail,
@@ -156,17 +155,9 @@ export function AccountScreen({
   const userEmail = user?.primaryEmailAddress?.emailAddress ?? null;
 
   const { data: profile } = useProfileQuery();
-
-  const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [availabilityExpanded, setAvailabilityExpanded] = useState(false);
   const isSigningOutRef = useRef(false);
-
-  useFocusEffect(
-    useCallback(() => {
-      setPhotoUri(getProfilePhotoUri());
-    }, []),
-  );
 
   useEffect(() => {
     if (userEmail) {
@@ -194,7 +185,7 @@ export function AccountScreen({
   const displayRating = profile?.rating || 0;
   const displayVehicleSummary = profile?.vehicleSummary || "";
 
-  const displayAvatarUrl = photoUri || profile?.avatarUrl || null;
+  const displayAvatarUrl = profile?.avatarUrl || null;
 
   return (
     <View style={styles.screen}>
