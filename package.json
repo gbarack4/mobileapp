@@ -5,6 +5,7 @@
   "dependencies": {
     "@clerk/clerk-expo": "^2.19.31",
     "@react-google-maps/api": "^2.20.8",
+    "@suprsend/web-sdk": "^5.0.0",
     "@tanstack/react-query": "^5.101.2",
     "expo": "~56.0.12",
     "expo-constants": "~56.0.18",

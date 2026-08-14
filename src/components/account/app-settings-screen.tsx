@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
 import {
   Platform,
   Pressable,
@@ -6,10 +6,10 @@ import {
   StyleSheet,
   Text,
   View,
-} from 'react-native';
+} from "react-native";
 
-import { ChevronLeftIcon } from '../icons/dashboard-icons';
-import { colors, spacing } from '../../constants/theme';
+import { ChevronLeftIcon } from "../icons/dashboard-icons";
+import { colors, spacing } from "../../constants/theme";
 import {
   getAppSettings,
   setAppSettings,
@@ -17,15 +17,16 @@ import {
   type AppSettings,
   type DistanceUnit,
   type TimeFormat,
-} from '../../services/app-settings';
-import { BlueToggle } from './blue-toggle';
+} from "../../services/app-settings";
+import { BlueToggle } from "./blue-toggle";
+import { getSuprSendClient } from "@/services/suprsend";
 
 type AppSettingsScreenProps = {
   onClose: () => void;
 };
 
 const ANDROID_RIPPLE =
-  Platform.OS === 'android' ? { color: 'rgba(0, 0, 0, 0.06)' } : undefined;
+  Platform.OS === "android" ? { color: "rgba(0, 0, 0, 0.06)" } : undefined;
 
 type ToggleRowProps = {
   label: string;
@@ -41,7 +42,7 @@ function ToggleRow({
   value,
   onValueChange,
   showDivider = true,
-}: ToggleRowProps) {
+}: Readonly<ToggleRowProps>) {
   return (
     <View>
       <View style={styles.row}>
@@ -66,7 +67,7 @@ type ChoicePillProps = {
   onPress: () => void;
 };
 
-function ChoicePill({ label, selected, onPress }: ChoicePillProps) {
+function ChoicePill({ label, selected, onPress }: Readonly<ChoicePillProps>) {
   return (
     <Pressable
       onPress={onPress}
@@ -75,13 +76,18 @@ function ChoicePill({ label, selected, onPress }: ChoicePillProps) {
         styles.pill,
         selected && styles.pillSelected,
         pressed && styles.pressed,
-      ]}>
-      <Text style={[styles.pillText, selected && styles.pillTextSelected]}>{label}</Text>
+      ]}
+    >
+      <Text style={[styles.pillText, selected && styles.pillTextSelected]}>
+        {label}
+      </Text>
     </Pressable>
   );
 }
 
-export function AppSettingsScreen({ onClose }: AppSettingsScreenProps) {
+export function AppSettingsScreen({
+  onClose,
+}: Readonly<AppSettingsScreenProps>) {
   const [settings, setSettings] = useState<AppSettings>(() => getAppSettings());
 
   useEffect(() => {
@@ -90,9 +96,38 @@ export function AppSettingsScreen({ onClose }: AppSettingsScreenProps) {
     });
   }, []);
 
-  function updateSetting<K extends keyof AppSettings>(key: K, value: AppSettings[K]) {
+  function updateSetting<K extends keyof AppSettings>(
+    key: K,
+    value: AppSettings[K],
+  ) {
     setAppSettings({ [key]: value });
     setSettings(getAppSettings());
+  }
+
+  async function handlePushNotificationsChange(enabled: boolean) {
+    if (Platform.OS !== "web") {
+      updateSetting("pushNotifications", enabled);
+      return;
+    }
+
+    if (!enabled) {
+      updateSetting("pushNotifications", false);
+      return;
+    }
+
+    try {
+      const suprSend = getSuprSendClient();
+
+      const response = await suprSend.webpush.registerPush();
+
+      console.log("SuprSend push registration:", response);
+
+      updateSetting("pushNotifications", true);
+    } catch (error) {
+      console.error("Failed to enable push notifications:", error);
+
+      updateSetting("pushNotifications", false);
+    }
   }
 
   return (
@@ -103,7 +138,11 @@ export function AppSettingsScreen({ onClose }: AppSettingsScreenProps) {
           hitSlop={8}
           android_ripple={ANDROID_RIPPLE}
           accessibilityLabel="Back"
-          style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}>
+          style={({ pressed }) => [
+            styles.backButton,
+            pressed && styles.pressed,
+          ]}
+        >
           <ChevronLeftIcon size={22} />
         </Pressable>
 
@@ -114,9 +153,11 @@ export function AppSettingsScreen({ onClose }: AppSettingsScreenProps) {
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}>
+        showsVerticalScrollIndicator={false}
+      >
         <Text style={styles.description}>
-          Control notifications and how times and distances appear in Instructor Hub.
+          Control notifications and how times and distances appear in Instructor
+          Hub.
         </Text>
 
         <View style={styles.section}>
@@ -126,25 +167,25 @@ export function AppSettingsScreen({ onClose }: AppSettingsScreenProps) {
               label="Push notifications"
               subtitle="Allow alerts from Instructor Hub on this device"
               value={settings.pushNotifications}
-              onValueChange={(value) => updateSetting('pushNotifications', value)}
+              onValueChange={handlePushNotificationsChange}
             />
             <ToggleRow
               label="Lesson reminders"
               subtitle="Get reminded before upcoming lessons"
               value={settings.lessonReminders}
-              onValueChange={(value) => updateSetting('lessonReminders', value)}
+              onValueChange={(value) => updateSetting("lessonReminders", value)}
             />
             <ToggleRow
               label="Booking alerts"
               subtitle="New bookings, cancellations, and changes"
               value={settings.bookingAlerts}
-              onValueChange={(value) => updateSetting('bookingAlerts', value)}
+              onValueChange={(value) => updateSetting("bookingAlerts", value)}
             />
             <ToggleRow
               label="Payment alerts"
               subtitle="Payouts, failed charges, and Stripe updates"
               value={settings.paymentAlerts}
-              onValueChange={(value) => updateSetting('paymentAlerts', value)}
+              onValueChange={(value) => updateSetting("paymentAlerts", value)}
               showDivider={false}
             />
           </View>
@@ -155,17 +196,19 @@ export function AppSettingsScreen({ onClose }: AppSettingsScreenProps) {
           <View style={styles.card}>
             <View style={styles.choiceBlock}>
               <Text style={styles.rowLabel}>Distance</Text>
-              <Text style={styles.rowSubtitle}>Used for travel estimates and maps</Text>
+              <Text style={styles.rowSubtitle}>
+                Used for travel estimates and maps
+              </Text>
               <View style={styles.pillRow}>
-                {([
-                  { id: 'km' as DistanceUnit, label: 'Kilometres' },
-                  { id: 'mi' as DistanceUnit, label: 'Miles' },
-                ]).map((option) => (
+                {[
+                  { id: "km" as DistanceUnit, label: "Kilometres" },
+                  { id: "mi" as DistanceUnit, label: "Miles" },
+                ].map((option) => (
                   <ChoicePill
                     key={option.id}
                     label={option.label}
                     selected={settings.distanceUnit === option.id}
-                    onPress={() => updateSetting('distanceUnit', option.id)}
+                    onPress={() => updateSetting("distanceUnit", option.id)}
                   />
                 ))}
               </View>
@@ -177,15 +220,15 @@ export function AppSettingsScreen({ onClose }: AppSettingsScreenProps) {
               <Text style={styles.rowLabel}>Time format</Text>
               <Text style={styles.rowSubtitle}>How lesson times are shown</Text>
               <View style={styles.pillRow}>
-                {([
-                  { id: '12h' as TimeFormat, label: '12-hour' },
-                  { id: '24h' as TimeFormat, label: '24-hour' },
-                ]).map((option) => (
+                {[
+                  { id: "12h" as TimeFormat, label: "12-hour" },
+                  { id: "24h" as TimeFormat, label: "24-hour" },
+                ].map((option) => (
                   <ChoicePill
                     key={option.id}
                     label={option.label}
                     selected={settings.timeFormat === option.id}
-                    onPress={() => updateSetting('timeFormat', option.id)}
+                    onPress={() => updateSetting("timeFormat", option.id)}
                   />
                 ))}
               </View>
@@ -218,8 +261,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.md,
     gap: spacing.sm,
@@ -227,16 +270,16 @@ const styles = StyleSheet.create({
   backButton: {
     width: 40,
     height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginLeft: -8,
   },
   headerTitle: {
     flex: 1,
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
-    textAlign: 'center',
+    textAlign: "center",
   },
   headerSpacer: {
     width: 32,
@@ -259,9 +302,9 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.textSecondary,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     letterSpacing: 0.4,
   },
   card: {
@@ -269,11 +312,11 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: 16,
     backgroundColor: colors.background,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   row: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.md,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
@@ -284,7 +327,7 @@ const styles = StyleSheet.create({
   },
   rowLabel: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text,
   },
   rowSubtitle: {
@@ -303,8 +346,8 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   pillRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: spacing.sm,
     marginTop: 4,
   },
@@ -319,16 +362,16 @@ const styles = StyleSheet.create({
   },
   pillText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text,
   },
   pillTextSelected: {
     color: colors.white,
   },
   infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     gap: spacing.md,
@@ -338,7 +381,7 @@ const styles = StyleSheet.create({
   },
   infoValue: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.textSecondary,
   },
   pressed: {

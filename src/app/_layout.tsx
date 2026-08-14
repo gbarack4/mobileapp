@@ -1,15 +1,18 @@
+import { ClerkProvider, useAuth, useUser } from "@clerk/clerk-expo";
+import { getSuprSendClient } from "@/services/suprsend";
 import { SiteLoaderGate } from "@/components/site-loader/site-loader-gate";
 import { DEV_BYPASS_AUTH } from "@/constants/dev";
 import { colors } from "@/constants/theme";
-import { ClerkProvider, useAuth } from "@clerk/clerk-expo";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import * as SecureStore from "expo-secure-store";
 import * as SystemUI from "expo-system-ui";
 import { useEffect } from "react";
 import { Platform, StatusBar } from "react-native";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-// Keep the native splash up until our blue loader has painted.
+const queryClient = new QueryClient();
+
 SplashScreen.preventAutoHideAsync().catch(() => {});
 SystemUI.setBackgroundColorAsync(colors.primary).catch(() => {});
 
@@ -42,6 +45,8 @@ if (!publishableKey) {
 
 function RootLayoutNav() {
   const { isLoaded, isSignedIn } = useAuth();
+  const { user } = useUser();
+
   const segments = useSegments();
   const router = useRouter();
 
@@ -49,22 +54,44 @@ function RootLayoutNav() {
     if (DEV_BYPASS_AUTH) return;
     if (!isLoaded) return;
 
-    const inPublicGroup =
+    const inAuthGroup =
       segments[0] === "login" ||
       segments[0] === "signup" ||
-      segments[0] === "sso-callback" ||
-      segments[0] === "invite";
+      segments[0] === "sso-callback";
 
-    if (!isSignedIn && !inPublicGroup) {
+    const isSharedRoute = segments[0] === "invite";
+
+    if (!isSignedIn && !inAuthGroup && !isSharedRoute) {
       router.replace("/login");
-    } else if (isSignedIn && inPublicGroup) {
+    } else if (isSignedIn && inAuthGroup) {
       router.replace("/dashboard");
     }
   }, [isSignedIn, isLoaded, segments, router]);
 
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn || !user) return;
+    if (typeof window === "undefined") return;
+
+    const email = user.primaryEmailAddress?.emailAddress;
+
+    if (!email) {
+      console.warn("Clerk user does not have a primary email.");
+      return;
+    }
+
+    try {
+      const suprSend = getSuprSendClient();
+
+      suprSend.identify(email);
+    } catch (error) {
+      console.error("Failed to identify user in SuprSend:", error);
+    }
+  }, [isLoaded, isSignedIn, user]);
+
   return (
     <>
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+
       <Stack
         screenOptions={{
           headerShown: false,
@@ -78,9 +105,11 @@ function RootLayoutNav() {
 export default function RootLayout() {
   return (
     <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
-      <SiteLoaderGate>
-        <RootLayoutNav />
-      </SiteLoaderGate>
+      <QueryClientProvider client={queryClient}>
+        <SiteLoaderGate>
+          <RootLayoutNav />
+        </SiteLoaderGate>
+      </QueryClientProvider>
     </ClerkProvider>
   );
 }

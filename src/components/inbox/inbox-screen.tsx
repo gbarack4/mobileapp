@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Image,
   Platform,
@@ -8,16 +8,12 @@ import {
   StyleSheet,
   Text,
   View,
+  ActivityIndicator,
 } from "react-native";
 import type { NativeScrollEvent, NativeSyntheticEvent } from "react-native";
 
 import { colors, spacing } from "../../constants/theme";
-import {
-  MOCK_MESSAGES,
-  MOCK_NOTIFICATIONS,
-  // UNREAD_MESSAGE_COUNT, // Message tab temporarily hidden
-  UNREAD_NOTIFICATION_COUNT,
-} from "../../data/mock-inbox";
+import { MOCK_MESSAGES } from "../../data/mock-inbox";
 import type {
   InboxMessage,
   InboxNotification,
@@ -29,6 +25,10 @@ import {
   HomeNavIcon,
   InboxNavIcon,
 } from "../icons/dashboard-icons";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { getInstructorInvites } from "@/services/school-invite";
+import { useAuth, useUser } from "@clerk/clerk-expo";
+import { getSuprSendClient } from "@/services/suprsend";
 
 type InboxSection = "message" | "notification";
 
@@ -36,13 +36,10 @@ type InboxScreenProps = {
   onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
 };
 
-const SECTIONS: { id: InboxSection; label: string; badgeCount: number }[] = [
-  // Message tab temporarily hidden
-  // { id: "message", label: "Message", badgeCount: UNREAD_MESSAGE_COUNT },
+const SECTIONS: { id: InboxSection; label: string }[] = [
   {
     id: "notification",
     label: "Notification",
-    badgeCount: UNREAD_NOTIFICATION_COUNT,
   },
 ];
 
@@ -57,26 +54,10 @@ const NOTIFICATION_ICON: Record<
   InboxNotificationType,
   { bg: string; color: string; Icon: typeof HomeNavIcon }
 > = {
-  booking: {
-    bg: "#dbeafe",
-    color: colors.primary,
-    Icon: BookingsNavIcon,
-  },
-  payment: {
-    bg: "#dcfce7",
-    color: "#15803d",
-    Icon: EarningsNavIcon,
-  },
-  school: {
-    bg: "#ccfbf1",
-    color: "#0f766e",
-    Icon: HomeNavIcon,
-  },
-  reminder: {
-    bg: "#fef3c7",
-    color: "#b45309",
-    Icon: InboxNavIcon,
-  },
+  booking: { bg: "#dbeafe", color: colors.primary, Icon: BookingsNavIcon },
+  payment: { bg: "#dcfce7", color: "#15803d", Icon: EarningsNavIcon },
+  school: { bg: "#ccfbf1", color: "#0f766e", Icon: HomeNavIcon },
+  reminder: { bg: "#fef3c7", color: "#b45309", Icon: InboxNavIcon },
   system: {
     bg: colors.inputBackground,
     color: colors.textSecondary,
@@ -89,21 +70,11 @@ function MessageRow({ message }: Readonly<{ message: InboxMessage }>) {
     <Pressable
       onPress={() => router.push(`/dashboard/inbox/${message.id}`)}
       android_ripple={ANDROID_RIPPLE}
-      style={({ pressed }) => [
-        styles.row,
-        pressed && styles.rowPressed,
-      ]}
+      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
     >
-      <View
-        style={[styles.avatar, message.fromSchool && styles.avatarSchool]}
-      >
-        <Image
-          source={{ uri: message.avatarUrl }}
-          style={styles.avatarImage}
-          accessibilityLabel={`${message.senderName} photo`}
-        />
+      <View style={[styles.avatar, message.fromSchool && styles.avatarSchool]}>
+        <Image source={{ uri: message.avatarUrl }} style={styles.avatarImage} />
       </View>
-
       <View style={styles.rowBody}>
         <View style={styles.rowTop}>
           <Text
@@ -128,101 +99,122 @@ function MessageRow({ message }: Readonly<{ message: InboxMessage }>) {
   );
 }
 
-function NotificationRow({
-  notification,
-}: Readonly<{ notification: InboxNotification }>) {
-  const meta = NOTIFICATION_ICON[notification.type];
-  const { Icon } = meta;
-
-  return (
-    <Pressable
-      android_ripple={ANDROID_RIPPLE}
-      style={({ pressed }) => [
-        styles.row,
-        pressed && styles.rowPressed,
-      ]}
-    >
-      <View style={[styles.iconBadge, { backgroundColor: meta.bg }]}>
-        <Icon size={18} color={meta.color} />
-      </View>
-
-      <View style={styles.rowBody}>
-        <View style={styles.rowTop}>
-          <Text
-            style={[
-              styles.rowTitle,
-              notification.unread && styles.rowTitleUnread,
-            ]}
-            numberOfLines={1}
-          >
-            {notification.title}
-          </Text>
-          <Text style={styles.timeLabel}>{notification.timeLabel}</Text>
-        </View>
-        <View style={styles.previewRow}>
-          <Text
-            style={[
-              styles.preview,
-              notification.unread && styles.previewUnread,
-            ]}
-            numberOfLines={2}
-          >
-            {notification.body}
-          </Text>
-          {notification.unread ? <View style={styles.unreadDot} /> : null}
-        </View>
-      </View>
-    </Pressable>
-  );
-}
-
 export function InboxScreen({ onScroll }: Readonly<InboxScreenProps>) {
   const [section, setSection] = useState<InboxSection>("notification");
+  const { getToken } = useAuth();
+  const { user } = useUser();
+  const email = user?.primaryEmailAddress?.emailAddress;
+  const queryClient = useQueryClient();
 
-  const showSegmentControl = SECTIONS.length > 1;
+  useEffect(() => {
+    if (!email || Platform.OS !== "web") return;
+
+    let feedClient: ReturnType<
+      ReturnType<typeof getSuprSendClient>["feeds"]["initialize"]
+    > | null = null;
+
+    const handleStoreUpdate = () => {
+      queryClient.invalidateQueries({
+        queryKey: ["instructor-invites"],
+      });
+    };
+
+    const setup = async () => {
+      try {
+        const suprSend = getSuprSendClient();
+
+        await suprSend.identify(email);
+
+        feedClient = suprSend.feeds.initialize();
+
+        feedClient.emitter.on("feed.store_update", handleStoreUpdate);
+
+        feedClient.initializeSocketConnection();
+      } catch (error) {
+        console.error(
+          "[SuprSend] Failed to initialize realtime listener:",
+          error,
+        );
+      }
+    };
+
+    void setup();
+
+    return () => {
+      feedClient?.emitter.off("feed.store_update", handleStoreUpdate);
+
+      feedClient?.remove();
+    };
+  }, [email, queryClient]);
+
+  const { data: realInvites, isLoading } = useQuery({
+    queryKey: ["instructor-invites"],
+    queryFn: async () => {
+      const token = await getToken();
+      return getInstructorInvites(token);
+    },
+  });
+
+  const notifications: InboxNotification[] = [
+    ...(realInvites ?? []).map((invite) => ({
+      id: invite.id,
+      type: "school" as InboxNotificationType,
+      title: "School invitation",
+      body: `${invite.schoolName} has invited you to join as an instructor.`,
+      timeLabel: "New",
+      unread: true,
+    })),
+  ];
+
+  const notificationBadgeCount = realInvites?.length ?? 0;
+
+  function handleNotificationPress(notification: InboxNotification) {
+    if (notification.type === "school") {
+      router.push({ pathname: "/invite", params: { id: notification.id } });
+    } else {
+      console.log(notification.title);
+    }
+  }
 
   return (
     <View style={styles.screen}>
-      {showSegmentControl ? (
-        <View style={styles.header}>
-          <View style={styles.segmentRow}>
-            {SECTIONS.map((item) => {
-              const active = section === item.id;
-
-              return (
-                <Pressable
-                  key={item.id}
-                  onPress={() => setSection(item.id)}
-                  android_ripple={ANDROID_RIPPLE}
-                  style={({ pressed }) => [
-                    styles.segmentButton,
-                    active && styles.segmentButtonActive,
-                    pressed && styles.segmentButtonPressed,
-                  ]}
-                >
-                  <View style={styles.segmentLabelRow}>
-                    <Text
-                      style={[
-                        styles.segmentLabel,
-                        active && styles.segmentLabelActive,
-                      ]}
-                    >
-                      {item.label}
-                    </Text>
-                    {item.badgeCount > 0 ? (
-                      <View style={styles.badge}>
-                        <Text style={styles.badgeText}>
-                          {formatBadgeCount(item.badgeCount)}
-                        </Text>
-                      </View>
-                    ) : null}
-                  </View>
-                </Pressable>
-              );
-            })}
-          </View>
+      <View style={styles.header}>
+        <View style={styles.segmentRow}>
+          {SECTIONS.map((item) => {
+            const active = section === item.id;
+            return (
+              <Pressable
+                key={item.id}
+                onPress={() => setSection(item.id)}
+                android_ripple={ANDROID_RIPPLE}
+                style={({ pressed }) => [
+                  styles.segmentButton,
+                  active && styles.segmentButtonActive,
+                  pressed && styles.segmentButtonPressed,
+                ]}
+              >
+                <View style={styles.segmentLabelRow}>
+                  <Text
+                    style={[
+                      styles.segmentLabel,
+                      active && styles.segmentLabelActive,
+                    ]}
+                  >
+                    {item.label}
+                  </Text>
+                  {item.id === "notification" && notificationBadgeCount > 0 ? (
+                    <View style={styles.badge}>
+                      <Text style={styles.badgeText}>
+                        {formatBadgeCount(notificationBadgeCount)}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              </Pressable>
+            );
+          })}
         </View>
-      ) : null}
+      </View>
 
       <ScrollView
         style={styles.scroll}
@@ -239,12 +231,67 @@ export function InboxScreen({ onScroll }: Readonly<InboxScreenProps>) {
           </View>
         ) : (
           <View style={styles.list}>
-            {MOCK_NOTIFICATIONS.map((notification) => (
-              <NotificationRow
-                key={notification.id}
-                notification={notification}
+            {isLoading ? (
+              <ActivityIndicator
+                size="small"
+                color={colors.primary}
+                style={{ marginTop: 20 }}
               />
-            ))}
+            ) : (
+              notifications.map((notification) => {
+                const meta = NOTIFICATION_ICON[notification.type];
+                const Icon = meta.Icon;
+
+                return (
+                  <Pressable
+                    key={notification.id}
+                    onPress={() => handleNotificationPress(notification)}
+                    android_ripple={ANDROID_RIPPLE}
+                    style={({ pressed }) => [
+                      styles.row,
+                      pressed && styles.rowPressed,
+                    ]}
+                  >
+                    <View
+                      style={[styles.iconBadge, { backgroundColor: meta.bg }]}
+                    >
+                      <Icon size={18} color={meta.color} />
+                    </View>
+
+                    <View style={styles.rowBody}>
+                      <View style={styles.rowTop}>
+                        <Text
+                          style={[
+                            styles.rowTitle,
+                            notification.unread && styles.rowTitleUnread,
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {notification.title}
+                        </Text>
+                        <Text style={styles.timeLabel}>
+                          {notification.timeLabel}
+                        </Text>
+                      </View>
+                      <View style={styles.previewRow}>
+                        <Text
+                          style={[
+                            styles.preview,
+                            notification.unread && styles.previewUnread,
+                          ]}
+                          numberOfLines={2}
+                        >
+                          {notification.body}
+                        </Text>
+                        {notification.unread ? (
+                          <View style={styles.unreadDot} />
+                        ) : null}
+                      </View>
+                    </View>
+                  </Pressable>
+                );
+              })
+            )}
           </View>
         )}
       </ScrollView>
@@ -253,9 +300,7 @@ export function InboxScreen({ onScroll }: Readonly<InboxScreenProps>) {
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-  },
+  screen: { flex: 1 },
   header: {
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.md,
@@ -275,26 +320,11 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 10,
   },
-  segmentButtonActive: {
-    backgroundColor: colors.primary,
-  },
-  segmentButtonPressed: {
-    opacity: 0.85,
-  },
-  segmentLabelRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  segmentLabel: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: colors.textMuted,
-  },
-  segmentLabelActive: {
-    color: colors.white,
-    fontWeight: "700",
-  },
+  segmentButtonActive: { backgroundColor: colors.primary },
+  segmentButtonPressed: { opacity: 0.85 },
+  segmentLabelRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  segmentLabel: { fontSize: 14, fontWeight: "500", color: colors.textMuted },
+  segmentLabelActive: { color: colors.white, fontWeight: "700" },
   badge: {
     minWidth: 18,
     height: 18,
@@ -310,26 +340,20 @@ const styles = StyleSheet.create({
     color: colors.white,
     lineHeight: 12,
   },
-  scroll: {
-    flex: 1,
-  },
+  scroll: { flex: 1 },
   scrollContent: {
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.md,
     paddingBottom: 96,
   },
-  list: {
-    gap: spacing.sm,
-  },
+  list: { gap: spacing.sm },
   row: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: spacing.md,
     paddingVertical: spacing.md,
   },
-  rowPressed: {
-    opacity: 0.85,
-  },
+  rowPressed: { opacity: 0.85 },
   avatar: {
     width: 44,
     height: 44,
@@ -337,13 +361,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.inputBackground,
     overflow: "hidden",
   },
-  avatarSchool: {
-    borderRadius: 12,
-  },
-  avatarImage: {
-    width: "100%",
-    height: "100%",
-  },
+  avatarSchool: { borderRadius: 12 },
+  avatarImage: { width: "100%", height: "100%" },
   iconBadge: {
     width: 44,
     height: 44,
@@ -351,45 +370,24 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  rowBody: {
-    flex: 1,
-    gap: 4,
-    minWidth: 0,
-  },
+  rowBody: { flex: 1, gap: 4, minWidth: 0 },
   rowTop: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: spacing.sm,
   },
-  rowTitle: {
-    flex: 1,
-    fontSize: 15,
-    fontWeight: "600",
-    color: colors.text,
-  },
-  rowTitleUnread: {
-    fontWeight: "700",
-  },
-  timeLabel: {
-    fontSize: 12,
-    color: colors.textMuted,
-  },
-  previewRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-  },
+  rowTitle: { flex: 1, fontSize: 15, fontWeight: "600", color: colors.text },
+  rowTitleUnread: { fontWeight: "700" },
+  timeLabel: { fontSize: 12, color: colors.textMuted },
+  previewRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   preview: {
     flex: 1,
     fontSize: 14,
     lineHeight: 20,
     color: colors.textSecondary,
   },
-  previewUnread: {
-    color: colors.text,
-    fontWeight: "500",
-  },
+  previewUnread: { color: colors.text, fontWeight: "500" },
   unreadDot: {
     width: 8,
     height: 8,
