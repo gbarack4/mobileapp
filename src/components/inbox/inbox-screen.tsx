@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Image,
   Platform,
@@ -27,8 +27,7 @@ import {
 } from "../icons/dashboard-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getInstructorInvites } from "@/services/school-invite";
-import { useAuth, useUser } from "@clerk/clerk-expo";
-import { getSuprSendClient } from "@/services/suprsend";
+import { useAuth } from "@clerk/clerk-expo";
 
 type InboxSection = "message" | "notification";
 
@@ -102,50 +101,7 @@ function MessageRow({ message }: Readonly<{ message: InboxMessage }>) {
 export function InboxScreen({ onScroll }: Readonly<InboxScreenProps>) {
   const [section, setSection] = useState<InboxSection>("notification");
   const { getToken } = useAuth();
-  const { user } = useUser();
-  const email = user?.primaryEmailAddress?.emailAddress;
   const queryClient = useQueryClient();
-
-  useEffect(() => {
-    if (!email || Platform.OS !== "web") return;
-
-    let feedClient: ReturnType<
-      ReturnType<typeof getSuprSendClient>["feeds"]["initialize"]
-    > | null = null;
-
-    const handleStoreUpdate = () => {
-      queryClient.invalidateQueries({
-        queryKey: ["instructor-invites"],
-      });
-    };
-
-    const setup = async () => {
-      try {
-        const suprSend = getSuprSendClient();
-
-        await suprSend.identify(email);
-
-        feedClient = suprSend.feeds.initialize();
-
-        feedClient.emitter.on("feed.store_update", handleStoreUpdate);
-
-        feedClient.initializeSocketConnection();
-      } catch (error) {
-        console.error(
-          "[SuprSend] Failed to initialize realtime listener:",
-          error,
-        );
-      }
-    };
-
-    void setup();
-
-    return () => {
-      feedClient?.emitter.off("feed.store_update", handleStoreUpdate);
-
-      feedClient?.remove();
-    };
-  }, [email, queryClient]);
 
   const { data: realInvites, isLoading } = useQuery({
     queryKey: ["instructor-invites"],
@@ -155,6 +111,15 @@ export function InboxScreen({ onScroll }: Readonly<InboxScreenProps>) {
     },
   });
 
+  const markAsRead = (inviteId: string) => {
+    queryClient.setQueryData(["instructor-invites"], (oldData: any[]) => {
+      if (!oldData) return oldData;
+      return oldData.map((invite) =>
+        invite.id === inviteId ? { ...invite, _isRead: true } : invite,
+      );
+    });
+  };
+
   const notifications: InboxNotification[] = [
     ...(realInvites ?? []).map((invite) => ({
       id: invite.id,
@@ -162,13 +127,15 @@ export function InboxScreen({ onScroll }: Readonly<InboxScreenProps>) {
       title: "School invitation",
       body: `${invite.schoolName} has invited you to join as an instructor.`,
       timeLabel: "New",
-      unread: true,
+      unread: !(invite as any)._isRead,
     })),
   ];
 
-  const notificationBadgeCount = realInvites?.length ?? 0;
+  const notificationBadgeCount =
+    realInvites?.filter((invite: any) => !invite._isRead).length ?? 0;
 
   function handleNotificationPress(notification: InboxNotification) {
+    markAsRead(notification.id);
     if (notification.type === "school") {
       router.push({ pathname: "/invite", params: { id: notification.id } });
     } else {

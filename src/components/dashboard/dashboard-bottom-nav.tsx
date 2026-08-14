@@ -9,7 +9,6 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { colors } from "../../constants/theme";
-import { UNREAD_INBOX_COUNT } from "../../data/mock-inbox";
 import type { DashboardTab } from "../../types/dashboard";
 import {
   BookingsNavIcon,
@@ -18,12 +17,14 @@ import {
   InboxNavIcon,
   ProfileNavIcon,
 } from "../icons/dashboard-icons";
+import { useQuery } from "@tanstack/react-query";
+import { getInstructorInvites } from "@/services/school-invite";
+import { useAuth } from "@clerk/clerk-expo";
 
 type DashboardBottomNavProps = {
   activeTab: DashboardTab;
   onTabChange: (tab: DashboardTab) => void;
   translateY?: Animated.Value;
-  inboxBadgeCount?: number;
 };
 
 const NAV_ITEMS: {
@@ -51,9 +52,20 @@ export function DashboardBottomNav({
   activeTab,
   onTabChange,
   translateY,
-  inboxBadgeCount = UNREAD_INBOX_COUNT,
 }: Readonly<DashboardBottomNavProps>) {
   const insets = useSafeAreaInsets();
+  const { getToken } = useAuth();
+
+  const { data: realInvites } = useQuery({
+    queryKey: ["instructor-invites"],
+    queryFn: async () => {
+      const token = await getToken();
+      return getInstructorInvites(token);
+    },
+  });
+
+  const notificationBadgeCount =
+    realInvites?.filter((invite: any) => !invite._isRead).length ?? 0;
 
   return (
     <Animated.View
@@ -69,7 +81,7 @@ export function DashboardBottomNav({
           const iconColor = active ? colors.text : colors.textMuted;
           const { Icon } = item;
           const showInboxBadge =
-            item.id === "inbox" && inboxBadgeCount > 0;
+            item.id === "inbox" && notificationBadgeCount > 0;
 
           return (
             <Pressable
@@ -87,7 +99,7 @@ export function DashboardBottomNav({
                 {showInboxBadge ? (
                   <View style={styles.badge}>
                     <Text style={styles.badgeText}>
-                      {formatBadgeCount(inboxBadgeCount)}
+                      {formatBadgeCount(notificationBadgeCount)}
                     </Text>
                   </View>
                 ) : null}

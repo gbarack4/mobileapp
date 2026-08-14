@@ -25,6 +25,9 @@ import { colors, spacing } from "../../constants/theme";
 import { useBottomNavScroll } from "../../hooks/use-bottom-nav-scroll";
 import { MOCK_LESSONS } from "../../data/mock-lessons";
 import type { DashboardTab, LessonTab } from "../../types/dashboard";
+import { getSuprSendClient } from "@/services/suprsend";
+import { useUser } from "@clerk/clerk-expo";
+import { useQueryClient } from "@tanstack/react-query";
 
 const SECTION_TITLES: Record<LessonTab, string> = {
   upcoming: "Upcoming lessons",
@@ -60,6 +63,43 @@ export default function DashboardScreen() {
     pathname === "/dashboard" || pathname === "/dashboard/";
   const showBottomNav =
     isDashboardRoot && activeTab !== "profile" && displayedTab !== "profile";
+
+  const { user } = useUser();
+  const queryClient = useQueryClient();
+  const email = user?.primaryEmailAddress?.emailAddress;
+
+  useEffect(() => {
+    if (!email || Platform.OS !== "web") return;
+
+    let feedClient: ReturnType<
+      ReturnType<typeof getSuprSendClient>["feeds"]["initialize"]
+    > | null = null;
+
+    const handleStoreUpdate = () => {
+      queryClient.invalidateQueries({
+        queryKey: ["instructor-invites"],
+      });
+    };
+
+    const setup = async () => {
+      try {
+        const suprSend = getSuprSendClient();
+        await suprSend.identify(email);
+        feedClient = suprSend.feeds.initialize();
+        feedClient.emitter.on("feed.store_update", handleStoreUpdate);
+        feedClient.initializeSocketConnection();
+      } catch (error) {
+        console.error("[SuprSend] Failed to init:", error);
+      }
+    };
+
+    void setup();
+
+    return () => {
+      feedClient?.emitter.off("feed.store_update", handleStoreUpdate);
+      feedClient?.remove();
+    };
+  }, [email, queryClient]);
 
   const lessons = useMemo(() => {
     const tabLessons = MOCK_LESSONS.filter(
