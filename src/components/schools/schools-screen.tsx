@@ -189,19 +189,23 @@ export function SchoolsScreen({
           onSelectSuggestion={handleSelectSuggestion}
         />
 
-        <Pressable
-          onPress={() =>
-            router.push({
-              pathname: "/dashboard/schools-map",
-              params: searchInput.trim() ? { q: searchInput.trim() } : {},
-            })
-          }
-          android_ripple={ANDROID_RIPPLE}
-          style={styles.mapLink}
-        >
-          <Text style={styles.mapLinkText}>View map</Text>
-          <FoldedMapIcon />
-        </Pressable>
+        <View style={styles.headerLinks}>
+          <Pressable
+            onPress={() =>
+              router.push({
+                pathname: "/dashboard/schools-map",
+                params: searchInput.trim() ? { q: searchInput.trim() } : {},
+              })
+            }
+            android_ripple={ANDROID_RIPPLE}
+            style={styles.mapLink}
+          >
+            <Text style={styles.mapLinkText}>View map</Text>
+            <FoldedMapIcon />
+          </Pressable>
+
+          <Text style={styles.mapLinkText}>Manage school</Text>
+        </View>
       </View>
 
       <ScrollView
@@ -232,11 +236,16 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
     gap: spacing.md,
   },
+  headerLinks: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.md,
+  },
   mapLink: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    alignSelf: "flex-start",
     paddingVertical: 2,
   },
   mapLinkText: {
