@@ -7,15 +7,13 @@ import {
   StyleSheet,
   Text,
   View,
+  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Logo } from "@/components/logo";
 import { colors, spacing } from "@/constants/theme";
-import {
-  MOCK_SCHOOL_INVITE,
-  type SchoolInvite,
-} from "@/types/school-invite";
+import { type SchoolInvite } from "@/types/school-invite";
 import { MapPinIcon } from "../icons/dashboard-icons";
 import { CloseIcon } from "../icons/lesson-detail-icons";
 
@@ -41,7 +39,7 @@ type SchoolInviteAcceptScreenProps = Readonly<{
 }>;
 
 export function SchoolInviteAcceptScreen({
-  invite = MOCK_SCHOOL_INVITE,
+  invite,
   accepting: acceptingProp,
   declining: decliningProp,
   onAccept,
@@ -54,6 +52,47 @@ export function SchoolInviteAcceptScreen({
   const [outcome, setOutcome] = useState<"accepted" | "declined" | null>(null);
   const [closed, setClosed] = useState(false);
 
+  const renderAvatar = () => {
+    if (invite?.schoolLogoUrl) {
+      return (
+        <Image
+          source={{ uri: invite.schoolLogoUrl }}
+          style={styles.avatar}
+          resizeMode="cover"
+        />
+      );
+    }
+    return (
+      <View
+        style={[styles.avatar, { backgroundColor: invite?.schoolAvatarColor }]}
+      >
+        <Text style={styles.avatarText}>{invite?.schoolInitials}</Text>
+      </View>
+    );
+  };
+
+  const renderSmallAvatar = () => {
+    if (invite?.schoolLogoUrl) {
+      return (
+        <Image
+          source={{ uri: invite.schoolLogoUrl }}
+          style={styles.avatarSmall}
+          resizeMode="cover"
+        />
+      );
+    }
+    return (
+      <View
+        style={[
+          styles.avatarSmall,
+          { backgroundColor: invite?.schoolAvatarColor },
+        ]}
+      >
+        <Text style={styles.avatarTextSmall}>{invite?.schoolInitials}</Text>
+      </View>
+    );
+  };
+
   const handleClose = () => {
     if (onClose) {
       onClose();
@@ -64,6 +103,21 @@ export function SchoolInviteAcceptScreen({
 
   if (closed) {
     return null;
+  }
+
+  if (!invite) {
+    return (
+      <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
+        <View
+          style={[
+            styles.successScreen,
+            { justifyContent: "center", alignItems: "center" },
+          ]}
+        >
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      </SafeAreaView>
+    );
   }
 
   const accepting = acceptingProp ?? localAccepting;
@@ -86,7 +140,10 @@ export function SchoolInviteAcceptScreen({
     if (busy || finished) return;
     setLocalDeclining(true);
     try {
-      await Promise.all([wait(ACCEPT_DELAY_MS), Promise.resolve(onDecline?.())]);
+      await Promise.all([
+        wait(ACCEPT_DELAY_MS),
+        Promise.resolve(onDecline?.()),
+      ]);
       setOutcome("declined");
     } finally {
       setLocalDeclining(false);
@@ -125,10 +182,7 @@ export function SchoolInviteAcceptScreen({
 
           <View style={styles.successCard}>
             <View
-              style={[
-                styles.successBadge,
-                !isAccepted && styles.declinedBadge,
-              ]}
+              style={[styles.successBadge, !isAccepted && styles.declinedBadge]}
             >
               <Text
                 style={[
@@ -149,16 +203,7 @@ export function SchoolInviteAcceptScreen({
             </Text>
 
             <View style={styles.successSchoolRow}>
-              <View
-                style={[
-                  styles.avatarSmall,
-                  { backgroundColor: invite.schoolAvatarColor },
-                ]}
-              >
-                <Text style={styles.avatarTextSmall}>
-                  {invite.schoolInitials}
-                </Text>
-              </View>
+              {renderSmallAvatar()}
               <Text style={styles.successSchoolName}>{invite.schoolName}</Text>
             </View>
 
@@ -200,14 +245,7 @@ export function SchoolInviteAcceptScreen({
 
         <View style={styles.schoolCard}>
           <View style={styles.schoolHeader}>
-            <View
-              style={[
-                styles.avatar,
-                { backgroundColor: invite.schoolAvatarColor },
-              ]}
-            >
-              <Text style={styles.avatarText}>{invite.schoolInitials}</Text>
-            </View>
+            {renderAvatar()}
             <View style={styles.schoolText}>
               <Text style={styles.schoolName}>{invite.schoolName}</Text>
               <View style={styles.locationRow}>

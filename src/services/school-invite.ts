@@ -1,3 +1,7 @@
+import {
+  mapRawInviteToUI,
+  RawSchoolInviteResponse,
+} from "@/utils/invite-mapper";
 import type { SchoolInvite } from "../types/school-invite";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
@@ -25,12 +29,21 @@ export async function getSchoolInvite(
   id: string,
   token: string | null,
 ): Promise<SchoolInvite> {
-  const invites = await getInstructorInvites(token);
-  const invite = invites.find((i) => i.id === id);
+  const response = await fetch(`${API_URL}/instructor/invites/${id}`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
+  });
 
-  if (!invite) {
-    throw new Error("Invite not found");
+  if (!response.ok) {
+    throw new Error(`Failed to fetch invite details: ${response.statusText}`);
   }
+
+  const rawData: RawSchoolInviteResponse = await response.json();
+  const invite = mapRawInviteToUI(rawData);
 
   return invite;
 }

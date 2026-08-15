@@ -2,14 +2,10 @@ import Svg, { Path, Rect } from "react-native-svg";
 
 type LogoProps = {
   size?: number;
-  /** `inverse` = white tile + blue mark for brand-blue backgrounds */
   variant?: "default" | "inverse";
 };
 
-export function Logo({
-  size = 64,
-  variant = "default",
-}: Readonly<LogoProps>) {
+export function Logo({ size = 64, variant = "default" }: Readonly<LogoProps>) {
   const tile = variant === "inverse" ? "#ffffff" : "#005eff";
   const mark = variant === "inverse" ? "#005eff" : "#ffffff";
 
