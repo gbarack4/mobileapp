@@ -55,6 +55,9 @@ export default {
     experiments: {
       tsconfigPaths: true,
     },
+    web: {
+      favicon: "./public/favicon.png",
+    },
     extra: {
       eas: {
         projectId: "598440c1-e7be-4572-b192-a7ffcb4ed2b1",
