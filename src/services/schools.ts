@@ -159,3 +159,18 @@ export async function toggleSchoolPause(
     getToken,
   );
 }
+
+export async function getJoinedSchools(
+  q: string = "",
+  getToken?: GetTokenFn,
+): Promise<School[]> {
+  const searchParams = new URLSearchParams();
+  if (q.trim()) searchParams.append("q", q.trim());
+
+  const queryString = searchParams.toString();
+  const path = queryString
+    ? `/schools/active?${queryString}`
+    : "/schools/active";
+
+  return request<School[]>(path, {}, getToken);
+}

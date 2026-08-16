@@ -15,7 +15,11 @@ import {
 
 import { colors, spacing } from "../../constants/theme";
 
-import { requestSchoolJoin, searchSchools } from "../../services/schools";
+import {
+  requestSchoolJoin,
+  searchSchools,
+  getJoinedSchools,
+} from "../../services/schools";
 import type { School } from "../../types/school";
 import { FoldedMapIcon } from "../icons/school-icons";
 import { SchoolCard } from "./school-card";
@@ -36,6 +40,8 @@ export function SchoolsScreen({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [joinError, setJoinError] = useState<string | null>(null);
+
+  const [isManageMode, setIsManageMode] = useState(false);
 
   const [userLocation, setUserLocation] = useState<{
     lat: number;
@@ -71,20 +77,31 @@ export function SchoolsScreen({
   }, []);
 
   const loadSchools = useCallback(
-    async (query: string, location: { lat: number; lng: number } | null) => {
+    async (
+      query: string,
+      location: { lat: number; lng: number } | null,
+      manageMode: boolean,
+    ) => {
       setIsLoading(true);
       setError(null);
 
       try {
-        const results = await searchSchools(
-          {
-            q: query.trim(),
-            originLat: location?.lat,
-            originLng: location?.lng,
-            radiusKm: query.trim() ? undefined : 5,
-          },
-          () => getTokenRef.current(),
-        );
+        let results: School[];
+
+        if (manageMode) {
+          results = await getJoinedSchools(query, () => getTokenRef.current());
+        } else {
+          results = await searchSchools(
+            {
+              q: query.trim(),
+              originLat: location?.lat,
+              originLng: location?.lng,
+              radiusKm: query.trim() ? undefined : 5,
+            },
+            () => getTokenRef.current(),
+          );
+        }
+
         setSchools(results);
       } catch (err) {
         setSchools([]);
@@ -103,8 +120,8 @@ export function SchoolsScreen({
   useFocusEffect(
     useCallback(() => {
       if (!isLocationReady) return;
-      void loadSchools(searchInput, userLocation);
-    }, [loadSchools, searchInput, userLocation, isLocationReady]),
+      void loadSchools(searchInput, userLocation, isManageMode);
+    }, [loadSchools, searchInput, userLocation, isLocationReady, isManageMode]),
   );
 
   function handleSelectSuggestion(school: School) {
@@ -116,7 +133,7 @@ export function SchoolsScreen({
     setIsLoading(true);
     try {
       await requestSchoolJoin(school.id, () => getTokenRef.current());
-      await loadSchools(searchInput, userLocation);
+      await loadSchools(searchInput, userLocation, isManageMode);
     } catch (err) {
       console.error("Failed to join school:", err);
       setJoinError(
@@ -128,6 +145,20 @@ export function SchoolsScreen({
       setIsLoading(false);
     }
   }
+
+  function toggleManageMode() {
+    setIsManageMode((prev) => !prev);
+  }
+
+  const getEmptySubtitle = () => {
+    if (isManageMode) {
+      return "You haven't joined any schools matching this search.";
+    }
+    if (searchInput.trim()) {
+      return "Try a different school name.";
+    }
+    return "No active schools nearby.";
+  };
 
   const renderContent = () => {
     if (isLoading) {
@@ -145,7 +176,9 @@ export function SchoolsScreen({
           <Text style={styles.emptyTitle}>Couldn’t load schools</Text>
           <Text style={styles.emptySubtitle}>{error}</Text>
           <Pressable
-            onPress={() => void loadSchools(searchInput, userLocation)}
+            onPress={() =>
+              void loadSchools(searchInput, userLocation, isManageMode)
+            }
             style={styles.retryButton}
           >
             <Text style={styles.retryButtonText}>Try again</Text>
@@ -167,11 +200,7 @@ export function SchoolsScreen({
     return (
       <View style={styles.emptyState}>
         <Text style={styles.emptyTitle}>No schools found</Text>
-        <Text style={styles.emptySubtitle}>
-          {searchInput.trim()
-            ? "Try a different school name."
-            : "No active schools nearby."}
-        </Text>
+        <Text style={styles.emptySubtitle}>{getEmptySubtitle()}</Text>
       </View>
     );
   };
@@ -185,7 +214,9 @@ export function SchoolsScreen({
             setSearchInput(text);
             if (joinError) setJoinError(null);
           }}
-          onSearch={() => void loadSchools(searchInput, userLocation)}
+          onSearch={() =>
+            void loadSchools(searchInput, userLocation, isManageMode)
+          }
           onSelectSuggestion={handleSelectSuggestion}
         />
 
@@ -204,7 +235,11 @@ export function SchoolsScreen({
             <FoldedMapIcon />
           </Pressable>
 
-          <Text style={styles.mapLinkText}>Manage school</Text>
+          <Pressable onPress={toggleManageMode} android_ripple={ANDROID_RIPPLE}>
+            <Text style={styles.mapLinkText}>
+              {isManageMode ? "View all" : "Manage school"}
+            </Text>
+          </Pressable>
         </View>
       </View>
 
