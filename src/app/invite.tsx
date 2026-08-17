@@ -4,37 +4,16 @@ import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { useAuth } from "@clerk/clerk-expo";
 
 import { SchoolInviteAcceptScreen } from "@/components/invite/school-invite-accept-screen";
-import { DEV_BYPASS_AUTH } from "@/constants/dev";
 import { colors } from "@/constants/theme";
 import {
   acceptSchoolInvite,
   declineSchoolInvite,
   getSchoolInvite,
 } from "@/services/school-invite";
-import { MOCK_SCHOOL_INVITE } from "@/types/school-invite";
 
-function InviteMockPreview() {
+export default function InviteRoute() {
   const router = useRouter();
-
-  return (
-    <SchoolInviteAcceptScreen
-      invite={MOCK_SCHOOL_INVITE}
-      onAccept={async () => {}}
-      onDecline={async () => {}}
-      onClose={() => {
-        if (router.canGoBack()) {
-          router.back();
-        } else {
-          router.replace("/dashboard");
-        }
-      }}
-      onSuccessContinue={() => router.replace("/dashboard")}
-    />
-  );
-}
-
-function InviteAuthenticatedRoute({ id }: Readonly<{ id: string }>) {
-  const router = useRouter();
+  const { id } = useLocalSearchParams<{ id: string }>();
   const { getToken } = useAuth();
   const queryClient = useQueryClient();
 
@@ -46,14 +25,15 @@ function InviteAuthenticatedRoute({ id }: Readonly<{ id: string }>) {
     queryKey: ["school-invite", id],
     queryFn: async () => {
       const token = await getToken();
-      return getSchoolInvite(id, token);
+      return getSchoolInvite(id!, token);
     },
+    enabled: !!id,
   });
 
   const acceptMutation = useMutation({
     mutationFn: async () => {
       const token = await getToken();
-      return acceptSchoolInvite(id, token);
+      return acceptSchoolInvite(id!, token);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["school-invite"] });
@@ -64,12 +44,22 @@ function InviteAuthenticatedRoute({ id }: Readonly<{ id: string }>) {
   const declineMutation = useMutation({
     mutationFn: async () => {
       const token = await getToken();
-      return declineSchoolInvite(id, token);
+      return declineSchoolInvite(id!, token);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["school-invite"] });
     },
   });
+
+  if (!id) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.errorText}>
+          This invitation link is missing an ID.
+        </Text>
+      </View>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -107,17 +97,6 @@ function InviteAuthenticatedRoute({ id }: Readonly<{ id: string }>) {
       onSuccessContinue={() => router.replace("/dashboard")}
     />
   );
-}
-
-export default function InviteRoute() {
-  const { id } = useLocalSearchParams<{ id: string }>();
-
-  // Local preview uses mock invite data when auth bypass is on or no id is provided.
-  if (DEV_BYPASS_AUTH || !id) {
-    return <InviteMockPreview />;
-  }
-
-  return <InviteAuthenticatedRoute id={id} />;
 }
 
 const styles = StyleSheet.create({
