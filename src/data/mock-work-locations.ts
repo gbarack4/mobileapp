@@ -12,21 +12,12 @@ export type WorkSuburb = {
   polygon: LatLng[];
 };
 
-const SUBURB_ORDER = [
-  'Annerley',
-  'Carina',
-  'Springfield',
-  'Darra',
-  'Inala',
-  'Richlands',
-  'Forest Lake',
-  'Calamvale',
-  'Browns Plains',
-  'Durack',
-] as const;
+type SuburbPolygonsFile = Record<string, WorkSuburb>;
 
-export const MOCK_WORK_SUBURBS: WorkSuburb[] = SUBURB_ORDER.map(
-  (name) => suburbPolygons[name] as WorkSuburb,
+const ALL_SUBURBS = suburbPolygons as SuburbPolygonsFile;
+
+export const MOCK_WORK_SUBURBS: WorkSuburb[] = Object.values(ALL_SUBURBS).sort((a, b) =>
+  a.name.localeCompare(b.name),
 );
 
 export function filterWorkSuburbs(query: string) {

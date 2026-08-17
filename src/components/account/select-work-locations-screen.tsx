@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Platform,
   Pressable,
   ScrollView,
@@ -30,6 +31,8 @@ type SelectWorkLocationsScreenProps = {
 const ANDROID_RIPPLE =
   Platform.OS === "android" ? { color: "rgba(0, 0, 0, 0.06)" } : undefined;
 
+const CONFIRM_DELAY_MS = 2000;
+
 function LegendItem({
   color,
   label,
@@ -49,6 +52,7 @@ export function SelectWorkLocationsScreen({
   const [selectedIds, setSelectedIds] = useState<string[]>(() =>
     bridge ? suburbNamesToIds(bridge.initialLocations) : [],
   );
+  const [confirming, setConfirming] = useState(false);
 
   const selectedNames = useMemo(
     () => suburbIdsToNames(selectedIds),
@@ -56,6 +60,10 @@ export function SelectWorkLocationsScreen({
   );
 
   function toggleSuburb(suburbId: string) {
+    if (confirming) {
+      return;
+    }
+
     setSelectedIds((current) =>
       current.includes(suburbId)
         ? current.filter((id) => id !== suburbId)
@@ -64,16 +72,33 @@ export function SelectWorkLocationsScreen({
   }
 
   function handleClearAll() {
+    if (confirming) {
+      return;
+    }
+
     setSelectedIds([]);
   }
 
   function handleConfirm() {
-    bridge?.onConfirm(suburbIdsToNames(selectedIds));
-    clearWorkLocationBridge();
-    onClose();
+    if (confirming) {
+      return;
+    }
+
+    const names = suburbIdsToNames(selectedIds);
+    setConfirming(true);
+
+    setTimeout(() => {
+      bridge?.onConfirm(names);
+      clearWorkLocationBridge();
+      onClose();
+    }, CONFIRM_DELAY_MS);
   }
 
   function handleBack() {
+    if (confirming) {
+      return;
+    }
+
     clearWorkLocationBridge();
     onClose();
   }
@@ -120,7 +145,7 @@ export function SelectWorkLocationsScreen({
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.legendRow}>
-          <LegendItem color="#e5e7eb" label="Not selected" />
+          <LegendItem color="#fde68a" label="Not selected" />
           <LegendItem color={colors.primary} label="Selected" />
         </View>
 
@@ -179,13 +204,22 @@ export function SelectWorkLocationsScreen({
       <View style={styles.footer}>
         <Pressable
           onPress={handleConfirm}
+          disabled={confirming}
           android_ripple={ANDROID_RIPPLE}
           style={({ pressed }) => [
             styles.confirmButton,
-            pressed && styles.pressed,
+            pressed && !confirming && styles.pressed,
+            confirming && styles.confirmButtonDisabled,
           ]}
         >
-          <Text style={styles.confirmButtonText}>Confirm Locations</Text>
+          {confirming ? (
+            <View style={styles.confirmingRow}>
+              <ActivityIndicator color={colors.white} />
+              <Text style={styles.confirmButtonText}>Confirming...</Text>
+            </View>
+          ) : (
+            <Text style={styles.confirmButtonText}>Confirm Locations</Text>
+          )}
         </Pressable>
       </View>
     </View>
@@ -314,6 +348,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
+  },
+  confirmButtonDisabled: {
+    opacity: 0.88,
+  },
+  confirmingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
   },
   confirmButtonText: {
     fontSize: 16,

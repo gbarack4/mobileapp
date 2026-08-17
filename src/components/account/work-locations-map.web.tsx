@@ -4,13 +4,14 @@ import {
   GoogleMap,
   useJsApiLoader,
   PolygonF,
-  OverlayViewF,
 } from "@react-google-maps/api";
 
 import { colors } from "../../constants/theme";
 import type { WorkSuburb } from "../../data/mock-work-locations";
-
-import "./work-locations-map.web.css";
+import {
+  findSuburbAtPoint,
+  getMapFitSuburbs,
+} from "../../utils/work-locations-map";
 
 type WorkLocationsMapProps = {
   suburbs: WorkSuburb[];
@@ -25,11 +26,7 @@ const mapContainerStyle = {
   height: "100%",
 };
 
-const defaultCenter = { lat: 0, lng: 0 };
-
-function buildLabelHtml(name: string, selected: boolean) {
-  return `<div class="work-location-map-label${selected ? " selected" : ""}">${name}</div>`;
-}
+const defaultCenter = { lat: -27.55, lng: 153.0 };
 
 export function WorkLocationsMap({
   suburbs,
@@ -42,39 +39,80 @@ export function WorkLocationsMap({
   });
 
   const mapRef = useRef<google.maps.Map | null>(null);
+  const clickListenerRef = useRef<google.maps.MapsEventListener | null>(null);
+  const suburbsRef = useRef(suburbs);
+  const onToggleSuburbRef = useRef(onToggleSuburb);
   const [mapReady, setMapReady] = useState(false);
 
-  const fitSuburbs = (mapInstance: google.maps.Map) => {
-    if (suburbs.length === 0) {
+  suburbsRef.current = suburbs;
+  onToggleSuburbRef.current = onToggleSuburb;
+
+  const fitMap = (mapInstance: google.maps.Map) => {
+    const focus = getMapFitSuburbs(suburbs, selectedIds);
+
+    if (focus.length === 0) {
       mapInstance.panTo(defaultCenter);
-      mapInstance.setZoom(2);
+      mapInstance.setZoom(10);
       return;
     }
 
     const bounds = new window.google.maps.LatLngBounds();
 
-    suburbs.forEach((suburb) => {
+    focus.forEach((suburb) => {
       suburb.polygon.forEach((point) => {
         bounds.extend({ lat: point.latitude, lng: point.longitude });
       });
     });
 
-    mapInstance.fitBounds(bounds, 24);
+    mapInstance.fitBounds(bounds, 28);
   };
 
   useEffect(() => {
     if (mapRef.current && mapReady) {
-      fitSuburbs(mapRef.current);
+      fitMap(mapRef.current);
     }
   }, [suburbs, mapReady]);
+
+  const handleMapClick = (event: google.maps.MapMouseEvent) => {
+    if (!event.latLng) {
+      return;
+    }
+
+    const hit = findSuburbAtPoint(
+      {
+        latitude: event.latLng.lat(),
+        longitude: event.latLng.lng(),
+      },
+      suburbsRef.current,
+    );
+
+    if (hit) {
+      onToggleSuburbRef.current(hit.id);
+    }
+  };
 
   const onLoad = (map: google.maps.Map) => {
     mapRef.current = map;
     setMapReady(true);
-    fitSuburbs(map);
+    fitMap(map);
+
+    if (clickListenerRef.current) {
+      google.maps.event.removeListener(clickListenerRef.current);
+    }
+
+    clickListenerRef.current = google.maps.event.addListener(
+      map,
+      "click",
+      handleMapClick,
+    );
   };
 
   const onUnmount = () => {
+    if (clickListenerRef.current) {
+      google.maps.event.removeListener(clickListenerRef.current);
+      clickListenerRef.current = null;
+    }
+
     mapRef.current = null;
     setMapReady(false);
   };
@@ -100,7 +138,7 @@ export function WorkLocationsMap({
       <GoogleMap
         mapContainerStyle={mapContainerStyle}
         center={defaultCenter}
-        zoom={suburbs.length === 0 ? 2 : 11}
+        zoom={11}
         onLoad={onLoad}
         onUnmount={onUnmount}
         options={{
@@ -118,44 +156,18 @@ export function WorkLocationsMap({
 
           return (
             <PolygonF
-              key={`polygon-${suburb.id}`}
+              key={`polygon-${suburb.id}-${selected ? "on" : "off"}`}
               paths={paths}
-              onClick={() => onToggleSuburb(suburb.id)}
               options={{
-                fillColor: selected ? colors.primary : "#e2e8f0",
-                fillOpacity: selected ? 0.42 : 0.72,
-                strokeColor: selected ? "#0047cc" : "#94a3b8",
-                strokeOpacity: 1,
-                strokeWeight: 1.5,
+                clickable: false,
+                fillColor: selected ? colors.primary : "#fde68a",
+                fillOpacity: selected ? 0.45 : 0.55,
+                strokeColor: selected ? "#0047cc" : "#fde68a",
+                strokeOpacity: selected ? 1 : 0,
+                strokeWeight: selected ? 2 : 0,
+                zIndex: selected ? 2 : 1,
               }}
             />
-          );
-        })}
-
-        {suburbs.map((suburb) => {
-          const selected = selectedIds.includes(suburb.id);
-          const htmlContent = buildLabelHtml(suburb.name, selected);
-
-          return (
-            <OverlayViewF
-              key={`label-${suburb.id}`}
-              position={{
-                lat: suburb.centroid.latitude,
-                lng: suburb.centroid.longitude,
-              }}
-              mapPaneName="overlayMouseTarget"
-              getPixelPositionOffset={(width, height) => ({
-                x: -(width / 2),
-                y: -(height / 2),
-              })}
-            >
-              <div
-                dangerouslySetInnerHTML={{ __html: htmlContent }}
-                style={{
-                  pointerEvents: "none",
-                }}
-              />
-            </OverlayViewF>
           );
         })}
       </GoogleMap>

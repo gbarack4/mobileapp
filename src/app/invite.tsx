@@ -1,19 +1,40 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ActivityIndicator, View, StyleSheet, Text } from "react-native";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { useAuth } from "@clerk/clerk-expo";
 
 import { SchoolInviteAcceptScreen } from "@/components/invite/school-invite-accept-screen";
+import { DEV_BYPASS_AUTH } from "@/constants/dev";
 import { colors } from "@/constants/theme";
 import {
-  getSchoolInvite,
   acceptSchoolInvite,
   declineSchoolInvite,
+  getSchoolInvite,
 } from "@/services/school-invite";
+import { MOCK_SCHOOL_INVITE } from "@/types/school-invite";
 
-export default function InviteRoute() {
+function InviteMockPreview() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
+
+  return (
+    <SchoolInviteAcceptScreen
+      invite={MOCK_SCHOOL_INVITE}
+      onAccept={async () => {}}
+      onDecline={async () => {}}
+      onClose={() => {
+        if (router.canGoBack()) {
+          router.back();
+        } else {
+          router.replace("/dashboard");
+        }
+      }}
+      onSuccessContinue={() => router.replace("/dashboard")}
+    />
+  );
+}
+
+function InviteAuthenticatedRoute({ id }: Readonly<{ id: string }>) {
+  const router = useRouter();
   const { getToken } = useAuth();
   const queryClient = useQueryClient();
 
@@ -25,15 +46,14 @@ export default function InviteRoute() {
     queryKey: ["school-invite", id],
     queryFn: async () => {
       const token = await getToken();
-      return getSchoolInvite(id!, token);
+      return getSchoolInvite(id, token);
     },
-    enabled: !!id,
   });
 
   const acceptMutation = useMutation({
     mutationFn: async () => {
       const token = await getToken();
-      return acceptSchoolInvite(id!, token);
+      return acceptSchoolInvite(id, token);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["school-invite"] });
@@ -44,7 +64,7 @@ export default function InviteRoute() {
   const declineMutation = useMutation({
     mutationFn: async () => {
       const token = await getToken();
-      return declineSchoolInvite(id!, token);
+      return declineSchoolInvite(id, token);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["school-invite"] });
@@ -89,15 +109,28 @@ export default function InviteRoute() {
   );
 }
 
+export default function InviteRoute() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+
+  // Local preview uses mock invite data when auth bypass is on or no id is provided.
+  if (DEV_BYPASS_AUTH || !id) {
+    return <InviteMockPreview />;
+  }
+
+  return <InviteAuthenticatedRoute id={id} />;
+}
+
 const styles = StyleSheet.create({
   center: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: colors.background,
+    padding: 24,
   },
   errorText: {
     color: colors.textSecondary,
     fontSize: 16,
+    textAlign: "center",
   },
 });

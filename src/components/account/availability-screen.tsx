@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Platform,
   Pressable,
   ScrollView,
@@ -10,6 +11,7 @@ import {
 } from 'react-native';
 
 import { ChevronLeftIcon, MapPinIcon, SearchIcon } from '../icons/dashboard-icons';
+import { FoldedMapIcon } from '../icons/school-icons';
 import { colors, spacing } from '../../constants/theme';
 import {
   cloneAvailability,
@@ -30,7 +32,6 @@ import {
   CopyIcon,
   LocationPinSmallIcon,
   CloseSmallIcon,
-  MapLayersIcon,
   TrashIcon,
 } from './availability-icons';
 import { TimePickerSheet } from './time-picker-sheet';
@@ -41,6 +42,11 @@ type AvailabilityScreenProps = {
 
 const ANDROID_RIPPLE =
   Platform.OS === 'android' ? { color: 'rgba(0, 0, 0, 0.06)' } : undefined;
+
+const SAVE_DELAY_MS = 2000;
+const SAVED_GREEN = '#16a34a';
+
+type SaveStatus = 'idle' | 'saving' | 'saved';
 
 function getDayAvailability(days: DayAvailability[], dayOfWeek: DayOfWeek) {
   return days.find((day) => day.dayOfWeek === dayOfWeek)!;
@@ -230,7 +236,7 @@ function SlotCard({
               onPress={onViewMap}
               android_ripple={ANDROID_RIPPLE}
               style={({ pressed }) => [styles.viewMapButton, pressed && styles.pressed]}>
-              <MapLayersIcon />
+              <FoldedMapIcon size={14} color={colors.white} />
               <Text style={styles.viewMapButtonText}>View map</Text>
             </Pressable>
           </View>
@@ -286,11 +292,16 @@ export function AvailabilityScreen({ onClose }: Readonly<AvailabilityScreenProps
   );
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('monday');
   const [locationDraft, setLocationDraft] = useState('');
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
 
   const selectedDayData = useMemo(
     () => getDayAvailability(draftAvailability.days, selectedDay),
     [draftAvailability.days, selectedDay],
   );
+
+  useEffect(() => {
+    setSaveStatus((current) => (current === 'saved' ? 'idle' : current));
+  }, [draftAvailability]);
 
   function updateDay(dayOfWeek: DayOfWeek, slot: AvailabilitySlot | null) {
     setDraftAvailability((current) => ({
@@ -392,7 +403,16 @@ export function AvailabilityScreen({ onClose }: Readonly<AvailabilityScreenProps
   }
 
   function handleSave() {
+    if (saveStatus === 'saving') {
+      return;
+    }
+
     // TODO: connect to NestJS availability API
+    setSaveStatus('saving');
+
+    setTimeout(() => {
+      setSaveStatus('saved');
+    }, SAVE_DELAY_MS);
   }
 
   return (
@@ -484,10 +504,29 @@ export function AvailabilityScreen({ onClose }: Readonly<AvailabilityScreenProps
       <View style={styles.footer}>
         <Pressable
           onPress={handleSave}
+          disabled={saveStatus === 'saving'}
           android_ripple={ANDROID_RIPPLE}
-          style={({ pressed }) => [styles.saveButton, pressed && styles.pressed]}>
-          <CheckIcon />
-          <Text style={styles.saveButtonText}>Save availability</Text>
+          style={({ pressed }) => [
+            styles.saveButton,
+            saveStatus === 'saved' && styles.saveButtonSaved,
+            pressed && saveStatus === 'idle' && styles.pressed,
+          ]}>
+          {saveStatus === 'saving' ? (
+            <>
+              <ActivityIndicator color={colors.white} />
+              <Text style={styles.saveButtonText}>Saving...</Text>
+            </>
+          ) : saveStatus === 'saved' ? (
+            <>
+              <CheckIcon color={colors.white} />
+              <Text style={styles.saveButtonText}>Saved</Text>
+            </>
+          ) : (
+            <>
+              <CheckIcon />
+              <Text style={styles.saveButtonText}>Save availability</Text>
+            </>
+          )}
         </Pressable>
       </View>
     </View>
@@ -796,6 +835,9 @@ const styles = StyleSheet.create({
     minHeight: 52,
     borderRadius: 14,
     backgroundColor: colors.primary,
+  },
+  saveButtonSaved: {
+    backgroundColor: SAVED_GREEN,
   },
   saveButtonText: {
     fontSize: 16,
