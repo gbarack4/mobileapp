@@ -1,7 +1,6 @@
 import type {
   ChatBubble,
   InboxMessage,
-  InboxNotification,
 } from "../types/inbox";
 
 export const MOCK_MESSAGES: InboxMessage[] = [
@@ -237,65 +236,6 @@ export const MOCK_THREADS: Record<string, ChatBubble[]> = {
   ],
 };
 
-export const MOCK_NOTIFICATIONS: InboxNotification[] = [
-  {
-    id: "ntf-1",
-    type: "booking",
-    title: "Lesson rescheduled",
-    body: "Emma Wilson moved tomorrow’s lesson to 3:00 PM.",
-    timeLabel: "12 min ago",
-    unread: true,
-  },
-  {
-    id: "ntf-2",
-    type: "payment",
-    title: "Payment received",
-    body: "You earned $78.00 from Noah Patel’s completed lesson.",
-    timeLabel: "1h ago",
-    unread: true,
-  },
-  {
-    id: "ntf-3",
-    type: "school",
-    title: "New student assigned",
-    body: "DriveRight Academy assigned Jordan Lee for Wed & Fri mornings.",
-    timeLabel: "Yesterday",
-    unread: true,
-  },
-  {
-    id: "ntf-4",
-    type: "reminder",
-    title: "Upcoming lesson",
-    body: "Olivia Chen starts in 45 minutes at Bondi Beach.",
-    timeLabel: "Yesterday",
-    unread: false,
-  },
-  {
-    id: "ntf-5",
-    type: "system",
-    title: "Document approved",
-    body: "Your insurance certificate has been verified.",
-    timeLabel: "Tue",
-    unread: false,
-  },
-  {
-    id: "ntf-6",
-    type: "school",
-    title: "School announcement",
-    body: "Metro Driving School updated instructor guidelines for wet weather.",
-    timeLabel: "Mon",
-    unread: false,
-  },
-  {
-    id: "ntf-7",
-    type: "booking",
-    title: "Lesson cancelled",
-    body: "A student cancelled Friday’s 9:00 AM booking.",
-    timeLabel: "Sun",
-    unread: false,
-  },
-];
-
 export function getInboxMessageById(id: string) {
   return MOCK_MESSAGES.find((message) => message.id === id) ?? null;
 }
@@ -308,9 +248,4 @@ export const UNREAD_MESSAGE_COUNT = MOCK_MESSAGES.filter(
   (message) => message.unread,
 ).length;
 
-export const UNREAD_NOTIFICATION_COUNT = MOCK_NOTIFICATIONS.filter(
-  (notification) => notification.unread,
-).length;
-
-export const UNREAD_INBOX_COUNT =
-  UNREAD_MESSAGE_COUNT + UNREAD_NOTIFICATION_COUNT;
+export const UNREAD_INBOX_COUNT = UNREAD_MESSAGE_COUNT;
