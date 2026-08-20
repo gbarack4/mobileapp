@@ -23,7 +23,7 @@ import {
   DAY_OF_WEEK_ORDER,
   DAY_SHORT_LABELS,
   DEFAULT_SLOT,
-  MOCK_INSTRUCTOR_AVAILABILITY,
+  InstructorAvailability,
   type AvailabilitySlot,
   type DayAvailability,
   type DayOfWeek,
@@ -49,6 +49,15 @@ import { getCalendarSettings } from "@/services/calendar-settings";
 
 type AvailabilityScreenProps = {
   onClose: () => void;
+};
+
+const EMPTY_AVAILABILITY: InstructorAvailability = {
+  instructorId: "",
+  dynamicScheduling: false,
+  days: DAY_OF_WEEK_ORDER.map((dayOfWeek) => ({
+    dayOfWeek,
+    slot: null,
+  })),
 };
 
 const ANDROID_RIPPLE =
@@ -346,11 +355,12 @@ export function AvailabilityScreen({
 }: Readonly<AvailabilityScreenProps>) {
   const { getToken } = useAuth();
   const [draftAvailability, setDraftAvailability] = useState(() =>
-    cloneAvailability(MOCK_INSTRUCTOR_AVAILABILITY),
+    cloneAvailability(EMPTY_AVAILABILITY),
   );
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>("monday");
   const [locationDraft, setLocationDraft] = useState("");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const [isLoading, setIsLoading] = useState(true);
 
   const selectedDayData = useMemo(
     () => getDayAvailability(draftAvailability.days, selectedDay),
@@ -397,6 +407,8 @@ export function AvailabilityScreen({
         }));
       } catch (error) {
         console.error("Failed to load availability:", error);
+      } finally {
+        setIsLoading(false);
       }
     }
     loadData();
@@ -574,6 +586,19 @@ export function AvailabilityScreen({
       console.error("Failed to save availability:", error);
       setSaveStatus("idle");
     }
+  }
+
+  if (isLoading) {
+    return (
+      <View
+        style={[
+          styles.screen,
+          { justifyContent: "center", alignItems: "center" },
+        ]}
+      >
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
   }
 
   return (
