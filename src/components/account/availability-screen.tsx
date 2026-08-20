@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -8,11 +8,15 @@ import {
   Text,
   TextInput,
   View,
-} from 'react-native';
+} from "react-native";
 
-import { ChevronLeftIcon, MapPinIcon, SearchIcon } from '../icons/dashboard-icons';
-import { FoldedMapIcon } from '../icons/school-icons';
-import { colors, spacing } from '../../constants/theme';
+import {
+  ChevronLeftIcon,
+  MapPinIcon,
+  SearchIcon,
+} from "../icons/dashboard-icons";
+import { FoldedMapIcon } from "../icons/school-icons";
+import { colors, spacing } from "../../constants/theme";
 import {
   cloneAvailability,
   DAY_LABELS,
@@ -23,9 +27,9 @@ import {
   type AvailabilitySlot,
   type DayAvailability,
   type DayOfWeek,
-} from '../../data/mock-availability';
-import { filterWorkSuburbs } from '../../data/mock-work-locations';
-import { openWorkLocationPicker } from '../../utils/availability-location-bridge';
+} from "../../data/mock-availability";
+import { filterWorkSuburbs } from "../../data/mock-work-locations";
+import { openWorkLocationPicker } from "../../utils/availability-location-bridge";
 import {
   CheckIcon,
   ClockIcon,
@@ -33,20 +37,27 @@ import {
   LocationPinSmallIcon,
   CloseSmallIcon,
   TrashIcon,
-} from './availability-icons';
-import { TimePickerSheet } from './time-picker-sheet';
+} from "./availability-icons";
+import { TimePickerSheet } from "./time-picker-sheet";
+import { useAuth } from "@clerk/clerk-expo";
+import {
+  getInstructorAvailability,
+  saveInstructorAvailability,
+} from "@/services/availability";
+import { convertTo24Hour, formatTo12h, numberToDayMap } from "@/utils/time";
+import { getCalendarSettings } from "@/services/calendar-settings";
 
 type AvailabilityScreenProps = {
   onClose: () => void;
 };
 
 const ANDROID_RIPPLE =
-  Platform.OS === 'android' ? { color: 'rgba(0, 0, 0, 0.06)' } : undefined;
+  Platform.OS === "android" ? { color: "rgba(0, 0, 0, 0.06)" } : undefined;
 
 const SAVE_DELAY_MS = 2000;
-const SAVED_GREEN = '#16a34a';
+const SAVED_GREEN = "#16a34a";
 
-type SaveStatus = 'idle' | 'saving' | 'saved';
+type SaveStatus = "idle" | "saving" | "saved";
 
 function getDayAvailability(days: DayAvailability[], dayOfWeek: DayOfWeek) {
   return days.find((day) => day.dayOfWeek === dayOfWeek)!;
@@ -54,10 +65,10 @@ function getDayAvailability(days: DayAvailability[], dayOfWeek: DayOfWeek) {
 
 function slotCountLabel(slot: AvailabilitySlot | null) {
   if (!slot) {
-    return 'Off';
+    return "Off";
   }
 
-  return '1 slot';
+  return "1 slot";
 }
 
 type DaySelectorProps = {
@@ -66,12 +77,17 @@ type DaySelectorProps = {
   onSelectDay: (day: DayOfWeek) => void;
 };
 
-function DaySelector({ days, selectedDay, onSelectDay }: Readonly<DaySelectorProps>) {
+function DaySelector({
+  days,
+  selectedDay,
+  onSelectDay,
+}: Readonly<DaySelectorProps>) {
   return (
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.daySelectorContent}>
+      contentContainerStyle={styles.daySelectorContent}
+    >
       {DAY_OF_WEEK_ORDER.map((dayOfWeek) => {
         const day = getDayAvailability(days, dayOfWeek);
         const selected = selectedDay === dayOfWeek;
@@ -85,8 +101,14 @@ function DaySelector({ days, selectedDay, onSelectDay }: Readonly<DaySelectorPro
               styles.dayPill,
               selected && styles.dayPillSelected,
               pressed && styles.pressed,
-            ]}>
-            <Text style={[styles.dayPillLabel, selected && styles.dayPillLabelSelected]}>
+            ]}
+          >
+            <Text
+              style={[
+                styles.dayPillLabel,
+                selected && styles.dayPillLabelSelected,
+              ]}
+            >
               {DAY_SHORT_LABELS[dayOfWeek]}
             </Text>
             <Text
@@ -94,7 +116,8 @@ function DaySelector({ days, selectedDay, onSelectDay }: Readonly<DaySelectorPro
                 styles.dayPillMeta,
                 selected && styles.dayPillMetaSelected,
                 !selected && active && styles.dayPillMetaActive,
-              ]}>
+              ]}
+            >
               {slotCountLabel(day.slot)}
             </Text>
           </Pressable>
@@ -129,7 +152,9 @@ function SlotCard({
   onDeleteSlot,
   onViewMap,
 }: Readonly<SlotCardProps>) {
-  const [activeTimeField, setActiveTimeField] = useState<'start' | 'end' | null>(null);
+  const [activeTimeField, setActiveTimeField] = useState<
+    "start" | "end" | null
+  >(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
   const suburbSuggestions = useMemo(() => {
@@ -138,14 +163,18 @@ function SlotCard({
       return [];
     }
 
-    const selected = new Set(slot.locations.map((location) => location.toLowerCase()));
+    const selected = new Set(
+      slot.locations.map((location) => location.toLowerCase()),
+    );
     return filterWorkSuburbs(query)
       .filter((suburb) => !selected.has(suburb.name.toLowerCase()))
       .slice(0, 6);
   }, [locationDraft, slot.locations]);
 
   const shouldShowSuggestions =
-    showSuggestions && locationDraft.trim().length > 0 && suburbSuggestions.length > 0;
+    showSuggestions &&
+    locationDraft.trim().length > 0 &&
+    suburbSuggestions.length > 0;
 
   return (
     <View style={styles.slotCard}>
@@ -155,7 +184,11 @@ function SlotCard({
           onPress={onDeleteSlot}
           hitSlop={8}
           accessibilityLabel="Delete slot"
-          style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}>
+          style={({ pressed }) => [
+            styles.iconButton,
+            pressed && styles.pressed,
+          ]}
+        >
           <TrashIcon />
         </Pressable>
       </View>
@@ -167,10 +200,16 @@ function SlotCard({
             <Text style={styles.fieldLabel}>Start</Text>
           </View>
           <Pressable
-            onPress={() => setActiveTimeField('start')}
+            onPress={() => setActiveTimeField("start")}
             android_ripple={ANDROID_RIPPLE}
-            style={({ pressed }) => [styles.timeInput, pressed && styles.pressed]}>
-            <Text style={styles.timeInputText}>{slot.startTime || '9:00 am'}</Text>
+            style={({ pressed }) => [
+              styles.timeInput,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Text style={styles.timeInputText}>
+              {slot.startTime || "9:00 am"}
+            </Text>
           </Pressable>
         </View>
 
@@ -180,22 +219,28 @@ function SlotCard({
             <Text style={styles.fieldLabel}>End</Text>
           </View>
           <Pressable
-            onPress={() => setActiveTimeField('end')}
+            onPress={() => setActiveTimeField("end")}
             android_ripple={ANDROID_RIPPLE}
-            style={({ pressed }) => [styles.timeInput, pressed && styles.pressed]}>
-            <Text style={styles.timeInputText}>{slot.endTime || '12:00 pm'}</Text>
+            style={({ pressed }) => [
+              styles.timeInput,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Text style={styles.timeInputText}>
+              {slot.endTime || "12:00 pm"}
+            </Text>
           </Pressable>
         </View>
       </View>
 
       <TimePickerSheet
         visible={activeTimeField !== null}
-        value={activeTimeField === 'end' ? slot.endTime : slot.startTime}
-        title={activeTimeField === 'end' ? 'Set end time' : 'Set start time'}
+        value={activeTimeField === "end" ? slot.endTime : slot.startTime}
+        title={activeTimeField === "end" ? "Set end time" : "Set start time"}
         outputFormat="12h"
         onClose={() => setActiveTimeField(null)}
         onConfirm={(time) => {
-          if (activeTimeField === 'end') {
+          if (activeTimeField === "end") {
             onEndTimeChange(time);
           } else {
             onStartTimeChange(time);
@@ -235,7 +280,11 @@ function SlotCard({
             <Pressable
               onPress={onViewMap}
               android_ripple={ANDROID_RIPPLE}
-              style={({ pressed }) => [styles.viewMapButton, pressed && styles.pressed]}>
+              style={({ pressed }) => [
+                styles.viewMapButton,
+                pressed && styles.pressed,
+              ]}
+            >
               <FoldedMapIcon size={14} color={colors.white} />
               <Text style={styles.viewMapButtonText}>View map</Text>
             </Pressable>
@@ -253,9 +302,11 @@ function SlotCard({
                   android_ripple={ANDROID_RIPPLE}
                   style={({ pressed }) => [
                     styles.suggestionRow,
-                    index < suburbSuggestions.length - 1 && styles.suggestionRowDivider,
+                    index < suburbSuggestions.length - 1 &&
+                      styles.suggestionRowDivider,
                     pressed && styles.pressed,
-                  ]}>
+                  ]}
+                >
                   <LocationPinSmallIcon size={14} />
                   <Text style={styles.suggestionText}>{suburb.name}</Text>
                 </Pressable>
@@ -274,7 +325,11 @@ function SlotCard({
                   onPress={() => onRemoveLocation(location)}
                   hitSlop={6}
                   accessibilityLabel={`Remove ${location}`}
-                  style={({ pressed }) => [styles.tagRemoveButton, pressed && styles.pressed]}>
+                  style={({ pressed }) => [
+                    styles.tagRemoveButton,
+                    pressed && styles.pressed,
+                  ]}
+                >
                   <CloseSmallIcon size={12} />
                 </Pressable>
               </View>
@@ -286,13 +341,16 @@ function SlotCard({
   );
 }
 
-export function AvailabilityScreen({ onClose }: Readonly<AvailabilityScreenProps>) {
+export function AvailabilityScreen({
+  onClose,
+}: Readonly<AvailabilityScreenProps>) {
+  const { getToken } = useAuth();
   const [draftAvailability, setDraftAvailability] = useState(() =>
     cloneAvailability(MOCK_INSTRUCTOR_AVAILABILITY),
   );
-  const [selectedDay, setSelectedDay] = useState<DayOfWeek>('monday');
-  const [locationDraft, setLocationDraft] = useState('');
-  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
+  const [selectedDay, setSelectedDay] = useState<DayOfWeek>("monday");
+  const [locationDraft, setLocationDraft] = useState("");
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
 
   const selectedDayData = useMemo(
     () => getDayAvailability(draftAvailability.days, selectedDay),
@@ -300,7 +358,52 @@ export function AvailabilityScreen({ onClose }: Readonly<AvailabilityScreenProps
   );
 
   useEffect(() => {
-    setSaveStatus((current) => (current === 'saved' ? 'idle' : current));
+    async function loadData() {
+      try {
+        const data = await getInstructorAvailability(getToken);
+
+        const mappedDays = DAY_OF_WEEK_ORDER.map((dayName) => {
+          const dayIndex = Object.entries(numberToDayMap).find(
+            ([_, name]) => name === dayName,
+          )?.[0];
+
+          const backendDay = data.find((d) => d.dayOfWeek === Number(dayIndex));
+
+          if (!backendDay?.isWorking) {
+            return { dayOfWeek: dayName, slot: null };
+          }
+
+          return {
+            dayOfWeek: dayName,
+            slot: {
+              startTime: backendDay.startTime
+                ? formatTo12h(backendDay.startTime)
+                : "9:00 am",
+              endTime: backendDay.endTime
+                ? formatTo12h(backendDay.endTime)
+                : "5:00 pm",
+              locations: backendDay.locations
+                ? backendDay.locations.map((loc: any) =>
+                    typeof loc === "string" ? loc : loc.suburb,
+                  )
+                : [],
+            },
+          };
+        });
+
+        setDraftAvailability((current) => ({
+          ...current,
+          days: mappedDays,
+        }));
+      } catch (error) {
+        console.error("Failed to load availability:", error);
+      }
+    }
+    loadData();
+  }, []);
+
+  useEffect(() => {
+    setSaveStatus((current) => (current === "saved" ? "idle" : current));
   }, [draftAvailability]);
 
   function updateDay(dayOfWeek: DayOfWeek, slot: AvailabilitySlot | null) {
@@ -332,14 +435,14 @@ export function AvailabilityScreen({ onClose }: Readonly<AvailabilityScreenProps
         (location) => location.toLowerCase() === draft.toLowerCase(),
       )
     ) {
-      setLocationDraft('');
+      setLocationDraft("");
       return;
     }
 
     updateSelectedSlot({
       locations: [...selectedDayData.slot.locations, draft],
     });
-    setLocationDraft('');
+    setLocationDraft("");
   }
 
   function handleSelectLocation(location: string) {
@@ -357,7 +460,7 @@ export function AvailabilityScreen({ onClose }: Readonly<AvailabilityScreenProps
       });
     }
 
-    setLocationDraft('');
+    setLocationDraft("");
   }
 
   function handleRemoveLocation(location: string) {
@@ -366,13 +469,15 @@ export function AvailabilityScreen({ onClose }: Readonly<AvailabilityScreenProps
     }
 
     updateSelectedSlot({
-      locations: selectedDayData.slot.locations.filter((item) => item !== location),
+      locations: selectedDayData.slot.locations.filter(
+        (item) => item !== location,
+      ),
     });
   }
 
   function handleDeleteSlot() {
     updateDay(selectedDay, null);
-    setLocationDraft('');
+    setLocationDraft("");
   }
 
   function handleAddSlot() {
@@ -402,17 +507,73 @@ export function AvailabilityScreen({ onClose }: Readonly<AvailabilityScreenProps
     }));
   }
 
-  function handleSave() {
-    if (saveStatus === 'saving') {
+  async function handleSave() {
+    if (saveStatus === "saving") {
       return;
     }
 
-    // TODO: connect to NestJS availability API
-    setSaveStatus('saving');
+    setSaveStatus("saving");
 
-    setTimeout(() => {
-      setSaveStatus('saved');
-    }, SAVE_DELAY_MS);
+    try {
+      const currentSettings = getCalendarSettings();
+
+      const dayOfWeekMap: Record<DayOfWeek, number> = {
+        sunday: 0,
+        monday: 1,
+        tuesday: 2,
+        wednesday: 3,
+        thursday: 4,
+        friday: 5,
+        saturday: 6,
+      };
+
+      const payload = draftAvailability.days.map((day) => {
+        const isWorking = day.slot !== null;
+
+        const breaks = [];
+        if (
+          isWorking &&
+          currentSettings.breakMinutes > 0 &&
+          currentSettings.breakStartTime
+        ) {
+          const [h, m] = currentSettings.breakStartTime.split(":").map(Number);
+          const date = new Date();
+          date.setHours(h, m + currentSettings.breakMinutes, 0, 0);
+
+          const endH = String(date.getHours()).padStart(2, "0");
+          const endM = String(date.getMinutes()).padStart(2, "0");
+
+          breaks.push({
+            startTime: currentSettings.breakStartTime,
+            endTime: `${endH}:${endM}`,
+          });
+        }
+
+        return {
+          dayOfWeek: dayOfWeekMap[day.dayOfWeek],
+          isWorking: isWorking,
+          startTime: isWorking
+            ? convertTo24Hour(day.slot!.startTime)
+            : undefined,
+          endTime: isWorking ? convertTo24Hour(day.slot!.endTime) : undefined,
+          slotInterval: 15,
+          locations: isWorking ? day.slot!.locations : [],
+          breaks: breaks,
+          travelTime: currentSettings.travelTimeMinutes || 0,
+        };
+      });
+
+      await saveInstructorAvailability(getToken, payload);
+
+      setSaveStatus("saved");
+
+      setTimeout(() => {
+        setSaveStatus("idle");
+      }, SAVE_DELAY_MS);
+    } catch (error) {
+      console.error("Failed to save availability:", error);
+      setSaveStatus("idle");
+    }
   }
 
   return (
@@ -423,7 +584,11 @@ export function AvailabilityScreen({ onClose }: Readonly<AvailabilityScreenProps
           hitSlop={8}
           android_ripple={ANDROID_RIPPLE}
           accessibilityLabel="Back"
-          style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}>
+          style={({ pressed }) => [
+            styles.backButton,
+            pressed && styles.pressed,
+          ]}
+        >
           <ChevronLeftIcon size={22} />
         </Pressable>
         <Text style={styles.headerTitle}>Availability</Text>
@@ -434,13 +599,14 @@ export function AvailabilityScreen({ onClose }: Readonly<AvailabilityScreenProps
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled">
+        keyboardShouldPersistTaps="handled"
+      >
         <DaySelector
           days={draftAvailability.days}
           selectedDay={selectedDay}
           onSelectDay={(day) => {
             setSelectedDay(day);
-            setLocationDraft('');
+            setLocationDraft("");
           }}
         />
 
@@ -448,7 +614,7 @@ export function AvailabilityScreen({ onClose }: Readonly<AvailabilityScreenProps
           <View style={styles.dayHeaderText}>
             <Text style={styles.dayTitle}>{DAY_LABELS[selectedDay]}</Text>
             <Text style={styles.daySubtitle}>
-              {selectedDayData.slot ? '1 time slot' : 'Off'}
+              {selectedDayData.slot ? "1 time slot" : "Off"}
             </Text>
           </View>
 
@@ -456,7 +622,11 @@ export function AvailabilityScreen({ onClose }: Readonly<AvailabilityScreenProps
             <Pressable
               onPress={handleCopyToAll}
               android_ripple={ANDROID_RIPPLE}
-              style={({ pressed }) => [styles.copyButton, pressed && styles.pressed]}>
+              style={({ pressed }) => [
+                styles.copyButton,
+                pressed && styles.pressed,
+              ]}
+            >
               <CopyIcon />
               <Text style={styles.copyButtonText}>Copy to all</Text>
             </Pressable>
@@ -467,7 +637,9 @@ export function AvailabilityScreen({ onClose }: Readonly<AvailabilityScreenProps
           <SlotCard
             slot={selectedDayData.slot}
             locationDraft={locationDraft}
-            onStartTimeChange={(value) => updateSelectedSlot({ startTime: value })}
+            onStartTimeChange={(value) =>
+              updateSelectedSlot({ startTime: value })
+            }
             onEndTimeChange={(value) => updateSelectedSlot({ endTime: value })}
             onLocationDraftChange={setLocationDraft}
             onAddLocation={handleAddLocation}
@@ -479,44 +651,52 @@ export function AvailabilityScreen({ onClose }: Readonly<AvailabilityScreenProps
                 return;
               }
 
-              openWorkLocationPicker(selectedDayData.slot.locations, (locations) => {
-                updateSelectedSlot({ locations });
-              });
+              openWorkLocationPicker(
+                selectedDayData.slot.locations,
+                (locations) => {
+                  updateSelectedSlot({ locations });
+                },
+              );
             }}
           />
         ) : (
           <View style={styles.offDayCard}>
             <Text style={styles.offDayTitle}>No availability set</Text>
             <Text style={styles.offDayText}>
-              Add one time slot for {DAY_LABELS[selectedDay]} to start taking bookings.
+              Add one time slot for {DAY_LABELS[selectedDay]} to start taking
+              bookings.
             </Text>
             <Pressable
               onPress={handleAddSlot}
               android_ripple={ANDROID_RIPPLE}
-              style={({ pressed }) => [styles.addSlotButton, pressed && styles.pressed]}>
+              style={({ pressed }) => [
+                styles.addSlotButton,
+                pressed && styles.pressed,
+              ]}
+            >
               <Text style={styles.addSlotButtonText}>Add time slot</Text>
             </Pressable>
           </View>
         )}
-
       </ScrollView>
 
       <View style={styles.footer}>
         <Pressable
           onPress={handleSave}
-          disabled={saveStatus === 'saving'}
+          disabled={saveStatus === "saving"}
           android_ripple={ANDROID_RIPPLE}
           style={({ pressed }) => [
             styles.saveButton,
-            saveStatus === 'saved' && styles.saveButtonSaved,
-            pressed && saveStatus === 'idle' && styles.pressed,
-          ]}>
-          {saveStatus === 'saving' ? (
+            saveStatus === "saved" && styles.saveButtonSaved,
+            pressed && saveStatus === "idle" && styles.pressed,
+          ]}
+        >
+          {saveStatus === "saving" ? (
             <>
               <ActivityIndicator color={colors.white} />
               <Text style={styles.saveButtonText}>Saving...</Text>
             </>
-          ) : saveStatus === 'saved' ? (
+          ) : saveStatus === "saved" ? (
             <>
               <CheckIcon color={colors.white} />
               <Text style={styles.saveButtonText}>Saved</Text>
@@ -539,9 +719,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.sm,
     paddingBottom: spacing.md,
@@ -549,12 +729,12 @@ const styles = StyleSheet.create({
   backButton: {
     width: 40,
     height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerTitle: {
     fontSize: 17,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
   },
   headerSpacer: {
@@ -575,10 +755,10 @@ const styles = StyleSheet.create({
   dayPill: {
     minWidth: 58,
     borderRadius: 12,
-    backgroundColor: '#f9f9f9',
+    backgroundColor: "#f9f9f9",
     paddingVertical: 10,
     paddingHorizontal: 10,
-    alignItems: 'center',
+    alignItems: "center",
     gap: 2,
   },
   dayPillSelected: {
@@ -586,7 +766,7 @@ const styles = StyleSheet.create({
   },
   dayPillLabel: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
     letterSpacing: 0.3,
   },
@@ -595,19 +775,19 @@ const styles = StyleSheet.create({
   },
   dayPillMeta: {
     fontSize: 10,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.textMuted,
   },
   dayPillMetaSelected: {
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: "rgba(255, 255, 255, 0.9)",
   },
   dayPillMetaActive: {
     color: colors.primary,
   },
   dayHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
     gap: spacing.md,
   },
   dayHeaderText: {
@@ -616,7 +796,7 @@ const styles = StyleSheet.create({
   },
   dayTitle: {
     fontSize: 22,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
     letterSpacing: -0.2,
   },
@@ -625,41 +805,41 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   copyButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
     paddingVertical: 4,
   },
   copyButtonText: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.primary,
   },
   slotCard: {
-    backgroundColor: '#f9f9f9',
+    backgroundColor: "#f9f9f9",
     borderRadius: 16,
     padding: spacing.lg,
     gap: spacing.lg,
   },
   slotCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   slotLabel: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.textMuted,
     letterSpacing: 0.8,
   },
   iconButton: {
     width: 32,
     height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   timeRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: spacing.md,
   },
   timeField: {
@@ -667,13 +847,13 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   fieldLabelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
   },
   fieldLabel: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.textSecondary,
   },
   timeInput: {
@@ -682,11 +862,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: 14,
     minHeight: 46,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   timeInputText: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text,
   },
   locationsSection: {
@@ -697,8 +877,8 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   locationSearchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
     backgroundColor: colors.background,
     borderRadius: 12,
@@ -712,14 +892,14 @@ const styles = StyleSheet.create({
     minWidth: 0,
     fontSize: 16,
     color: colors.text,
-    paddingVertical: Platform.OS === 'web' ? 8 : 0,
-    ...(Platform.OS === 'web'
-      ? ({ outlineStyle: 'none', width: '100%' } as object)
+    paddingVertical: Platform.OS === "web" ? 8 : 0,
+    ...(Platform.OS === "web"
+      ? ({ outlineStyle: "none", width: "100%" } as object)
       : {}),
   },
   viewMapButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
     backgroundColor: colors.primary,
     borderRadius: 10,
@@ -730,18 +910,18 @@ const styles = StyleSheet.create({
   viewMapButtonText: {
     color: colors.white,
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   suggestions: {
     backgroundColor: colors.white,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#eef2f7',
-    overflow: 'hidden',
-    ...(Platform.OS === 'web'
-      ? ({ boxShadow: '0 8px 24px rgba(15, 23, 42, 0.08)' } as object)
+    borderColor: "#eef2f7",
+    overflow: "hidden",
+    ...(Platform.OS === "web"
+      ? ({ boxShadow: "0 8px 24px rgba(15, 23, 42, 0.08)" } as object)
       : {
-          shadowColor: '#0f172a',
+          shadowColor: "#0f172a",
           shadowOffset: { width: 0, height: 4 },
           shadowOpacity: 0.08,
           shadowRadius: 12,
@@ -749,8 +929,8 @@ const styles = StyleSheet.create({
         }),
   },
   suggestionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
     paddingHorizontal: spacing.md,
     paddingVertical: 12,
@@ -761,20 +941,20 @@ const styles = StyleSheet.create({
   },
   suggestionText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text,
   },
   locationTags: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: spacing.xs,
   },
   locationTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
-    alignSelf: 'flex-start',
-    backgroundColor: '#e8f1ff',
+    alignSelf: "flex-start",
+    backgroundColor: "#e8f1ff",
     borderRadius: 999,
     paddingVertical: 5,
     paddingLeft: 10,
@@ -782,26 +962,26 @@ const styles = StyleSheet.create({
   },
   locationTagText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.primary,
     flexShrink: 1,
   },
   tagRemoveButton: {
     width: 16,
     height: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   offDayCard: {
-    backgroundColor: '#f9f9f9',
+    backgroundColor: "#f9f9f9",
     borderRadius: 16,
     padding: spacing.xl,
     gap: spacing.sm,
-    alignItems: 'flex-start',
+    alignItems: "flex-start",
   },
   offDayTitle: {
     fontSize: 17,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
   },
   offDayText: {
@@ -818,7 +998,7 @@ const styles = StyleSheet.create({
   },
   addSlotButtonText: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.white,
   },
   footer: {
@@ -828,9 +1008,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   saveButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: spacing.sm,
     minHeight: 52,
     borderRadius: 14,
@@ -841,7 +1021,7 @@ const styles = StyleSheet.create({
   },
   saveButtonText: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.white,
   },
   pressed: {
