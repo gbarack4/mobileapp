@@ -30,7 +30,6 @@ import {
   AvailabilityIcon,
   DocumentsIcon,
   EditAddressIcon,
-  InsuranceIcon,
   ManageAccountIcon,
   PaymentIcon,
   PrivacyIcon,
@@ -58,7 +57,6 @@ const SECTION_1_ICONS = {
 const SECTION_2_ICONS = {
   "manage-account": ManageAccountIcon,
   "edit-address": EditAddressIcon,
-  insurance: InsuranceIcon,
 } as const;
 
 const SECTION_3_ICONS = {
@@ -100,10 +98,6 @@ function handleMenuPress(itemId: string) {
   }
   if (itemId === "edit-address") {
     router.push("/dashboard/account/edit-address");
-    return;
-  }
-  if (itemId === "insurance") {
-    router.push("/dashboard/account/insurance");
     return;
   }
   if (itemId === "app-settings") {

@@ -23,5 +23,6 @@ export type Lesson = {
   studentEmail: string;
   studentPhone: string;
   studentSubtitle: string;
+  studentAvatarUrl?: string;
   lessonPrice: string;
 };

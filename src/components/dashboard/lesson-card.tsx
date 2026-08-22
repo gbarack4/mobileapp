@@ -1,6 +1,6 @@
 import { router } from "expo-router";
 import { useState } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { colors } from "../../constants/theme";
 import type { Lesson } from "../../types/dashboard";
@@ -11,7 +11,6 @@ import {
   type CancellationReason,
 } from "./cancel-lesson-sheet";
 import {
-  CarIcon,
   MapPinIcon,
   MoreVerticalIcon,
 } from "../icons/dashboard-icons";
@@ -19,6 +18,9 @@ import {
 type LessonCardProps = {
   lesson: Lesson;
 };
+
+const DRIVING_SCHOOL_IMAGE =
+  "https://images.unsplash.com/photo-1449965408869-eaa3f722e40d?w=128&h=128&fit=crop";
 
 const ANDROID_RIPPLE =
   Platform.OS === "android" ? { color: "rgba(0, 0, 0, 0.04)" } : undefined;
@@ -92,7 +94,11 @@ export function LessonCard({ lesson }: Readonly<LessonCardProps>) {
           <View style={styles.titleRow}>
             <View style={styles.titleLeft}>
               <View style={styles.iconCircle}>
-                <CarIcon size={16} />
+                <Image
+                  source={{ uri: DRIVING_SCHOOL_IMAGE }}
+                  style={styles.schoolImage}
+                  accessibilityLabel="Driving school"
+                />
               </View>
               <View style={styles.titleTextColumn}>
                 <Text
@@ -144,7 +150,15 @@ export function LessonCard({ lesson }: Readonly<LessonCardProps>) {
 
           <View style={styles.studentRow}>
             <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{lesson.studentInitials}</Text>
+              {lesson.studentAvatarUrl ? (
+                <Image
+                  source={{ uri: lesson.studentAvatarUrl }}
+                  style={styles.avatarImage}
+                  accessibilityLabel={lesson.studentName}
+                />
+              ) : (
+                <Text style={styles.avatarText}>{lesson.studentInitials}</Text>
+              )}
             </View>
             <View style={styles.studentText}>
               <Text style={styles.studentLabel}>Student</Text>
@@ -258,6 +272,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
+  },
+  schoolImage: {
+    width: 32,
+    height: 32,
   },
   title: {
     fontSize: 14,
@@ -324,6 +343,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#e8f1ff",
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
+  },
+  avatarImage: {
+    width: 36,
+    height: 36,
   },
   avatarText: {
     fontSize: 12,

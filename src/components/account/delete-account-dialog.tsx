@@ -1,9 +1,18 @@
-import { Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 import { colors, spacing } from '../../constants/theme';
 
 type DeleteAccountDialogProps = {
   visible: boolean;
+  deleting?: boolean;
   onClose: () => void;
   onConfirm: () => void;
 };
@@ -13,13 +22,23 @@ const ANDROID_RIPPLE =
 
 export function DeleteAccountDialog({
   visible,
+  deleting = false,
   onClose,
   onConfirm,
-}: DeleteAccountDialogProps) {
+}: Readonly<DeleteAccountDialogProps>) {
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={deleting ? undefined : onClose}
+    >
       <View style={styles.overlay}>
-        <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Close" />
+        <Pressable
+          style={styles.backdrop}
+          onPress={deleting ? undefined : onClose}
+          accessibilityLabel="Close"
+        />
 
         <View style={styles.dialog}>
           <View style={styles.badge}>
@@ -28,22 +47,42 @@ export function DeleteAccountDialog({
 
           <Text style={styles.title}>Delete Hub account?</Text>
           <Text style={styles.body}>
-            If you delete your account, you will lose everything: your profile, lessons,
-            availability, documents, and payment connections. This cannot be recovered.
+            You will lose access to your Instructor Hub account. Your profile,
+            lessons, availability, documents, and payment connections will be
+            permanently removed and cannot be recovered.
           </Text>
 
           <View style={styles.actions}>
             <Pressable
               onPress={onClose}
+              disabled={deleting}
               android_ripple={ANDROID_RIPPLE}
-              style={({ pressed }) => [styles.cancelButton, pressed && styles.pressed]}>
+              style={({ pressed }) => [
+                styles.cancelButton,
+                pressed && !deleting && styles.pressed,
+                deleting && styles.buttonDisabled,
+              ]}
+            >
               <Text style={styles.cancelButtonText}>Cancel</Text>
             </Pressable>
             <Pressable
               onPress={onConfirm}
+              disabled={deleting}
               android_ripple={ANDROID_RIPPLE}
-              style={({ pressed }) => [styles.deleteButton, pressed && styles.pressed]}>
-              <Text style={styles.deleteButtonText}>Delete account</Text>
+              style={({ pressed }) => [
+                styles.deleteButton,
+                pressed && !deleting && styles.pressed,
+                deleting && styles.deleteButtonDisabled,
+              ]}
+            >
+              {deleting ? (
+                <View style={styles.deletingRow}>
+                  <ActivityIndicator color={colors.white} />
+                  <Text style={styles.deleteButtonText}>Deleting...</Text>
+                </View>
+              ) : (
+                <Text style={styles.deleteButtonText}>Delete account</Text>
+              )}
             </Pressable>
           </View>
         </View>
@@ -66,6 +105,7 @@ const styles = StyleSheet.create({
   dialog: {
     width: '100%',
     maxWidth: 360,
+    zIndex: 1,
     backgroundColor: colors.white,
     borderRadius: 18,
     paddingHorizontal: spacing.xl,
@@ -124,6 +164,17 @@ const styles = StyleSheet.create({
     backgroundColor: colors.error,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  deleteButtonDisabled: {
+    opacity: 0.85,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  deletingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
   },
   deleteButtonText: {
     fontSize: 15,

@@ -1,7 +1,7 @@
 import { useLocalSearchParams } from 'expo-router';
 import * as Linking from 'expo-linking';
 import { useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
@@ -131,7 +131,15 @@ export default function LessonDetailScreen() {
 
           <View style={styles.profileCard}>
             <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{activeLesson.studentInitials}</Text>
+              {activeLesson.studentAvatarUrl ? (
+                <Image
+                  source={{ uri: activeLesson.studentAvatarUrl }}
+                  style={styles.avatarImage}
+                  accessibilityLabel={activeLesson.studentName}
+                />
+              ) : (
+                <Text style={styles.avatarText}>{activeLesson.studentInitials}</Text>
+              )}
             </View>
 
             <View style={styles.profileText}>
@@ -286,6 +294,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#e8f1ff',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: 52,
+    height: 52,
   },
   avatarText: {
     fontSize: 16,

@@ -52,7 +52,7 @@ export function HubSettingsRow({
           onValueChange={(value) => onToggle?.(value)}
           accessibilityLabel={label}
         />
-      ) : (
+      ) : destructive ? null : (
         <ChevronRightIcon size={18} color={colors.textMuted} />
       )}
     </>

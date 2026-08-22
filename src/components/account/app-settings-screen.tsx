@@ -15,8 +15,6 @@ import {
   setAppSettings,
   subscribeAppSettings,
   type AppSettings,
-  type DistanceUnit,
-  type TimeFormat,
 } from "../../services/app-settings";
 import { BlueToggle } from "./blue-toggle";
 import { getSuprSendClient } from "@/services/suprsend";
@@ -58,30 +56,6 @@ function ToggleRow({
       </View>
       {showDivider ? <View style={styles.divider} /> : null}
     </View>
-  );
-}
-
-type ChoicePillProps = {
-  label: string;
-  selected: boolean;
-  onPress: () => void;
-};
-
-function ChoicePill({ label, selected, onPress }: Readonly<ChoicePillProps>) {
-  return (
-    <Pressable
-      onPress={onPress}
-      android_ripple={ANDROID_RIPPLE}
-      style={({ pressed }) => [
-        styles.pill,
-        selected && styles.pillSelected,
-        pressed && styles.pressed,
-      ]}
-    >
-      <Text style={[styles.pillText, selected && styles.pillTextSelected]}>
-        {label}
-      </Text>
-    </Pressable>
   );
 }
 
@@ -156,8 +130,7 @@ export function AppSettingsScreen({
         showsVerticalScrollIndicator={false}
       >
         <Text style={styles.description}>
-          Control notifications and how times and distances appear in Instructor
-          Hub.
+          Control notifications in Instructor Hub.
         </Text>
 
         <View style={styles.section}>
@@ -188,66 +161,6 @@ export function AppSettingsScreen({
               onValueChange={(value) => updateSetting("paymentAlerts", value)}
               showDivider={false}
             />
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Display</Text>
-          <View style={styles.card}>
-            <View style={styles.choiceBlock}>
-              <Text style={styles.rowLabel}>Distance</Text>
-              <Text style={styles.rowSubtitle}>
-                Used for travel estimates and maps
-              </Text>
-              <View style={styles.pillRow}>
-                {[
-                  { id: "km" as DistanceUnit, label: "Kilometres" },
-                  { id: "mi" as DistanceUnit, label: "Miles" },
-                ].map((option) => (
-                  <ChoicePill
-                    key={option.id}
-                    label={option.label}
-                    selected={settings.distanceUnit === option.id}
-                    onPress={() => updateSetting("distanceUnit", option.id)}
-                  />
-                ))}
-              </View>
-            </View>
-
-            <View style={styles.divider} />
-
-            <View style={styles.choiceBlock}>
-              <Text style={styles.rowLabel}>Time format</Text>
-              <Text style={styles.rowSubtitle}>How lesson times are shown</Text>
-              <View style={styles.pillRow}>
-                {[
-                  { id: "12h" as TimeFormat, label: "12-hour" },
-                  { id: "24h" as TimeFormat, label: "24-hour" },
-                ].map((option) => (
-                  <ChoicePill
-                    key={option.id}
-                    label={option.label}
-                    selected={settings.timeFormat === option.id}
-                    onPress={() => updateSetting("timeFormat", option.id)}
-                  />
-                ))}
-              </View>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>About this app</Text>
-          <View style={styles.card}>
-            <View style={styles.infoRow}>
-              <Text style={styles.rowLabel}>Version</Text>
-              <Text style={styles.infoValue}>1.0.0</Text>
-            </View>
-            <View style={styles.divider} />
-            <View style={[styles.infoRow, styles.infoRowLast]}>
-              <Text style={styles.rowLabel}>Region</Text>
-              <Text style={styles.infoValue}>Australia</Text>
-            </View>
           </View>
         </View>
       </ScrollView>
@@ -339,50 +252,6 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: colors.border,
     marginLeft: spacing.lg,
-  },
-  choiceBlock: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    gap: spacing.sm,
-  },
-  pillRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
-    marginTop: 4,
-  },
-  pill: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 999,
-    backgroundColor: colors.inputBackground,
-  },
-  pillSelected: {
-    backgroundColor: colors.primary,
-  },
-  pillText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: colors.text,
-  },
-  pillTextSelected: {
-    color: colors.white,
-  },
-  infoRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    gap: spacing.md,
-  },
-  infoRowLast: {
-    paddingBottom: spacing.md,
-  },
-  infoValue: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: colors.textSecondary,
   },
   pressed: {
     opacity: 0.85,

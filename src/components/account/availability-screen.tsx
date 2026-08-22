@@ -92,11 +92,7 @@ function DaySelector({
   onSelectDay,
 }: Readonly<DaySelectorProps>) {
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.daySelectorContent}
-    >
+    <View style={styles.daySelectorRow}>
       {DAY_OF_WEEK_ORDER.map((dayOfWeek) => {
         const day = getDayAvailability(days, dayOfWeek);
         const selected = selectedDay === dayOfWeek;
@@ -132,7 +128,7 @@ function DaySelector({
           </Pressable>
         );
       })}
-    </ScrollView>
+    </View>
   );
 }
 
@@ -773,16 +769,17 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xl,
     gap: spacing.lg,
   },
-  daySelectorContent: {
+  daySelectorRow: {
+    flexDirection: "row",
     gap: spacing.xs,
-    paddingVertical: spacing.xs,
   },
   dayPill: {
-    minWidth: 58,
+    flex: 1,
+    minWidth: 0,
     borderRadius: 12,
     backgroundColor: "#f9f9f9",
     paddingVertical: 10,
-    paddingHorizontal: 10,
+    paddingHorizontal: 4,
     alignItems: "center",
     gap: 2,
   },

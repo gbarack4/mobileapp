@@ -126,6 +126,7 @@ function HubQuickLinkSettingsScreen({
     },
   );
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   function handleRowPress(item: HubSettingItem) {
     if (item.id === "delete-account") {
@@ -141,9 +142,26 @@ function HubQuickLinkSettingsScreen({
     // TODO: connect to NestJS hub account settings API
   }
 
-  function handleConfirmDelete() {
+  function handleCloseDeleteDialog() {
+    if (deletingAccount) {
+      return;
+    }
+
     setDeleteDialogOpen(false);
+  }
+
+  function handleConfirmDelete() {
+    if (deletingAccount) {
+      return;
+    }
+
+    setDeletingAccount(true);
+
     // TODO: connect to NestJS delete account API
+    setTimeout(() => {
+      setDeletingAccount(false);
+      setDeleteDialogOpen(false);
+    }, 2000);
   }
 
   return (
@@ -183,7 +201,8 @@ function HubQuickLinkSettingsScreen({
 
       <DeleteAccountDialog
         visible={deleteDialogOpen}
-        onClose={() => setDeleteDialogOpen(false)}
+        deleting={deletingAccount}
+        onClose={handleCloseDeleteDialog}
         onConfirm={handleConfirmDelete}
       />
     </View>

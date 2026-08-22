@@ -26,22 +26,17 @@ const LEGAL_LINKS = [
   {
     id: "terms",
     label: "Terms of Service",
-    url: "https://instructorhub.com.au/terms",
+    url: "https://driveinstructor.pro/terms",
   },
   {
     id: "privacy",
     label: "Privacy Policy",
-    url: "https://instructorhub.com.au/privacy",
-  },
-  {
-    id: "licenses",
-    label: "Open source licenses",
-    url: "https://instructorhub.com.au/licenses",
+    url: "https://driveinstructor.pro/privacy",
   },
   {
     id: "support",
     label: "Contact support",
-    url: "mailto:support@instructorhub.com.au",
+    url: "https://driveinstructor.pro/contact/",
   },
 ] as const;
 
@@ -191,8 +186,6 @@ const styles = StyleSheet.create({
   },
   brandCard: {
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: colors.border,
     borderRadius: 16,
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.xxl,

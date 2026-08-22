@@ -143,7 +143,6 @@ export const HUB_PRIVACY_SECTIONS: HubSettingsSection[] = [
     title: 'Data & privacy',
     rows: [
       { id: 'download-data', label: 'Download your data' },
-      { id: 'ads', label: 'Ad settings', value: 'Off' },
       { id: 'delete-account', label: 'Delete Hub account', destructive: true },
     ],
   },
