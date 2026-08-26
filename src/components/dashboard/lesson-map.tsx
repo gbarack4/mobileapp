@@ -1,5 +1,8 @@
+import { useEffect } from "react";
 import { StyleSheet, View } from "react-native";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
+
+import { logGoogleMapsDiagnostics } from "../../utils/maps-diagnostics";
 
 type LessonMapProps = {
   latitude: number;
@@ -14,6 +17,10 @@ export function LessonMap({
   longitude,
   locationName,
 }: Readonly<LessonMapProps>) {
+  useEffect(() => {
+    logGoogleMapsDiagnostics("LessonMap");
+  }, []);
+
   return (
     <View style={styles.nativeMapContainer}>
       <MapView
@@ -29,6 +36,9 @@ export function LessonMap({
         zoomEnabled={false}
         rotateEnabled={false}
         pitchEnabled={false}
+        onMapReady={() => {
+          console.log("[Maps:LessonMap] onMapReady");
+        }}
       >
         <Marker
           coordinate={{ latitude, longitude }}

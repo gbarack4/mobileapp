@@ -3,8 +3,9 @@ export const colors = {
   primaryHover: '#0050e0',
   background: '#ffffff',
   text: '#111827',
-  textSecondary: '#6b7280',
-  textMuted: '#9ca3af',
+  // Darker greys so secondary copy stays readable on iOS (web already looked fine).
+  textSecondary: '#4b5563',
+  textMuted: '#6b7280',
   inputBackground: '#f3f4f6',
   inputBackgroundHover: '#e5e7eb',
   border: '#e5e7eb',

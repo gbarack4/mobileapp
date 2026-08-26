@@ -1,19 +1,25 @@
-import { goBackOr } from '../../utils/navigation';
-import { useMemo, useState } from 'react';
+import { useAuth } from '@clerk/clerk-expo';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { DayAvailabilitySheet } from '../../components/dashboard/day-availability-sheet';
 import { LessonCard } from '../../components/dashboard/lesson-card';
 import { MonthCalendar } from '../../components/dashboard/month-calendar';
 import { CloseIcon } from '../../components/icons/lesson-detail-icons';
 import { colors, spacing } from '../../constants/theme';
 import { MOCK_LESSONS } from '../../data/mock-lessons';
 import {
+  getInstructorAvailability,
+  type DailyAvailabilityPayload,
+} from '../../services/availability';
+import {
   formatSelectedDayLabel,
   getLessonCountsInMonth,
   getLessonsForDate,
   shiftMonth,
 } from '../../utils/lesson-dates';
+import { goBackOr } from '../../utils/navigation';
 
 const ANDROID_RIPPLE =
   Platform.OS === 'android' ? { color: 'rgba(0, 94, 255, 0.08)' } : undefined;
@@ -22,8 +28,14 @@ const DEFAULT_MONTH = new Date(2026, 4, 1);
 const DEFAULT_SELECTED_DATE = new Date(2026, 4, 7);
 
 export default function CalendarScreen() {
+  const { getToken } = useAuth();
   const [visibleMonth, setVisibleMonth] = useState(DEFAULT_MONTH);
   const [selectedDate, setSelectedDate] = useState(DEFAULT_SELECTED_DATE);
+  const [availabilityDate, setAvailabilityDate] = useState<Date | null>(null);
+  const [availabilityVisible, setAvailabilityVisible] = useState(false);
+  const [availability, setAvailability] = useState<DailyAvailabilityPayload[] | null>(
+    null,
+  );
 
   const lessonCounts = useMemo(
     () =>
@@ -39,6 +51,19 @@ export default function CalendarScreen() {
     () => getLessonsForDate(MOCK_LESSONS, selectedDate),
     [selectedDate],
   );
+
+  const loadAvailability = useCallback(async () => {
+    try {
+      const data = await getInstructorAvailability(getToken);
+      setAvailability(Array.isArray(data) ? data : []);
+    } catch {
+      setAvailability(null);
+    }
+  }, [getToken]);
+
+  useEffect(() => {
+    void loadAvailability();
+  }, [loadAvailability]);
 
   function handlePreviousMonth() {
     const nextMonth = shiftMonth(visibleMonth, -1);
@@ -59,6 +84,15 @@ export default function CalendarScreen() {
       date.getFullYear() !== visibleMonth.getFullYear()
     ) {
       setVisibleMonth(new Date(date.getFullYear(), date.getMonth(), 1));
+    }
+  }
+
+  function handleLongPressDate(date: Date) {
+    handleSelectDate(date);
+    setAvailabilityDate(date);
+    setAvailabilityVisible(true);
+    if (!availability) {
+      void loadAvailability();
     }
   }
 
@@ -84,6 +118,7 @@ export default function CalendarScreen() {
             selectedDate={selectedDate}
             lessonCounts={lessonCounts}
             onSelectDate={handleSelectDate}
+            onLongPressDate={handleLongPressDate}
             onPreviousMonth={handlePreviousMonth}
             onNextMonth={handleNextMonth}
           />
@@ -103,6 +138,14 @@ export default function CalendarScreen() {
             )}
           </View>
         </ScrollView>
+
+        <DayAvailabilitySheet
+          visible={availabilityVisible}
+          date={availabilityDate}
+          availability={availability}
+          lessons={MOCK_LESSONS}
+          onClose={() => setAvailabilityVisible(false)}
+        />
       </View>
     </SafeAreaView>
   );

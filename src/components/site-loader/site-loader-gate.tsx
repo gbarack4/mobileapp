@@ -28,7 +28,12 @@ export function SiteLoaderGate({ children }: SiteLoaderGateProps) {
     return () => clearTimeout(t);
   }, []);
 
-  return <View style={styles.root}>{children}</View>;
+  // box-none: this wrapper must never intercept login/button presses.
+  return (
+    <View style={styles.root} pointerEvents="box-none">
+      {children}
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({

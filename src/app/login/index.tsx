@@ -1,7 +1,7 @@
 import { useSSO, useSignIn } from "@clerk/clerk-expo";
 import { router } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -102,13 +102,36 @@ export default function LoginScreen() {
   const showForgotPasswordLink = step === "password";
   const isForgotFlow = step === "forgot-password" || step === "reset-password";
   const isVerifyStep = step === "verify-code";
+  const primaryDisabled = isBusy || !isLoaded;
+
+  useEffect(() => {
+    if (Platform.OS === "web") {
+      return;
+    }
+
+    void WebBrowser.warmUpAsync();
+    return () => {
+      void WebBrowser.coolDownAsync();
+    };
+  }, []);
 
   function clearMessages() {
     setError(null);
     setSuccess(null);
   }
 
+  function ensureClerkReady(action: string): boolean {
+    if (isLoaded && signIn) {
+      return true;
+    }
+
+    console.log(`[Login] blocked ${action}: Clerk isLoaded=${isLoaded}`);
+    setError("Sign-in is still loading. Please wait a moment and try again.");
+    return false;
+  }
+
   function handleBackToIdentifier() {
+    console.log("[Login] onPress: backToIdentifier");
     setStep("identifier");
     setPassword("");
     setVerificationCode("");
@@ -120,6 +143,7 @@ export default function LoginScreen() {
   }
 
   function handleBackToPassword() {
+    console.log("[Login] onPress: backToPassword");
     setStep("password");
     setVerificationCode("");
     setResetCode("");
@@ -131,10 +155,19 @@ export default function LoginScreen() {
   }
 
   function handleForgotPassword() {
+    console.log("[Login] onPress: forgotPassword");
     setStep("forgot-password");
     setPassword("");
     clearMessages();
     setFocusedField(null);
+  }
+
+  function handleSignUpPress() {
+    console.log("[Login] onPress: signUp", { isLoaded, isBusy });
+    if (isBusy) {
+      return;
+    }
+    router.push("/signup");
   }
 
   function runAfterContinuing(action: () => void) {
@@ -146,7 +179,10 @@ export default function LoginScreen() {
   }
 
   async function handleVerifyAndSignIn() {
-    if (!isLoaded) return;
+    console.log("[Login] onPress: verifyAndSignIn", { isLoaded });
+    if (!ensureClerkReady("verifyAndSignIn") || !signIn) {
+      return;
+    }
 
     if (verificationCode.length !== 6) {
       setError("Enter the 6-digit code.");
@@ -181,7 +217,18 @@ export default function LoginScreen() {
   }
 
   async function handleContinue() {
-    if (isContinuing || isSubmitting || !isLoaded) {
+    console.log("[Login] onPress: continue", {
+      step,
+      isLoaded,
+      isContinuing,
+      isSubmitting,
+    });
+
+    if (isContinuing || isSubmitting) {
+      return;
+    }
+
+    if (!ensureClerkReady("continue") || !signIn) {
       return;
     }
 
@@ -305,23 +352,48 @@ export default function LoginScreen() {
   }
 
   async function handleOAuth(provider: "apple" | "google") {
+    console.log("[Login] onPress: oauth", { provider, isLoaded, isBusy });
+
+    if (isBusy) {
+      return;
+    }
+
+    if (!ensureClerkReady(`oauth:${provider}`)) {
+      return;
+    }
+
     clearMessages();
     setOauthLoading(provider);
 
     try {
       const strategy = provider === "apple" ? "oauth_apple" : "oauth_google";
 
-      const { createdSessionId, setActive } = await startSSOFlow({
+      const {
+        createdSessionId,
+        setActive: setOAuthActive,
+        authSessionResult,
+      } = await startSSOFlow({
         strategy,
       });
 
-      if (createdSessionId) {
-        await setActive!({ session: createdSessionId });
+      if (createdSessionId && setOAuthActive) {
+        await setOAuthActive({ session: createdSessionId });
         router.replace("/dashboard");
-      } else {
-        setError("Please sign up first to use OAuth.");
+        return;
       }
+
+      if (
+        authSessionResult?.type === "cancel" ||
+        authSessionResult?.type === "dismiss"
+      ) {
+        return;
+      }
+
+      setError(
+        "Could not complete sign-in. If you don't have an account yet, tap Sign up first.",
+      );
     } catch (err: any) {
+      console.log("[Login] oauth error", err);
       setError(err.errors?.[0]?.longMessage || "OAuth authentication failed.");
     } finally {
       setOauthLoading(null);
@@ -329,6 +401,10 @@ export default function LoginScreen() {
   }
 
   function getPrimaryButtonLabel() {
+    if (!isLoaded) {
+      return "Loading...";
+    }
+
     if (isContinuing) {
       switch (step) {
         case "identifier":
@@ -421,10 +497,10 @@ export default function LoginScreen() {
         >
           <ScrollView
             contentContainerStyle={styles.scrollContent}
-            keyboardShouldPersistTaps="handled"
+            keyboardShouldPersistTaps="always"
             showsVerticalScrollIndicator={false}
           >
-            <View style={styles.header}>
+            <View style={styles.header} pointerEvents="box-none">
               <Logo size={64} />
               <Text style={styles.title}>
                 {STEP_TITLES[step as Exclude<LoginStep, "verify-code">]}
@@ -471,7 +547,7 @@ export default function LoginScreen() {
                   ]}
                   editable={!isBusy && identifierEditable}
                 />
-                <View style={styles.inputIcon}>
+                <View style={styles.inputIcon} pointerEvents="none">
                   <PersonIcon />
                 </View>
               </View>
@@ -509,7 +585,7 @@ export default function LoginScreen() {
                       ]}
                       editable={!isBusy}
                     />
-                    <View style={styles.inputIcon}>
+                    <View style={styles.inputIcon} pointerEvents="none">
                       <LockIcon />
                     </View>
                   </View>
@@ -577,7 +653,7 @@ export default function LoginScreen() {
                       ]}
                       editable={!isBusy}
                     />
-                    <View style={styles.inputIcon}>
+                    <View style={styles.inputIcon} pointerEvents="none">
                       <LockIcon />
                     </View>
                   </View>
@@ -612,7 +688,7 @@ export default function LoginScreen() {
                       ]}
                       editable={!isBusy}
                     />
-                    <View style={styles.inputIcon}>
+                    <View style={styles.inputIcon} pointerEvents="none">
                       <LockIcon />
                     </View>
                   </View>
@@ -624,18 +700,30 @@ export default function LoginScreen() {
 
               <Pressable
                 onPress={handleContinue}
-                disabled={isBusy}
+                disabled={primaryDisabled}
                 android_ripple={ANDROID_RIPPLE}
                 style={({ pressed, hovered }: PressableState) => [
                   styles.primaryButton,
-                  isBusy && styles.primaryButtonDisabled,
-                  hovered && !isBusy && !pressed && styles.primaryButtonHovered,
-                  pressed && !isBusy && styles.buttonPressed,
+                  primaryDisabled && styles.primaryButtonDisabled,
+                  hovered &&
+                    !primaryDisabled &&
+                    !pressed &&
+                    styles.primaryButtonHovered,
+                  pressed && !primaryDisabled && styles.buttonPressed,
                 ]}
               >
-                <Text style={styles.primaryButtonText}>
-                  {getPrimaryButtonLabel()}
-                </Text>
+                {!isLoaded ? (
+                  <View style={styles.buttonLoadingRow}>
+                    <ActivityIndicator color={colors.white} />
+                    <Text style={styles.primaryButtonText}>
+                      {getPrimaryButtonLabel()}
+                    </Text>
+                  </View>
+                ) : (
+                  <Text style={styles.primaryButtonText}>
+                    {getPrimaryButtonLabel()}
+                  </Text>
+                )}
               </Pressable>
 
               {showForgotPasswordLink ? (
@@ -668,7 +756,7 @@ export default function LoginScreen() {
 
             {showSocialLogin ? (
               <>
-                <View style={styles.divider}>
+                <View style={styles.divider} pointerEvents="none">
                   <View style={styles.dividerLine} />
                   <Text style={styles.dividerText}>or</Text>
                   <View style={styles.dividerLine} />
@@ -677,19 +765,20 @@ export default function LoginScreen() {
                 <View style={styles.socialButtons}>
                   <Pressable
                     onPress={() => handleOAuth("apple")}
-                    disabled={isBusy}
+                    disabled={primaryDisabled}
                     android_ripple={ANDROID_RIPPLE}
                     style={({ pressed, hovered }: PressableState) => [
                       styles.socialButton,
                       hovered &&
                         !pressed &&
-                        !isBusy &&
+                        !primaryDisabled &&
                         styles.socialButtonHovered,
                       pressed && styles.buttonPressed,
-                      oauthLoading === "apple" && styles.socialButtonLoading,
+                      (oauthLoading === "apple" || !isLoaded) &&
+                        styles.socialButtonLoading,
                     ]}
                   >
-                    {oauthLoading === "apple" ? (
+                    {oauthLoading === "apple" || !isLoaded ? (
                       <ActivityIndicator color={colors.text} />
                     ) : (
                       <>
@@ -703,19 +792,20 @@ export default function LoginScreen() {
 
                   <Pressable
                     onPress={() => handleOAuth("google")}
-                    disabled={isBusy}
+                    disabled={primaryDisabled}
                     android_ripple={ANDROID_RIPPLE}
                     style={({ pressed, hovered }: PressableState) => [
                       styles.socialButton,
                       hovered &&
                         !pressed &&
-                        !isBusy &&
+                        !primaryDisabled &&
                         styles.socialButtonHovered,
                       pressed && styles.buttonPressed,
-                      oauthLoading === "google" && styles.socialButtonLoading,
+                      (oauthLoading === "google" || !isLoaded) &&
+                        styles.socialButtonLoading,
                     ]}
                   >
-                    {oauthLoading === "google" ? (
+                    {oauthLoading === "google" || !isLoaded ? (
                       <ActivityIndicator color={colors.text} />
                     ) : (
                       <>
@@ -734,9 +824,11 @@ export default function LoginScreen() {
               <View style={styles.signUpRow}>
                 <Text style={styles.signUpText}>Don't have an account? </Text>
                 <Pressable
-                  onPress={() => router.push("/signup")}
+                  onPress={handleSignUpPress}
                   disabled={isBusy}
+                  hitSlop={8}
                   style={({ pressed, hovered }: PressableState) => [
+                    styles.signUpPressable,
                     (pressed || hovered) && styles.textButtonActive,
                   ]}
                 >
@@ -746,7 +838,7 @@ export default function LoginScreen() {
             ) : null}
 
             {!isForgotFlow ? (
-              <Text style={styles.disclaimer}>
+              <Text style={styles.disclaimer} pointerEvents="none">
                 You consent to receive a verification code by text or WhatsApp.
                 Message and data rates may apply.
               </Text>
@@ -794,6 +886,7 @@ const styles = StyleSheet.create({
   },
   form: {
     gap: spacing.md,
+    zIndex: 1,
   },
   backLink: {
     alignSelf: "flex-start",
@@ -808,7 +901,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 20,
     color: colors.text,
-    fontWeight: "400",
+    fontWeight: "600",
   },
   inputWrapper: {
     position: "relative",
@@ -821,8 +914,10 @@ const styles = StyleSheet.create({
     paddingRight: 48,
     paddingVertical: 16,
     fontSize: 16,
-    lineHeight: 22,
+    // Avoid lineHeight on native TextInput — it clips/hides typed text on iOS.
+    ...(Platform.OS === "web" ? { lineHeight: 22 } : {}),
     color: colors.text,
+    fontWeight: "500",
     borderWidth: 2,
     borderColor: "transparent",
     ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : {}),
@@ -875,6 +970,11 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: "600",
   },
+  buttonLoadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
   textButton: {
     alignSelf: "center",
     paddingVertical: spacing.sm,
@@ -899,11 +999,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.border,
   },
   dividerText: {
-    color: colors.textMuted,
+    color: colors.textSecondary,
     fontSize: 14,
+    fontWeight: "500",
   },
   socialButtons: {
     gap: spacing.md,
+    zIndex: 1,
   },
   socialButton: {
     backgroundColor: colors.inputBackground,
@@ -929,7 +1031,7 @@ const styles = StyleSheet.create({
   socialButtonText: {
     color: colors.text,
     fontSize: 16,
-    fontWeight: "500",
+    fontWeight: "600",
   },
   signUpRow: {
     flexDirection: "row",
@@ -937,23 +1039,30 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: spacing.xl,
     marginBottom: spacing.xs,
+    zIndex: 1,
+  },
+  signUpPressable: {
+    paddingVertical: 4,
+    paddingHorizontal: 2,
   },
   signUpText: {
     color: colors.textSecondary,
     fontSize: 15,
+    fontWeight: "500",
   },
   signUpLink: {
     color: colors.primary,
     fontSize: 15,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   disclaimer: {
     marginTop: "auto",
     paddingTop: spacing.xxxl,
     textAlign: "center",
-    color: colors.textMuted,
+    color: colors.textSecondary,
     fontSize: 13,
     lineHeight: 18,
+    fontWeight: "500",
   },
   buttonPressed: {
     opacity: 0.85,

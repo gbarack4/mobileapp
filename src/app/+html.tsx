@@ -23,6 +23,9 @@ html, body {
   width: 88px;
   height: 88px;
   display: block;
+  border-radius: 20px;
+  background: #005eff;
+  overflow: hidden;
 }
 
 .site-loader__brand {
@@ -67,20 +70,14 @@ export default function Root({ children }: Readonly<PropsWithChildren>) {
           aria-live="polite"
           aria-label="Loading"
         >
-          <svg
+          <img
             className="site-loader__logo"
-            viewBox="0 0 40 40"
-            fill="none"
+            src="/logo.png"
+            width={88}
+            height={88}
+            alt=""
             aria-hidden="true"
-          >
-            <rect width="40" height="40" rx="10" fill="#ffffff" />
-            <rect x="7" y="11" width="3" height="18" rx="1" fill="#005eff" />
-            <rect x="7" y="18.5" width="10" height="3" rx="1" fill="#005eff" />
-            <rect x="14" y="11" width="3" height="18" rx="1" fill="#005eff" />
-            <rect x="21" y="11" width="3" height="18" rx="1" fill="#005eff" />
-            <path d="M24 11h5a4 4 0 010 8h-5z" fill="#005eff" />
-            <path d="M24 19h5.5a4.5 4.5 0 010 9H24z" fill="#005eff" />
-          </svg>
+          />
           <p className="site-loader__brand">Instructor Hub</p>
         </div>
         {children}

@@ -49,7 +49,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 20,
     color: colors.text,
-    fontWeight: '400',
+    fontWeight: '600',
   },
   inputWrapper: {
     position: 'relative',
@@ -61,8 +61,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: 16,
     fontSize: 16,
-    lineHeight: 22,
+    // Avoid lineHeight on native TextInput — it clips/hides typed text on iOS.
+    ...(Platform.OS === 'web' ? { lineHeight: 22 } : {}),
     color: colors.text,
+    fontWeight: '500',
     borderWidth: 2,
     borderColor: 'transparent',
     ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as object) : {}),

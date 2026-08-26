@@ -8,7 +8,7 @@ import * as SplashScreen from "expo-splash-screen";
 import * as SecureStore from "expo-secure-store";
 import * as SystemUI from "expo-system-ui";
 import { useEffect } from "react";
-import { Platform, StatusBar } from "react-native";
+import { Platform, StatusBar, View } from "react-native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const queryClient = new QueryClient();
@@ -89,7 +89,7 @@ function RootLayoutNav() {
   }, [isLoaded, isSignedIn, user]);
 
   return (
-    <>
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
 
       <Stack
@@ -98,7 +98,7 @@ function RootLayoutNav() {
           contentStyle: { backgroundColor: colors.background },
         }}
       />
-    </>
+    </View>
   );
 }
 

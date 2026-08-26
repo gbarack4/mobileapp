@@ -1,23 +1,36 @@
-import Svg, { Path, Rect } from "react-native-svg";
+import { Image, View, type ImageStyle, type StyleProp } from "react-native";
+
+import { colors } from "../constants/theme";
+
+/** Full-bleed opaque blue icon — clipped to rounded corners in UI (no black fringe). */
+const logoSource = require("../../assets/logo-opaque.png");
 
 type LogoProps = {
   size?: number;
+  /** Kept for call-site compatibility; both variants use the brand asset. */
   variant?: "default" | "inverse";
+  style?: StyleProp<ImageStyle>;
 };
 
-export function Logo({ size = 64, variant = "default" }: Readonly<LogoProps>) {
-  const tile = variant === "inverse" ? "#ffffff" : "#005eff";
-  const mark = variant === "inverse" ? "#005eff" : "#ffffff";
+export function Logo({ size = 64, style }: Readonly<LogoProps>) {
+  const radius = size * 0.22;
 
   return (
-    <Svg width={size} height={size} viewBox="0 0 40 40" fill="none">
-      <Rect width="40" height="40" rx="10" fill={tile} />
-      <Rect x="7" y="11" width="3" height="18" rx="1" fill={mark} />
-      <Rect x="7" y="18.5" width="10" height="3" rx="1" fill={mark} />
-      <Rect x="14" y="11" width="3" height="18" rx="1" fill={mark} />
-      <Rect x="21" y="11" width="3" height="18" rx="1" fill={mark} />
-      <Path d="M24 11h5a4 4 0 010 8h-5z" fill={mark} />
-      <Path d="M24 19h5.5a4.5 4.5 0 010 9H24z" fill={mark} />
-    </Svg>
+    <View
+      style={{
+        width: size,
+        height: size,
+        borderRadius: radius,
+        overflow: "hidden",
+        backgroundColor: colors.primary,
+      }}
+    >
+      <Image
+        source={logoSource}
+        accessibilityLabel="Instructor Hub"
+        style={[{ width: size, height: size }, style]}
+        resizeMode="cover"
+      />
+    </View>
   );
 }

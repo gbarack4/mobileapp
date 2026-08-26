@@ -4,6 +4,7 @@ import MapView, { Marker, PROVIDER_GOOGLE, Region } from "react-native-maps";
 
 import { colors } from "../../constants/theme";
 import type { School } from "../../types/school";
+import { logGoogleMapsDiagnostics } from "../../utils/maps-diagnostics";
 import { getSchoolMapRegion } from "../../utils/schools";
 import { SchoolMapMarker } from "./school-map-marker";
 
@@ -26,6 +27,10 @@ export const SchoolsMapView = forwardRef<
   ref,
 ) {
   const mapRef = useRef<MapView>(null);
+
+  useEffect(() => {
+    logGoogleMapsDiagnostics("SchoolsMapView");
+  }, []);
 
   const validSchools = schools.filter(
     (school): school is School & { latitude: number; longitude: number } =>
@@ -87,6 +92,12 @@ export const SchoolsMapView = forwardRef<
         showsMyLocationButton={false}
         showsCompass={false}
         rotateEnabled
+        onMapReady={() => {
+          console.log("[Maps:SchoolsMapView] onMapReady");
+        }}
+        onMapLoaded={() => {
+          console.log("[Maps:SchoolsMapView] onMapLoaded");
+        }}
       >
         {validSchools.map((school) => (
           <Marker
@@ -113,10 +124,10 @@ export const SchoolsMapView = forwardRef<
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    minHeight: 1,
     backgroundColor: colors.inputBackground,
   },
   map: {
-    width: "100%",
-    height: "100%",
+    ...StyleSheet.absoluteFill,
   },
 });

@@ -2,14 +2,13 @@ import { useEffect, useRef } from "react";
 import { StyleSheet, View } from "react-native";
 import MapView, { Polygon, PROVIDER_GOOGLE } from "react-native-maps";
 
-import {
-  type WorkSuburb,
-} from "../../data/mock-work-locations";
+import { type WorkSuburb } from "../../data/mock-work-locations";
 import {
   findSuburbAtPoint,
   getMapFitSuburbs,
   getWorkLocationsRegion,
 } from "../../utils/work-locations-map";
+import { logGoogleMapsDiagnostics } from "../../utils/maps-diagnostics";
 
 type WorkLocationsMapProps = {
   suburbs: WorkSuburb[];
@@ -31,6 +30,10 @@ export function WorkLocationsMap({
 
   suburbsRef.current = suburbs;
   onToggleSuburbRef.current = onToggleSuburb;
+
+  useEffect(() => {
+    logGoogleMapsDiagnostics("WorkLocationsMap");
+  }, []);
 
   useEffect(() => {
     if (!mapRef.current || suburbs.length === 0) {
@@ -58,6 +61,9 @@ export function WorkLocationsMap({
         rotateEnabled={false}
         pitchEnabled={false}
         showsCompass={false}
+        onMapReady={() => {
+          console.log("[Maps:WorkLocationsMap] onMapReady");
+        }}
         onPress={(event) => {
           const { latitude, longitude } = event.nativeEvent.coordinate;
           const hit = findSuburbAtPoint(

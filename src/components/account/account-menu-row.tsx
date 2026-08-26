@@ -15,6 +15,7 @@ import { colors, spacing } from "../../constants/theme";
 export type AccountMenuOption = {
   id: string;
   label: string;
+  subtitle?: string;
   onPress: () => void;
 };
 
@@ -33,7 +34,17 @@ const ANDROID_RIPPLE =
   Platform.OS === "android" ? { color: "rgba(0, 0, 0, 0.04)" } : undefined;
 
 const OPTION_ROW_HEIGHT = 48;
+const OPTION_ROW_HEIGHT_WITH_SUBTITLE = 64;
 const EXPAND_MS = 240;
+
+function getOptionsHeight(options: AccountMenuOption[]) {
+  return options.reduce(
+    (total, option) =>
+      total +
+      (option.subtitle ? OPTION_ROW_HEIGHT_WITH_SUBTITLE : OPTION_ROW_HEIGHT),
+    0,
+  );
+}
 
 export function AccountMenuRow({
   label,
@@ -62,7 +73,7 @@ export function AccountMenuRow({
 
   const optionsHeight = progress.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, Math.max(options.length, 1) * OPTION_ROW_HEIGHT],
+    outputRange: [0, Math.max(getOptionsHeight(options), OPTION_ROW_HEIGHT)],
   });
 
   const optionsOpacity = progress.interpolate({
@@ -113,10 +124,16 @@ export function AccountMenuRow({
               android_ripple={ANDROID_RIPPLE}
               style={({ pressed }) => [
                 styles.optionRow,
+                option.subtitle ? styles.optionRowWithSubtitle : null,
                 pressed && styles.pressed,
               ]}
             >
-              <Text style={styles.optionLabel}>{option.label}</Text>
+              <View style={styles.optionTextWrap}>
+                <Text style={styles.optionLabel}>{option.label}</Text>
+                {option.subtitle ? (
+                  <Text style={styles.optionSubtitle}>{option.subtitle}</Text>
+                ) : null}
+              </View>
               <ChevronRightIcon size={16} color={colors.textMuted} />
             </Pressable>
           ))}
@@ -165,11 +182,22 @@ const styles = StyleSheet.create({
     paddingLeft: spacing.xl + 28 + spacing.lg,
     paddingRight: spacing.xl,
   },
-  optionLabel: {
+  optionRowWithSubtitle: {
+    height: OPTION_ROW_HEIGHT_WITH_SUBTITLE,
+  },
+  optionTextWrap: {
     flex: 1,
+    gap: 2,
+    paddingRight: spacing.sm,
+  },
+  optionLabel: {
     fontSize: 15,
     fontWeight: "500",
     color: colors.text,
+  },
+  optionSubtitle: {
+    fontSize: 13,
+    color: colors.textSecondary,
   },
   divider: {
     height: 1,

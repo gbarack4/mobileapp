@@ -3,10 +3,10 @@ import Svg, { Circle, Path } from 'react-native-svg';
 export function PersonIcon() {
   return (
     <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
-      <Circle cx="12" cy="8" r="4" stroke="#9ca3af" strokeWidth="1.75" />
+      <Circle cx="12" cy="8" r="4" stroke="#6b7280" strokeWidth="1.75" />
       <Path
         d="M5 20c0-3.314 3.134-6 7-6s7 2.686 7 6"
-        stroke="#9ca3af"
+        stroke="#6b7280"
         strokeWidth="1.75"
         strokeLinecap="round"
       />
@@ -19,13 +19,13 @@ export function LockIcon() {
     <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
       <Path
         d="M7 11V8a5 5 0 0110 0v3"
-        stroke="#9ca3af"
+        stroke="#6b7280"
         strokeWidth="1.75"
         strokeLinecap="round"
       />
       <Path
         d="M6 11h12a2 2 0 012 2v7a2 2 0 01-2 2H6a2 2 0 01-2-2v-7a2 2 0 012-2z"
-        stroke="#9ca3af"
+        stroke="#6b7280"
         strokeWidth="1.75"
         strokeLinejoin="round"
       />

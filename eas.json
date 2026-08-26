@@ -7,14 +7,17 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "environment": "development",
       "node": "20.19.4"
     },
     "preview": {
       "distribution": "internal",
+      "environment": "preview",
       "node": "20.19.4"
     },
     "production": {
       "autoIncrement": true,
+      "environment": "production",
       "node": "20.19.4"
     }
   },

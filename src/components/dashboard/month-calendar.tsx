@@ -14,6 +14,7 @@ type MonthCalendarProps = {
   selectedDate: Date;
   lessonCounts: Map<number, number>;
   onSelectDate: (date: Date) => void;
+  onLongPressDate?: (date: Date) => void;
   onPreviousMonth: () => void;
   onNextMonth: () => void;
   minSelectableDate?: Date;
@@ -27,6 +28,7 @@ export function MonthCalendar({
   selectedDate,
   lessonCounts,
   onSelectDate,
+  onLongPressDate,
   onPreviousMonth,
   onNextMonth,
   minSelectableDate,
@@ -112,6 +114,12 @@ export function MonthCalendar({
                   onSelectDate(cellDate);
                 }
               }}
+              onLongPress={() => {
+                if (!disabled && onLongPressDate) {
+                  onLongPressDate(cellDate);
+                }
+              }}
+              delayLongPress={350}
               disabled={disabled}
               android_ripple={disabled ? undefined : ANDROID_RIPPLE}
               style={styles.dayCell}
