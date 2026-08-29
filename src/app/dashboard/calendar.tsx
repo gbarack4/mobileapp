@@ -33,6 +33,7 @@ export default function CalendarScreen() {
   const [selectedDate, setSelectedDate] = useState(DEFAULT_SELECTED_DATE);
   const [availabilityDate, setAvailabilityDate] = useState<Date | null>(null);
   const [availabilityVisible, setAvailabilityVisible] = useState(false);
+  const [calendarPressActive, setCalendarPressActive] = useState(false);
   const [availability, setAvailability] = useState<DailyAvailabilityPayload[] | null>(
     null,
   );
@@ -88,6 +89,7 @@ export default function CalendarScreen() {
   }
 
   function handleLongPressDate(date: Date) {
+    setCalendarPressActive(false);
     handleSelectDate(date);
     setAvailabilityDate(date);
     setAvailabilityVisible(true);
@@ -112,13 +114,17 @@ export default function CalendarScreen() {
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}>
+          showsVerticalScrollIndicator={false}
+          scrollEnabled={!calendarPressActive}
+          // Keeps day long-press from being cancelled by the parent scroll gesture on native.
+          keyboardShouldPersistTaps="handled">
           <MonthCalendar
             visibleMonth={visibleMonth}
             selectedDate={selectedDate}
             lessonCounts={lessonCounts}
             onSelectDate={handleSelectDate}
             onLongPressDate={handleLongPressDate}
+            onDayPressActiveChange={setCalendarPressActive}
             onPreviousMonth={handlePreviousMonth}
             onNextMonth={handleNextMonth}
           />

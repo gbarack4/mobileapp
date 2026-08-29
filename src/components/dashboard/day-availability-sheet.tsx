@@ -15,9 +15,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, spacing } from "../../constants/theme";
 import type { DailyAvailabilityPayload } from "../../services/availability";
 import {
+  addBlockedSlots,
   getBlockedSlotsForDate,
+  removeBlockedSlots,
   subscribeBlockedSlots,
-  toggleBlockedSlot,
 } from "../../services/blocked-time-slots";
 import type { Lesson } from "../../types/dashboard";
 import { getLessonsForDate } from "../../utils/lesson-dates";
@@ -36,6 +37,8 @@ const SLIDE_DURATION = 320;
 const DEFAULT_START = "08:00";
 const DEFAULT_END = "17:00";
 const DEFAULT_INTERVAL = 15;
+/** Block selected slot through +1 hour (e.g. 8:00 → 9:00), so next open is +1h15m. */
+const BLOCK_DURATION_MINUTES = 60;
 
 const ANDROID_RIPPLE =
   Platform.OS === "android" ? { color: "rgba(220, 38, 38, 0.12)" } : undefined;
@@ -275,12 +278,43 @@ export function DayAvailabilitySheet({
     if (!date || bookedSlots.has(time)) {
       return;
     }
-    setBlockedSlots(toggleBlockedSlot(date, time));
+
+    const startIndex = slots.indexOf(time);
+    if (startIndex === -1) {
+      return;
+    }
+
+    const slotsInHour = BLOCK_DURATION_MINUTES / DEFAULT_INTERVAL;
+    const hourBlock: string[] = [];
+
+    for (let offset = 0; offset <= slotsInHour; offset += 1) {
+      const slot = slots[startIndex + offset];
+      if (!slot) {
+        break;
+      }
+      if (!bookedSlots.has(slot)) {
+        hourBlock.push(slot);
+      }
+    }
+
+    if (blockedSlots.includes(time)) {
+      setBlockedSlots(removeBlockedSlots(date, hourBlock));
+      return;
+    }
+
+    setBlockedSlots(addBlockedSlots(date, hourBlock));
   }
 
   return (
-    <Modal visible={mounted} transparent animationType="none" onRequestClose={onClose}>
-      <View style={styles.overlay}>
+    <Modal
+      visible={mounted}
+      transparent
+      animationType="none"
+      onRequestClose={onClose}
+      presentationStyle="overFullScreen"
+      statusBarTranslucent
+    >
+      <View style={styles.overlay} pointerEvents="box-none">
         <Animated.View style={[styles.backdrop, { opacity: fadeAnim }]}>
           <Pressable
             style={styles.backdropPressable}
@@ -368,19 +402,22 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(15, 23, 42, 0.45)",
   },
   backdropPressable: {
     flex: 1,
   },
   sheet: {
+    width: "100%",
     maxHeight: "85%",
     backgroundColor: colors.white,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingTop: spacing.sm,
     paddingHorizontal: spacing.xl,
+    zIndex: 2,
+    elevation: 8,
   },
   handle: {
     alignSelf: "center",

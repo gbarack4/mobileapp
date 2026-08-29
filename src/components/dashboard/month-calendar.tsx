@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { colors, spacing } from "../../constants/theme";
@@ -8,6 +9,7 @@ import {
 } from "../../utils/lesson-dates";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const LONG_PRESS_MS = 450;
 
 type MonthCalendarProps = {
   visibleMonth: Date;
@@ -15,6 +17,8 @@ type MonthCalendarProps = {
   lessonCounts: Map<number, number>;
   onSelectDate: (date: Date) => void;
   onLongPressDate?: (date: Date) => void;
+  /** Fired while a day cell is pressed — use to disable parent ScrollView on native. */
+  onDayPressActiveChange?: (active: boolean) => void;
   onPreviousMonth: () => void;
   onNextMonth: () => void;
   minSelectableDate?: Date;
@@ -29,6 +33,7 @@ export function MonthCalendar({
   lessonCounts,
   onSelectDate,
   onLongPressDate,
+  onDayPressActiveChange,
   onPreviousMonth,
   onNextMonth,
   minSelectableDate,
@@ -37,6 +42,8 @@ export function MonthCalendar({
   const year = visibleMonth.getFullYear();
   const month = visibleMonth.getMonth();
   const cells = buildCalendarCells(year, month);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressFiredRef = useRef(false);
   const minDate = minSelectableDate
     ? new Date(
         minSelectableDate.getFullYear(),
@@ -44,6 +51,13 @@ export function MonthCalendar({
         minSelectableDate.getDate(),
       )
     : null;
+
+  function clearLongPressTimer() {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }
 
   function isBeforeMinDate(date: Date) {
     if (!minDate) {
@@ -110,16 +124,36 @@ export function MonthCalendar({
             <Pressable
               key={`${year}-${month}-${day}`}
               onPress={() => {
-                if (!disabled) {
-                  onSelectDate(cellDate);
+                if (disabled || longPressFiredRef.current) {
+                  longPressFiredRef.current = false;
+                  return;
                 }
+                onSelectDate(cellDate);
               }}
-              onLongPress={() => {
-                if (!disabled && onLongPressDate) {
+              onPressIn={() => {
+                if (disabled) {
+                  return;
+                }
+
+                longPressFiredRef.current = false;
+                onDayPressActiveChange?.(true);
+                clearLongPressTimer();
+
+                if (!onLongPressDate) {
+                  return;
+                }
+
+                // Custom timer is more reliable than Pressable onLongPress inside ScrollView on native.
+                longPressTimerRef.current = setTimeout(() => {
+                  longPressTimerRef.current = null;
+                  longPressFiredRef.current = true;
                   onLongPressDate(cellDate);
-                }
+                }, LONG_PRESS_MS);
               }}
-              delayLongPress={350}
+              onPressOut={() => {
+                clearLongPressTimer();
+                onDayPressActiveChange?.(false);
+              }}
               disabled={disabled}
               android_ripple={disabled ? undefined : ANDROID_RIPPLE}
               style={styles.dayCell}

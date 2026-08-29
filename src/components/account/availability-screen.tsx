@@ -45,7 +45,7 @@ import {
   saveInstructorAvailability,
 } from "@/services/availability";
 import { convertTo24Hour, formatTo12h, numberToDayMap } from "@/utils/time";
-import { getCalendarSettings } from "@/services/calendar-settings";
+import { getCalendarSettings, setCalendarSettings, calendarSettingsFromAvailability } from "@/services/calendar-settings";
 
 type AvailabilityScreenProps = {
   onClose: () => void;
@@ -367,6 +367,8 @@ export function AvailabilityScreen({
     async function loadData() {
       try {
         const data = await getInstructorAvailability(getToken);
+
+        setCalendarSettings(calendarSettingsFromAvailability(data, getCalendarSettings()));
 
         const mappedDays = DAY_OF_WEEK_ORDER.map((dayName) => {
           const dayIndex = Object.entries(numberToDayMap).find(

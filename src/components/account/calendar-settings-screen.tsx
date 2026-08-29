@@ -1,5 +1,7 @@
-import { useEffect, useState } from "react";
+import { useAuth } from "@clerk/clerk-expo";
+import { useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Platform,
   Pressable,
   ScrollView,
@@ -13,6 +15,8 @@ import { colors, spacing } from "../../constants/theme";
 import {
   formatBreakTimeLabel,
   getCalendarSettings,
+  loadCalendarSettingsFromApi,
+  saveCalendarSettingsToApi,
   setCalendarSettings,
   subscribeCalendarSettings,
   type CalendarSettings,
@@ -31,6 +35,7 @@ const ANDROID_RIPPLE =
 
 const TRAVEL_OPTIONS = [15, 20, 30, 45, 60] as const;
 const BREAK_OPTIONS = [0, 10, 15, 20, 30] as const;
+const SAVE_DEBOUNCE_MS = 400;
 
 function isValidTime(value: string) {
   if (!/^\d{2}:\d{2}$/.test(value)) {
@@ -76,11 +81,17 @@ function PillOption({ label, selected, onPress }: Readonly<PillOptionProps>) {
 export function CalendarSettingsScreen({
   onClose,
 }: Readonly<CalendarSettingsScreenProps>) {
+  const { getToken } = useAuth();
   const [settings, setSettings] = useState<CalendarSettings>(() =>
     getCalendarSettings(),
   );
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [timePickerOpen, setTimePickerOpen] = useState(false);
   const [dynamicInfoOpen, setDynamicInfoOpen] = useState(false);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingPatchRef = useRef<Partial<CalendarSettings>>({});
 
   useEffect(() => {
     return subscribeCalendarSettings(() => {
@@ -88,18 +99,112 @@ export function CalendarSettingsScreen({
     });
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      setIsLoading(true);
+      setSaveError(null);
+      try {
+        await loadCalendarSettingsFromApi(getToken);
+        if (!cancelled) {
+          setSettings(getCalendarSettings());
+        }
+      } catch (error) {
+        console.error("Failed to load calendar settings:", error);
+        if (!cancelled) {
+          setSaveError("Couldn’t load settings from the server.");
+          setSettings(getCalendarSettings());
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void load();
+
+    return () => {
+      cancelled = true;
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+      }
+    };
+  }, [getToken]);
+
+  function queueSave(patch: Partial<CalendarSettings>) {
+    pendingPatchRef.current = {
+      ...pendingPatchRef.current,
+      ...patch,
+    };
+
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+    }
+
+    saveTimerRef.current = setTimeout(() => {
+      const nextPatch = pendingPatchRef.current;
+      pendingPatchRef.current = {};
+      void persistSettings(nextPatch);
+    }, SAVE_DEBOUNCE_MS);
+  }
+
+  async function persistSettings(patch: Partial<CalendarSettings>) {
+    setIsSaving(true);
+    setSaveError(null);
+
+    try {
+      // Dynamic scheduling is UI-only for now — keep it local and still sync
+      // travel/break fields to the live availability API.
+      if (
+        Object.keys(patch).length === 1 &&
+        Object.prototype.hasOwnProperty.call(patch, "dynamicScheduling")
+      ) {
+        setCalendarSettings(patch);
+        setSettings(getCalendarSettings());
+        return;
+      }
+
+      await saveCalendarSettingsToApi(getToken, patch);
+      setSettings(getCalendarSettings());
+    } catch (error) {
+      console.error("Failed to save calendar settings:", error);
+      setSaveError("Couldn’t save settings. Try again.");
+      try {
+        await loadCalendarSettingsFromApi(getToken);
+        setSettings(getCalendarSettings());
+      } catch {
+        // keep current UI state
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   function updateSetting<K extends keyof CalendarSettings>(
     key: K,
     value: CalendarSettings[K],
   ) {
-    setCalendarSettings({ [key]: value });
+    const patch = { [key]: value } as Partial<CalendarSettings>;
+    setCalendarSettings(patch);
     setSettings(getCalendarSettings());
+    queueSave(patch);
   }
 
   const breaksEnabled = settings.breakMinutes > 0;
   const hasBreakTime = Boolean(
     settings.breakStartTime && isValidTime(settings.breakStartTime),
   );
+
+  if (isLoading) {
+    return (
+      <View style={[styles.screen, styles.centered]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={styles.loadingText}>Loading calendar settings…</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.screen}>
@@ -118,7 +223,9 @@ export function CalendarSettingsScreen({
         </Pressable>
 
         <Text style={styles.headerTitle}>Calendar settings</Text>
-        <View style={styles.headerSpacer} />
+        <View style={styles.headerSpacer}>
+          {isSaving ? <ActivityIndicator size="small" color={colors.primary} /> : null}
+        </View>
       </View>
 
       <ScrollView
@@ -127,9 +234,11 @@ export function CalendarSettingsScreen({
         showsVerticalScrollIndicator={false}
       >
         <Text style={styles.description}>
-          Set buffers between lessons so your schedule stays realistic. Defaults
-          are 30 minutes travel and 15 minutes break.
+          Set buffers between lessons so your schedule stays realistic. These
+          settings sync with your live availability.
         </Text>
+
+        {saveError ? <Text style={styles.errorText}>{saveError}</Text> : null}
 
         <View style={styles.card}>
           <View style={styles.cardHeader}>
@@ -279,6 +388,15 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
+  centered: {
+    justifyContent: "center",
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -302,6 +420,8 @@ const styles = StyleSheet.create({
   },
   headerSpacer: {
     width: 32,
+    alignItems: "center",
+    justifyContent: "center",
   },
   scroll: {
     flex: 1,
@@ -315,6 +435,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 22,
     color: colors.textSecondary,
+  },
+  errorText: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.error,
   },
   card: {
     borderWidth: 1,

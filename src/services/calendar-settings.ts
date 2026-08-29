@@ -1,4 +1,9 @@
-import { Platform } from "react-native";
+import {
+  getInstructorAvailability,
+  saveInstructorAvailability,
+  type DailyAvailabilityPayload,
+} from "./availability";
+import { addMinutesToTime } from "../utils/time";
 
 export type BreakApplyMode = "between_lessons" | "scheduled";
 
@@ -19,22 +24,47 @@ export const DEFAULT_CALENDAR_SETTINGS: CalendarSettings = {
   dynamicScheduling: false,
 };
 
-const STORAGE_KEY = "ih_calendar_settings";
-
 type Listener = () => void;
+type GetToken = () => Promise<string | null>;
 
 let memorySettings: CalendarSettings | null = null;
 const listeners = new Set<Listener>();
-
-function canUseLocalStorage() {
-  return Platform.OS === "web" && typeof localStorage !== "undefined";
-}
 
 function notify() {
   listeners.forEach((listener) => listener());
 }
 
-function normalizeSettings(
+function timeToMinutes(value: string) {
+  if (!/^\d{2}:\d{2}$/.test(value)) {
+    return null;
+  }
+  const [hours, minutes] = value.split(":").map(Number);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
+    return null;
+  }
+  return hours * 60 + minutes;
+}
+
+function normalizeLocations(locations: DailyAvailabilityPayload["locations"]) {
+  if (!Array.isArray(locations)) {
+    return [] as string[];
+  }
+
+  return locations
+    .map((location) => {
+      if (typeof location === "string") {
+        return location;
+      }
+      if (location && typeof location === "object" && "suburb" in location) {
+        const suburb = (location as { suburb?: unknown }).suburb;
+        return typeof suburb === "string" ? suburb : "";
+      }
+      return "";
+    })
+    .filter(Boolean);
+}
+
+export function normalizeSettings(
   parsed: Partial<CalendarSettings>,
 ): CalendarSettings {
   return {
@@ -64,23 +94,88 @@ function normalizeSettings(
   };
 }
 
+export function calendarSettingsFromAvailability(
+  days: DailyAvailabilityPayload[],
+  previous: CalendarSettings = DEFAULT_CALENDAR_SETTINGS,
+): CalendarSettings {
+  const source =
+    days.find((day) => day.isWorking) ??
+    days.find((day) => typeof day.travelTime === "number") ??
+    days[0];
+
+  if (!source) {
+    return normalizeSettings(previous);
+  }
+
+  const firstBreak = source.breaks?.[0];
+  let breakMinutes = previous.breakMinutes;
+  let breakStartTime = previous.breakStartTime;
+
+  if (firstBreak?.startTime && firstBreak?.endTime) {
+    const start = timeToMinutes(firstBreak.startTime);
+    const end = timeToMinutes(firstBreak.endTime);
+    if (start !== null && end !== null && end >= start) {
+      breakStartTime = firstBreak.startTime;
+      breakMinutes = end - start;
+    }
+  } else if (Array.isArray(source.breaks) && source.breaks.length === 0) {
+    breakMinutes = 0;
+    breakStartTime = "";
+  }
+
+  return normalizeSettings({
+    ...previous,
+    travelTimeMinutes:
+      typeof source.travelTime === "number"
+        ? source.travelTime
+        : previous.travelTimeMinutes,
+    breakMinutes,
+    breakStartTime,
+    breakApplyMode: "scheduled",
+  });
+}
+
+function buildBreaks(settings: CalendarSettings) {
+  if (settings.breakMinutes <= 0 || !settings.breakStartTime) {
+    return [] as { startTime: string; endTime: string }[];
+  }
+
+  return [
+    {
+      startTime: settings.breakStartTime,
+      endTime: addMinutesToTime(settings.breakStartTime, settings.breakMinutes),
+    },
+  ];
+}
+
+function applySettingsToDays(
+  days: DailyAvailabilityPayload[],
+  settings: CalendarSettings,
+): DailyAvailabilityPayload[] {
+  const breaks = buildBreaks(settings);
+
+  if (days.length === 0) {
+    return [0, 1, 2, 3, 4, 5, 6].map((dayOfWeek) => ({
+      dayOfWeek,
+      isWorking: false,
+      slotInterval: 15,
+      locations: [],
+      breaks: [],
+      travelTime: settings.travelTimeMinutes,
+    }));
+  }
+
+  return days.map((day) => ({
+    ...day,
+    locations: normalizeLocations(day.locations),
+    travelTime: settings.travelTimeMinutes,
+    breaks: day.isWorking ? breaks : [],
+  }));
+}
+
 export function getCalendarSettings(): CalendarSettings {
   if (memorySettings) {
     return { ...memorySettings };
-  }
-
-  if (canUseLocalStorage()) {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        memorySettings = normalizeSettings(
-          JSON.parse(raw) as Partial<CalendarSettings>,
-        );
-        return { ...memorySettings };
-      }
-    } catch {
-      // fall through to defaults
-    }
   }
 
   memorySettings = { ...DEFAULT_CALENDAR_SETTINGS };
@@ -93,12 +188,34 @@ export function setCalendarSettings(next: Partial<CalendarSettings>) {
     ...current,
     ...next,
   });
-
-  if (canUseLocalStorage()) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(memorySettings));
-  }
-
   notify();
+}
+
+export async function loadCalendarSettingsFromApi(getToken: GetToken) {
+  const days = await getInstructorAvailability(getToken);
+  const next = calendarSettingsFromAvailability(days, getCalendarSettings());
+  memorySettings = next;
+  notify();
+  return next;
+}
+
+export async function saveCalendarSettingsToApi(
+  getToken: GetToken,
+  next: Partial<CalendarSettings>,
+) {
+  const merged = normalizeSettings({
+    ...getCalendarSettings(),
+    ...next,
+  });
+
+  memorySettings = merged;
+  notify();
+
+  const days = await getInstructorAvailability(getToken);
+  const payload = applySettingsToDays(days, merged);
+  await saveInstructorAvailability(getToken, payload);
+
+  return merged;
 }
 
 export function subscribeCalendarSettings(listener: Listener) {

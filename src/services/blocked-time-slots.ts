@@ -64,10 +64,38 @@ export function isSlotBlocked(date: Date, slot: string) {
   return getBlockedSlotsForDate(date).includes(slot);
 }
 
-export function toggleBlockedSlot(date: Date, slot: string) {
+function persistSlots(date: Date, slots: Set<string>) {
   const key = toIsoDateKey(date);
   const store = { ...readStore() };
-  const current = new Set(store[key] ?? []);
+
+  if (slots.size === 0) {
+    delete store[key];
+  } else {
+    store[key] = [...slots];
+  }
+
+  writeStore(store);
+  return [...slots];
+}
+
+export function addBlockedSlots(date: Date, slots: string[]) {
+  const current = new Set(getBlockedSlotsForDate(date));
+  slots.forEach((slot) => current.add(slot));
+  return persistSlots(date, current);
+}
+
+export function removeBlockedSlots(date: Date, slots: string[]) {
+  const current = new Set(getBlockedSlotsForDate(date));
+  slots.forEach((slot) => current.delete(slot));
+  return persistSlots(date, current);
+}
+
+export function removeBlockedSlot(date: Date, slot: string) {
+  return removeBlockedSlots(date, [slot]);
+}
+
+export function toggleBlockedSlot(date: Date, slot: string) {
+  const current = new Set(getBlockedSlotsForDate(date));
 
   if (current.has(slot)) {
     current.delete(slot);
@@ -75,14 +103,7 @@ export function toggleBlockedSlot(date: Date, slot: string) {
     current.add(slot);
   }
 
-  if (current.size === 0) {
-    delete store[key];
-  } else {
-    store[key] = [...current];
-  }
-
-  writeStore(store);
-  return [...current];
+  return persistSlots(date, current);
 }
 
 export function subscribeBlockedSlots(listener: Listener) {
