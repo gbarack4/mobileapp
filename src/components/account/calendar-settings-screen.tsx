@@ -1,5 +1,5 @@
 import { useAuth } from "@clerk/clerk-expo";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -81,7 +81,17 @@ function PillOption({ label, selected, onPress }: Readonly<PillOptionProps>) {
 export function CalendarSettingsScreen({
   onClose,
 }: Readonly<CalendarSettingsScreenProps>) {
-  const { getToken } = useAuth();
+  const { getToken, isLoaded, isSignedIn, userId, sessionId } = useAuth();
+  const getTokenRef = useRef(getToken);
+
+  useEffect(() => {
+    getTokenRef.current = getToken;
+  }, [getToken]);
+
+  const getLatestToken = useCallback(
+    (...args: Parameters<typeof getToken>) => getTokenRef.current(...args),
+    [],
+  );
   const [settings, setSettings] = useState<CalendarSettings>(() =>
     getCalendarSettings(),
   );
@@ -100,13 +110,18 @@ export function CalendarSettingsScreen({
   }, []);
 
   useEffect(() => {
+    if (!isLoaded || !isSignedIn || !userId || !sessionId) {
+      setIsLoading(!isLoaded);
+      return;
+    }
+
     let cancelled = false;
 
     async function load() {
       setIsLoading(true);
       setSaveError(null);
       try {
-        await loadCalendarSettingsFromApi(getToken);
+        await loadCalendarSettingsFromApi(getLatestToken);
         if (!cancelled) {
           setSettings(getCalendarSettings());
         }
@@ -131,7 +146,7 @@ export function CalendarSettingsScreen({
         clearTimeout(saveTimerRef.current);
       }
     };
-  }, [getToken]);
+  }, [getLatestToken, isLoaded, isSignedIn, userId, sessionId]);
 
   function queueSave(patch: Partial<CalendarSettings>) {
     pendingPatchRef.current = {
@@ -159,20 +174,20 @@ export function CalendarSettingsScreen({
       // travel/break fields to the live availability API.
       if (
         Object.keys(patch).length === 1 &&
-        Object.prototype.hasOwnProperty.call(patch, "dynamicScheduling")
+        Object.hasOwn(patch, "dynamicScheduling")
       ) {
         setCalendarSettings(patch);
         setSettings(getCalendarSettings());
         return;
       }
 
-      await saveCalendarSettingsToApi(getToken, patch);
+      await saveCalendarSettingsToApi(getLatestToken, patch);
       setSettings(getCalendarSettings());
     } catch (error) {
       console.error("Failed to save calendar settings:", error);
       setSaveError("Couldn’t save settings. Try again.");
       try {
-        await loadCalendarSettingsFromApi(getToken);
+        await loadCalendarSettingsFromApi(getLatestToken);
         setSettings(getCalendarSettings());
       } catch {
         // keep current UI state
@@ -224,7 +239,9 @@ export function CalendarSettingsScreen({
 
         <Text style={styles.headerTitle}>Calendar settings</Text>
         <View style={styles.headerSpacer}>
-          {isSaving ? <ActivityIndicator size="small" color={colors.primary} /> : null}
+          {isSaving ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : null}
         </View>
       </View>
 

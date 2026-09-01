@@ -11,11 +11,45 @@ export type DailyAvailabilityPayload = {
   travelTime: number;
 };
 
+type DailyAvailabilityResponse = Omit<
+  DailyAvailabilityPayload,
+  "startTime" | "endTime" | "locations"
+> & {
+  startTime: string | null;
+  endTime: string | null;
+  locations: {
+    suburb: string;
+  }[];
+};
+
+function normalizeTime(value: string): string {
+  return value.trim().slice(0, 5);
+}
+
+function toDailyAvailabilityPayload(
+  day: DailyAvailabilityPayload,
+): DailyAvailabilityPayload {
+  return {
+    dayOfWeek: day.dayOfWeek,
+    isWorking: day.isWorking,
+    startTime: day.startTime == null ? undefined : normalizeTime(day.startTime),
+    endTime: day.endTime == null ? undefined : normalizeTime(day.endTime),
+    slotInterval: day.slotInterval,
+    locations: day.locations,
+    breaks: day.breaks?.map((item) => ({
+      startTime: normalizeTime(item.startTime),
+      endTime: normalizeTime(item.endTime),
+    })),
+    travelTime: day.travelTime,
+  };
+}
+
 export async function saveInstructorAvailability(
   getToken: () => Promise<string | null>,
   daysData: DailyAvailabilityPayload[],
 ) {
   const token = await getToken();
+  const days = daysData.map(toDailyAvailabilityPayload);
 
   const res = await fetch(`${API_URL}/availability/bulk`, {
     method: "PUT",
@@ -23,7 +57,7 @@ export async function saveInstructorAvailability(
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify({ days: daysData }),
+    body: JSON.stringify({ days }),
   });
 
   if (!res.ok) {
@@ -52,5 +86,18 @@ export async function getInstructorAvailability(
     throw new Error("Failed to fetch availability");
   }
 
-  return res.json();
+  const days: DailyAvailabilityResponse[] = await res.json();
+
+  return days.map((day) =>
+    toDailyAvailabilityPayload({
+      dayOfWeek: day.dayOfWeek,
+      isWorking: day.isWorking,
+      startTime: day.startTime ?? undefined,
+      endTime: day.endTime ?? undefined,
+      slotInterval: day.slotInterval,
+      locations: day.locations.map((location) => location.suburb),
+      breaks: day.breaks,
+      travelTime: day.travelTime,
+    }),
+  );
 }
