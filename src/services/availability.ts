@@ -1,3 +1,5 @@
+import { findWorkSuburbByName } from "@/data/mock-work-locations";
+
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 export type DailyAvailabilityPayload = {
@@ -11,6 +13,17 @@ export type DailyAvailabilityPayload = {
   travelTime: number;
 };
 
+type AvailabilityLocationPayload = {
+  suburb: string;
+  postcode: string | null;
+  latitude: number;
+  longitude: number;
+};
+
+type DailyAvailabilityRequest = Omit<DailyAvailabilityPayload, "locations"> & {
+  locations: AvailabilityLocationPayload[];
+};
+
 type DailyAvailabilityResponse = Omit<
   DailyAvailabilityPayload,
   "startTime" | "endTime" | "locations"
@@ -19,6 +32,7 @@ type DailyAvailabilityResponse = Omit<
   endTime: string | null;
   locations: {
     suburb: string;
+    postcode?: string | null;
   }[];
 };
 
@@ -26,16 +40,33 @@ function normalizeTime(value: string): string {
   return value.trim().slice(0, 5);
 }
 
-function toDailyAvailabilityPayload(
+function mapLocationToPayload(
+  locationName: string,
+): AvailabilityLocationPayload {
+  const suburb = findWorkSuburbByName(locationName);
+
+  if (!suburb) {
+    throw new Error(`Unknown availability location: ${locationName}`);
+  }
+
+  return {
+    suburb: suburb.name,
+    postcode: null,
+    latitude: suburb.centroid.latitude,
+    longitude: suburb.centroid.longitude,
+  };
+}
+
+function toDailyAvailabilityRequest(
   day: DailyAvailabilityPayload,
-): DailyAvailabilityPayload {
+): DailyAvailabilityRequest {
   return {
     dayOfWeek: day.dayOfWeek,
     isWorking: day.isWorking,
     startTime: day.startTime == null ? undefined : normalizeTime(day.startTime),
     endTime: day.endTime == null ? undefined : normalizeTime(day.endTime),
     slotInterval: day.slotInterval,
-    locations: day.locations,
+    locations: day.isWorking ? day.locations.map(mapLocationToPayload) : [],
     breaks: day.breaks?.map((item) => ({
       startTime: normalizeTime(item.startTime),
       endTime: normalizeTime(item.endTime),
@@ -49,7 +80,8 @@ export async function saveInstructorAvailability(
   daysData: DailyAvailabilityPayload[],
 ) {
   const token = await getToken();
-  const days = daysData.map(toDailyAvailabilityPayload);
+
+  const days = daysData.map(toDailyAvailabilityRequest);
 
   const res = await fetch(`${API_URL}/availability/bulk`, {
     method: "PUT",
@@ -62,7 +94,9 @@ export async function saveInstructorAvailability(
 
   if (!res.ok) {
     const errorData = await res.text();
+
     console.error("Backend validation failed for bulk update:", errorData);
+
     throw new Error("Failed to save availability");
   }
 
@@ -88,16 +122,17 @@ export async function getInstructorAvailability(
 
   const days: DailyAvailabilityResponse[] = await res.json();
 
-  return days.map((day) =>
-    toDailyAvailabilityPayload({
-      dayOfWeek: day.dayOfWeek,
-      isWorking: day.isWorking,
-      startTime: day.startTime ?? undefined,
-      endTime: day.endTime ?? undefined,
-      slotInterval: day.slotInterval,
-      locations: day.locations.map((location) => location.suburb),
-      breaks: day.breaks,
-      travelTime: day.travelTime,
-    }),
-  );
+  return days.map((day) => ({
+    dayOfWeek: day.dayOfWeek,
+    isWorking: day.isWorking,
+    startTime: day.startTime == null ? undefined : normalizeTime(day.startTime),
+    endTime: day.endTime == null ? undefined : normalizeTime(day.endTime),
+    slotInterval: day.slotInterval,
+    locations: day.locations.map((location) => location.suburb),
+    breaks: day.breaks?.map((item) => ({
+      startTime: normalizeTime(item.startTime),
+      endTime: normalizeTime(item.endTime),
+    })),
+    travelTime: day.travelTime,
+  }));
 }

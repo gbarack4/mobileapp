@@ -28,7 +28,10 @@ import {
   type DayAvailability,
   type DayOfWeek,
 } from "../../data/mock-availability";
-import { filterWorkSuburbs } from "../../data/mock-work-locations";
+import {
+  filterWorkSuburbs,
+  findWorkSuburbByName,
+} from "../../data/mock-work-locations";
 import { openWorkLocationPicker } from "../../utils/availability-location-bridge";
 import {
   CheckIcon,
@@ -45,7 +48,11 @@ import {
   saveInstructorAvailability,
 } from "@/services/availability";
 import { convertTo24Hour, formatTo12h, numberToDayMap } from "@/utils/time";
-import { getCalendarSettings, setCalendarSettings, calendarSettingsFromAvailability } from "@/services/calendar-settings";
+import {
+  getCalendarSettings,
+  setCalendarSettings,
+  calendarSettingsFromAvailability,
+} from "@/services/calendar-settings";
 
 type AvailabilityScreenProps = {
   onClose: () => void;
@@ -368,7 +375,9 @@ export function AvailabilityScreen({
       try {
         const data = await getInstructorAvailability(getToken);
 
-        setCalendarSettings(calendarSettingsFromAvailability(data, getCalendarSettings()));
+        setCalendarSettings(
+          calendarSettingsFromAvailability(data, getCalendarSettings()),
+        );
 
         const mappedDays = DAY_OF_WEEK_ORDER.map((dayName) => {
           const dayIndex = Object.entries(numberToDayMap).find(
@@ -440,18 +449,25 @@ export function AvailabilityScreen({
       return;
     }
 
-    if (
-      selectedDayData.slot.locations.some(
-        (location) => location.toLowerCase() === draft.toLowerCase(),
-      )
-    ) {
+    const suburb = findWorkSuburbByName(draft);
+
+    if (!suburb) {
+      return;
+    }
+
+    const alreadyAdded = selectedDayData.slot.locations.some(
+      (location) => location.toLowerCase() === suburb.name.toLowerCase(),
+    );
+
+    if (alreadyAdded) {
       setLocationDraft("");
       return;
     }
 
     updateSelectedSlot({
-      locations: [...selectedDayData.slot.locations, draft],
+      locations: [...selectedDayData.slot.locations, suburb.name],
     });
+
     setLocationDraft("");
   }
 
