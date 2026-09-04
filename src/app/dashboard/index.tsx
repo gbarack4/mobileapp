@@ -1,6 +1,9 @@
+import { useUser } from "@clerk/clerk-expo";
+import { useQueryClient } from "@tanstack/react-query";
 import { router, usePathname } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Animated,
   Easing,
   Platform,
@@ -17,17 +20,16 @@ import { DashboardBottomNav } from "../../components/dashboard/dashboard-bottom-
 import { LessonCard } from "../../components/dashboard/lesson-card";
 import { LessonTabs } from "../../components/dashboard/lesson-tabs";
 import { SearchBar } from "../../components/dashboard/search-bar";
+import { CalendarIcon } from "../../components/icons/dashboard-icons";
 import { WeeklyEarningsScreen } from "../../components/earnings/weekly-earnings-screen";
 import { InboxScreen } from "../../components/inbox/inbox-screen";
 import { SchoolsScreen } from "../../components/schools/schools-screen";
-import { CalendarIcon } from "../../components/icons/dashboard-icons";
 import { colors, spacing } from "../../constants/theme";
 import { useBottomNavScroll } from "../../hooks/use-bottom-nav-scroll";
-import { MOCK_LESSONS } from "../../data/mock-lessons";
-import type { DashboardTab, LessonTab } from "../../types/dashboard";
-import { getSuprSendClient } from "@/services/suprsend";
-import { useUser } from "@clerk/clerk-expo";
-import { useQueryClient } from "@tanstack/react-query";
+import { useInstructorBookings } from "../../hooks/use-instructor-bookings";
+import { getSuprSendClient } from "../../services/suprsend";
+import type { DashboardTab, Lesson, LessonTab } from "../../types/dashboard";
+import type { InstructorBooking } from "../../types/instructor-bookings";
 
 const SECTION_TITLES: Record<LessonTab, string> = {
   upcoming: "Upcoming lessons",
@@ -42,25 +44,148 @@ const FADE_OUT_MS = 120;
 const FADE_IN_MS = 160;
 const USE_NATIVE_DRIVER = Platform.OS !== "web";
 
+function formatInTimeZone(
+  date: Date,
+  timeZone: string,
+  options: Intl.DateTimeFormatOptions,
+): string {
+  try {
+    return new Intl.DateTimeFormat("en-US", {
+      ...options,
+      timeZone,
+    }).format(date);
+  } catch {
+    return new Intl.DateTimeFormat("en-US", options).format(date);
+  }
+}
+
+function formatDuration(startDatetime: string, endDatetime: string): string {
+  const start = new Date(startDatetime).getTime();
+  const end = new Date(endDatetime).getTime();
+  const minutes = Math.max(0, Math.round((end - start) / 60_000));
+
+  if (minutes < 60) {
+    return `${minutes} min`;
+  }
+
+  if (minutes % 60 === 0) {
+    const hours = minutes / 60;
+
+    return `${hours} ${hours === 1 ? "hour" : "hours"}`;
+  }
+
+  const hours = minutes / 60;
+
+  return `${Number(hours.toFixed(2))} hours`;
+}
+
+function getInitials(name: string): string {
+  return name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join("");
+}
+
+function getPickupLocation(booking: InstructorBooking): string {
+  const address = booking.pickupAddress?.trim();
+
+  if (address) {
+    return address;
+  }
+
+  const suburb = booking.pickupSuburb?.trim();
+  const postcode = booking.pickupPostcode?.trim();
+
+  const location = [suburb, postcode].filter(Boolean).join(" ");
+
+  return location || "Pickup location unavailable";
+}
+
+function mapInstructorBookingToLesson(booking: InstructorBooking): Lesson {
+  const start = new Date(booking.startDatetime);
+  const timeZone = booking.school.timezone;
+
+  const dayOfWeek = formatInTimeZone(start, timeZone, {
+    weekday: "short",
+  }).toUpperCase();
+
+  const day = formatInTimeZone(start, timeZone, {
+    day: "numeric",
+  });
+
+  const month = formatInTimeZone(start, timeZone, {
+    month: "short",
+  }).toUpperCase();
+
+  const year = formatInTimeZone(start, timeZone, {
+    year: "numeric",
+  });
+
+  const time = formatInTimeZone(start, timeZone, {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).toUpperCase();
+
+  return {
+    id: booking.id,
+    dayOfWeek,
+    day,
+    month,
+    year,
+    time,
+    title: booking.school.name,
+    duration: formatDuration(booking.startDatetime, booking.endDatetime),
+    status: booking.status === "confirmed" ? "upcoming" : booking.status,
+    locationName: booking.school.name,
+    locationAddress: getPickupLocation(booking),
+    latitude: 0,
+    longitude: 0,
+    schoolLogoUrl: booking.school.logoUrl ?? undefined,
+    studentInitials: getInitials(booking.student.name),
+    studentName: booking.student.name,
+    studentEmail: booking.student.email ?? "",
+    studentPhone: booking.student.phone ?? "",
+    studentSubtitle: "",
+    studentAvatarUrl: undefined,
+  };
+}
+
 export default function DashboardScreen() {
   const pathname = usePathname();
+
   const [lessonTab, setLessonTab] = useState<LessonTab>("upcoming");
   const [activeTab, setActiveTab] = useState<DashboardTab>("bookings");
   const [displayedTab, setDisplayedTab] = useState<DashboardTab>("bookings");
   const [searchQuery, setSearchQuery] = useState("");
+
   const contentOpacity = useRef(new Animated.Value(1)).current;
   const contentTranslateY = useRef(new Animated.Value(0)).current;
+
   const animationRef = useRef<Animated.CompositeAnimation | null>(null);
   const isAnimatingRef = useRef(false);
   const pendingTabRef = useRef<DashboardTab | null>(null);
   const displayedTabRef = useRef<DashboardTab>("bookings");
+
   const {
     translateY: bottomNavTranslateY,
     onScroll: onBottomNavScroll,
     resetNav,
   } = useBottomNavScroll();
+
+  const {
+    bookings,
+    loading: bookingsLoading,
+    error: bookingsError,
+    refetch: refetchBookings,
+  } = useInstructorBookings();
+
   const isDashboardRoot =
     pathname === "/dashboard" || pathname === "/dashboard/";
+
   const showBottomNav =
     isDashboardRoot && activeTab !== "profile" && displayedTab !== "profile";
 
@@ -69,7 +194,9 @@ export default function DashboardScreen() {
   const email = user?.primaryEmailAddress?.emailAddress;
 
   useEffect(() => {
-    if (!email || Platform.OS !== "web") return;
+    if (!email || Platform.OS !== "web") {
+      return;
+    }
 
     let feedClient: ReturnType<
       ReturnType<typeof getSuprSendClient>["feeds"]["initialize"]
@@ -84,9 +211,13 @@ export default function DashboardScreen() {
     const setup = async () => {
       try {
         const suprSend = getSuprSendClient();
+
         await suprSend.identify(email);
+
         feedClient = suprSend.feeds.initialize();
+
         feedClient.emitter.on("feed.store_update", handleStoreUpdate);
+
         feedClient.initializeSocketConnection();
       } catch (error) {
         console.error("[SuprSend] Failed to init:", error);
@@ -97,14 +228,21 @@ export default function DashboardScreen() {
 
     return () => {
       feedClient?.emitter.off("feed.store_update", handleStoreUpdate);
+
       feedClient?.remove();
     };
   }, [email, queryClient]);
 
+  const allLessons = useMemo(
+    () => bookings.map(mapInstructorBookingToLesson),
+    [bookings],
+  );
+
   const lessons = useMemo(() => {
-    const tabLessons = MOCK_LESSONS.filter(
+    const tabLessons = allLessons.filter(
       (lesson) => lesson.status === lessonTab,
     );
+
     const trimmedQuery = searchQuery.trim().toLowerCase();
 
     if (!trimmedQuery) {
@@ -116,9 +254,9 @@ export default function DashboardScreen() {
         lesson.title,
         lesson.studentName,
         lesson.studentEmail,
+        lesson.studentPhone,
         lesson.locationAddress,
         lesson.locationName,
-        lesson.transmission,
         lesson.time,
         lesson.duration,
       ]
@@ -127,7 +265,7 @@ export default function DashboardScreen() {
 
       return searchableText.includes(trimmedQuery);
     });
-  }, [lessonTab, searchQuery]);
+  }, [allLessons, lessonTab, searchQuery]);
 
   useEffect(() => {
     return () => {
@@ -143,6 +281,7 @@ export default function DashboardScreen() {
 
   function runFadeIn() {
     contentTranslateY.setValue(6);
+
     animationRef.current = Animated.parallel([
       Animated.timing(contentOpacity, {
         toValue: 1,
@@ -157,6 +296,7 @@ export default function DashboardScreen() {
         useNativeDriver: USE_NATIVE_DRIVER,
       }),
     ]);
+
     animationRef.current.start(({ finished }) => {
       settleContentInteractive();
 
@@ -165,7 +305,9 @@ export default function DashboardScreen() {
       }
 
       const pending = pendingTabRef.current;
+
       pendingTabRef.current = null;
+
       if (pending && pending !== displayedTabRef.current) {
         transitionToTab(pending);
       }
@@ -186,8 +328,10 @@ export default function DashboardScreen() {
     }
 
     isAnimatingRef.current = true;
+
     setActiveTab(nextTab);
     resetNav();
+
     animationRef.current?.stop();
 
     animationRef.current = Animated.timing(contentOpacity, {
@@ -204,35 +348,97 @@ export default function DashboardScreen() {
       }
 
       const tabToShow = pendingTabRef.current ?? nextTab;
+
       pendingTabRef.current = null;
       displayedTabRef.current = tabToShow;
+
       setDisplayedTab(tabToShow);
       setActiveTab(tabToShow);
+
       resetNav();
       runFadeIn();
     });
+  }
+
+  function renderBookingsContent() {
+    if (bookingsLoading) {
+      return (
+        <View style={styles.loadingState}>
+          <ActivityIndicator size="small" color={colors.primary} />
+          <Text style={styles.loadingText}>Loading lessons...</Text>
+        </View>
+      );
+    }
+
+    if (bookingsError) {
+      return (
+        <View style={styles.emptyState}>
+          <Text style={styles.errorTitle}>Unable to load lessons</Text>
+
+          <Text style={styles.emptySubtitle}>{bookingsError}</Text>
+
+          <Pressable
+            onPress={() => void refetchBookings()}
+            android_ripple={ANDROID_RIPPLE}
+            style={({ pressed }) => [
+              styles.retryButton,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Text style={styles.retryButtonText}>Try again</Text>
+          </Pressable>
+        </View>
+      );
+    }
+
+    if (lessons.length > 0) {
+      return lessons.map((lesson) => (
+        <LessonCard key={lesson.id} lesson={lesson} />
+      ));
+    }
+
+    return (
+      <View style={styles.emptyState}>
+        <Text style={styles.emptyTitle}>
+          {searchQuery.trim()
+            ? "No matching lessons"
+            : `No ${lessonTab} lessons`}
+        </Text>
+
+        <Text style={styles.emptySubtitle}>
+          {searchQuery.trim()
+            ? "Try a different search term."
+            : "Lessons will appear here once scheduled."}
+        </Text>
+      </View>
+    );
   }
 
   function renderTab(tab: DashboardTab) {
     switch (tab) {
       case "school":
         return <SchoolsScreen onScroll={onBottomNavScroll} />;
+
       case "bookings":
         return (
           <View style={styles.screen}>
             <View style={styles.header}>
               <SearchBar value={searchQuery} onChangeText={setSearchQuery} />
+
               <LessonTabs activeTab={lessonTab} onTabChange={setLessonTab} />
+
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>
                   {SECTION_TITLES[lessonTab]}
                 </Text>
+
                 <Pressable
                   onPress={() => router.push("/dashboard/calendar")}
                   android_ripple={ANDROID_RIPPLE}
                   style={styles.calendarLink}
                 >
                   <Text style={styles.calendarText}>View calendar</Text>
+
                   <CalendarIcon />
                 </Pressable>
               </View>
@@ -246,31 +452,17 @@ export default function DashboardScreen() {
               onScroll={onBottomNavScroll}
               scrollEventThrottle={8}
             >
-              {lessons.length > 0 ? (
-                lessons.map((lesson) => (
-                  <LessonCard key={lesson.id} lesson={lesson} />
-                ))
-              ) : (
-                <View style={styles.emptyState}>
-                  <Text style={styles.emptyTitle}>
-                    {searchQuery.trim()
-                      ? "No matching lessons"
-                      : `No ${lessonTab} lessons`}
-                  </Text>
-                  <Text style={styles.emptySubtitle}>
-                    {searchQuery.trim()
-                      ? "Try a different search term."
-                      : "Lessons will appear here once scheduled."}
-                  </Text>
-                </View>
-              )}
+              {renderBookingsContent()}
             </ScrollView>
           </View>
         );
+
       case "inbox":
         return <InboxScreen onScroll={onBottomNavScroll} />;
+
       case "earnings":
         return <WeeklyEarningsScreen onScroll={onBottomNavScroll} />;
+
       case "profile":
         return <AccountScreen onClose={() => transitionToTab("bookings")} />;
     }
@@ -292,7 +484,11 @@ export default function DashboardScreen() {
             styles.animatedContent,
             {
               opacity: contentOpacity,
-              transform: [{ translateY: contentTranslateY }],
+              transform: [
+                {
+                  translateY: contentTranslateY,
+                },
+              ],
             },
           ]}
         >
@@ -364,6 +560,16 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: colors.primary,
   },
+  loadingState: {
+    paddingVertical: spacing.xxl,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
   emptyState: {
     backgroundColor: "#f8fafc",
     borderRadius: 16,
@@ -378,9 +584,32 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: colors.text,
   },
+  errorTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: colors.error,
+  },
   emptySubtitle: {
     fontSize: 14,
     color: colors.textSecondary,
     textAlign: "center",
+  },
+  retryButton: {
+    marginTop: spacing.sm,
+    minHeight: 40,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.primary,
+  },
+  retryButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.white,
+  },
+  pressed: {
+    opacity: 0.85,
   },
 });

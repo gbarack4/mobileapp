@@ -1,26 +1,27 @@
 import { router } from "expo-router";
 import { useState } from "react";
-import { Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Image,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 import { colors } from "../../constants/theme";
-import type { Lesson } from "../../types/dashboard";
 import { cancelLesson } from "../../services/lessons";
+import type { Lesson } from "../../types/dashboard";
 import { formatLessonMeta } from "../../utils/lessons";
+import { MapPinIcon, MoreVerticalIcon } from "../icons/dashboard-icons";
 import {
   CancelLessonSheet,
   type CancellationReason,
 } from "./cancel-lesson-sheet";
-import {
-  MapPinIcon,
-  MoreVerticalIcon,
-} from "../icons/dashboard-icons";
 
 type LessonCardProps = {
   lesson: Lesson;
 };
-
-const DRIVING_SCHOOL_IMAGE =
-  "https://images.unsplash.com/photo-1449965408869-eaa3f722e40d?w=128&h=128&fit=crop";
 
 const ANDROID_RIPPLE =
   Platform.OS === "android" ? { color: "rgba(0, 0, 0, 0.04)" } : undefined;
@@ -60,6 +61,16 @@ function statusTextStyle(status: Lesson["status"]) {
   }
 }
 
+function getSchoolInitials(name: string) {
+  return name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join("");
+}
+
 export function LessonCard({ lesson }: Readonly<LessonCardProps>) {
   const [cancelSheetVisible, setCancelSheetVisible] = useState(false);
 
@@ -84,9 +95,13 @@ export function LessonCard({ lesson }: Readonly<LessonCardProps>) {
       >
         <View style={styles.dateColumn}>
           <Text style={styles.dayOfWeek}>{lesson.dayOfWeek}</Text>
+
           <Text style={styles.day}>{lesson.day}</Text>
+
           <Text style={styles.month}>{lesson.month}</Text>
+
           <View style={styles.dateDivider} />
+
           <Text style={styles.time}>{lesson.time}</Text>
         </View>
 
@@ -94,20 +109,28 @@ export function LessonCard({ lesson }: Readonly<LessonCardProps>) {
           <View style={styles.titleRow}>
             <View style={styles.titleLeft}>
               <View style={styles.iconCircle}>
-                <Image
-                  source={{ uri: DRIVING_SCHOOL_IMAGE }}
-                  style={styles.schoolImage}
-                  accessibilityLabel="Driving school"
-                />
+                {lesson.schoolLogoUrl ? (
+                  <Image
+                    source={{ uri: lesson.schoolLogoUrl }}
+                    style={styles.schoolImage}
+                    accessibilityLabel={lesson.locationName}
+                  />
+                ) : (
+                  <Text style={styles.schoolInitials}>
+                    {getSchoolInitials(lesson.locationName)}
+                  </Text>
+                )}
               </View>
+
               <View style={styles.titleTextColumn}>
                 <Text
                   style={styles.title}
                   numberOfLines={1}
                   ellipsizeMode="tail"
                 >
-                  {lesson.title}
+                  {lesson.locationName}
                 </Text>
+
                 <Text style={styles.meta}>{formatLessonMeta(lesson)}</Text>
               </View>
             </View>
@@ -122,6 +145,7 @@ export function LessonCard({ lesson }: Readonly<LessonCardProps>) {
                   {statusLabel(lesson.status)}
                 </Text>
               </View>
+
               <Pressable
                 onPress={(event) => {
                   event.stopPropagation();
@@ -137,10 +161,11 @@ export function LessonCard({ lesson }: Readonly<LessonCardProps>) {
 
           <View style={styles.locationRow}>
             <MapPinIcon />
+
             <View style={styles.locationText}>
               <Text
                 style={styles.locationAddress}
-                numberOfLines={1}
+                numberOfLines={2}
                 ellipsizeMode="tail"
               >
                 {lesson.locationAddress}
@@ -160,8 +185,10 @@ export function LessonCard({ lesson }: Readonly<LessonCardProps>) {
                 <Text style={styles.avatarText}>{lesson.studentInitials}</Text>
               )}
             </View>
+
             <View style={styles.studentText}>
               <Text style={styles.studentLabel}>Student</Text>
+
               <Text
                 style={styles.studentName}
                 numberOfLines={1}
@@ -169,13 +196,16 @@ export function LessonCard({ lesson }: Readonly<LessonCardProps>) {
               >
                 {lesson.studentName}
               </Text>
-              <Text
-                style={styles.studentEmail}
-                numberOfLines={1}
-                ellipsizeMode="tail"
-              >
-                {lesson.studentEmail}
-              </Text>
+
+              {lesson.studentEmail ? (
+                <Text
+                  style={styles.studentEmail}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  {lesson.studentEmail}
+                </Text>
+              ) : null}
             </View>
           </View>
         </View>
@@ -260,11 +290,6 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
-  titleTextColumn: {
-    flex: 1,
-    minWidth: 0,
-    gap: 2,
-  },
   iconCircle: {
     width: 32,
     height: 32,
@@ -277,6 +302,16 @@ const styles = StyleSheet.create({
   schoolImage: {
     width: 32,
     height: 32,
+  },
+  schoolInitials: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: colors.primary,
+  },
+  titleTextColumn: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
   },
   title: {
     fontSize: 14,

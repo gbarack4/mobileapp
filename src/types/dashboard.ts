@@ -1,7 +1,12 @@
-export type LessonTab = 'upcoming' | 'completed' | 'cancelled';
-export type DashboardTab = 'school' | 'bookings' | 'inbox' | 'earnings' | 'profile';
+export type LessonTab = "upcoming" | "completed" | "cancelled";
+export type DashboardTab =
+  | "school"
+  | "bookings"
+  | "inbox"
+  | "earnings"
+  | "profile";
 
-export type LessonStatus = 'upcoming' | 'completed' | 'cancelled';
+export type LessonStatus = "upcoming" | "completed" | "cancelled";
 
 export type Lesson = {
   id: string;
@@ -12,17 +17,18 @@ export type Lesson = {
   time: string;
   title: string;
   duration: string;
-  transmission: 'Manual' | 'Automatic';
+  transmission?: "Manual" | "Automatic";
   status: LessonStatus;
   locationName: string;
   locationAddress: string;
   latitude: number;
   longitude: number;
+  schoolLogoUrl?: string;
   studentInitials: string;
   studentName: string;
   studentEmail: string;
   studentPhone: string;
   studentSubtitle: string;
   studentAvatarUrl?: string;
-  lessonPrice: string;
+  lessonPrice?: string;
 };
