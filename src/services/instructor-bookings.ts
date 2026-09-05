@@ -1,4 +1,7 @@
-import type { InstructorBookingsResponse } from "@/types/instructor-bookings";
+import type {
+  InstructorBookingDetails,
+  InstructorBookingsResponse,
+} from "@/types/instructor-bookings";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
@@ -66,4 +69,31 @@ export async function fetchInstructorBookings(
   }
 
   return (await response.json()) as InstructorBookingsResponse;
+}
+
+export async function fetchInstructorBookingById(
+  bookingId: string,
+  token: string,
+  signal?: AbortSignal,
+): Promise<InstructorBookingDetails> {
+  const response = await fetch(
+    `${getApiUrl()}/bookings/instructor/${encodeURIComponent(bookingId)}`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      },
+      signal,
+    },
+  );
+
+  if (!response.ok) {
+    throw new InstructorBookingsApiError(
+      await getResponseErrorMessage(response),
+      response.status,
+    );
+  }
+
+  return (await response.json()) as InstructorBookingDetails;
 }

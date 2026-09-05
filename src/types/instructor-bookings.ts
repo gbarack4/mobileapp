@@ -49,3 +49,39 @@ export type InstructorBookingsResponse = {
   counts: InstructorBookingCounts;
   bookings: InstructorBooking[];
 };
+
+export type InstructorBookingDetails = {
+  id: string;
+  status: InstructorBookingStatus;
+  bookingSource: InstructorBookingSource;
+
+  startDatetime: string;
+  endDatetime: string;
+  durationMinutes: number;
+
+  transmission: "manual" | "automatic" | "both";
+
+  pickup: {
+    address: string;
+    suburb: string;
+    postcode: string | null;
+    latitude: number;
+    longitude: number;
+  };
+
+  totalPrice: string;
+
+  student: {
+    id: string;
+    name: string;
+    email: string | null;
+    phone: string | null;
+    avatarUrl: string | null;
+    completedLessonsCount: number;
+  };
+
+  school: {
+    name: string;
+    timezone: string;
+  };
+};
