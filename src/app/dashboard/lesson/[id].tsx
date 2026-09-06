@@ -1,5 +1,5 @@
 import { useAuth } from "@clerk/clerk-expo";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Linking from "expo-linking";
 import { useLocalSearchParams } from "expo-router";
 import { useState } from "react";
@@ -31,6 +31,7 @@ import { fetchInstructorBookingById } from "../../../services/instructor-booking
 import type { Lesson, LessonStatus } from "../../../types/dashboard";
 import type { InstructorBookingDetails } from "../../../types/instructor-bookings";
 import { goBackOr } from "../../../utils/navigation";
+import { rescheduleLesson } from "@/services/lessons";
 
 type PressableState = {
   pressed: boolean;
@@ -188,6 +189,7 @@ function mapBookingToLesson(booking: InstructorBookingDetails): Lesson {
 export default function LessonDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { getToken, isLoaded, isSignedIn, userId } = useAuth();
+  const queryClient = useQueryClient();
 
   const [rescheduleSheetVisible, setRescheduleSheetVisible] = useState(false);
 
@@ -324,8 +326,23 @@ export default function LessonDetailScreen() {
     }
   }
 
-  async function handleConfirmReschedule(_selection: RescheduleSelection) {
-    // TODO: connect to NestJS reschedule API
+  async function handleConfirmReschedule(selection: RescheduleSelection) {
+    const token = await getToken();
+
+    if (!token) {
+      throw new Error("Please sign in to reschedule this lesson.");
+    }
+
+    await rescheduleLesson(bookingId, selection.startDatetime, token);
+
+    await Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: ["instructor-bookings"],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["instructor-booking-details", userId, bookingId],
+      }),
+    ]);
   }
 
   function handleRescheduleConfirmedClose() {

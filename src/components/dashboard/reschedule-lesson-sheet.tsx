@@ -1,5 +1,8 @@
+import { useAuth } from "@clerk/clerk-expo";
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Animated,
   Easing,
   Modal,
@@ -17,6 +20,10 @@ import { CarIcon } from "../icons/dashboard-icons";
 import { InfoIcon, SheetCloseIcon } from "../icons/cancel-lesson-icons";
 import { MonthCalendar } from "./month-calendar";
 import { colors, spacing } from "../../constants/theme";
+import {
+  fetchRescheduleLessonSlots,
+  type RescheduleLessonSlot,
+} from "../../services/lessons";
 import type { Lesson } from "../../types/dashboard";
 import {
   formatSelectedDayLabel,
@@ -27,6 +34,7 @@ import {
 export type RescheduleSelection = {
   date: Date;
   time: string;
+  startDatetime: string;
 };
 
 type RescheduleLessonSheetProps = {
@@ -37,23 +45,9 @@ type RescheduleLessonSheetProps = {
   onConfirm: (selection: RescheduleSelection) => void | Promise<void>;
 };
 
-const TIME_SLOTS = [
-  "8:00 AM",
-  "9:00 AM",
-  "10:00 AM",
-  "11:00 AM",
-  "12:00 PM",
-  "1:00 PM",
-  "2:00 PM",
-  "3:00 PM",
-  "4:00 PM",
-  "5:00 PM",
-];
-
 const SHEET_SLIDE_DISTANCE = 720;
 const FADE_DURATION = 220;
 const SLIDE_DURATION = 320;
-const RESCHEDULING_MS = 2000;
 
 type SheetPhase = "form" | "submitting" | "confirmed";
 
@@ -75,12 +69,16 @@ function formatLessonSummary(lesson: Lesson) {
 function getDefaultDate(lesson: Lesson) {
   const lessonDate = startOfDay(lessonToDate(lesson));
   const today = startOfDay(new Date());
+
   return lessonDate >= today ? lessonDate : today;
 }
 
-function getUnavailableSlots(date: Date): Set<string> {
-  const seed = date.getDate() + date.getMonth() * 3;
-  return new Set(TIME_SLOTS.filter((_, index) => (seed + index) % 4 === 0));
+function formatDateForApi(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
 }
 
 export function RescheduleLessonSheet({
@@ -90,7 +88,9 @@ export function RescheduleLessonSheet({
   onConfirmedClose,
   onConfirm,
 }: Readonly<RescheduleLessonSheetProps>) {
+  const { getToken } = useAuth();
   const insets = useSafeAreaInsets();
+
   const [mounted, setMounted] = useState(visible);
   const [visibleMonth, setVisibleMonth] = useState(() =>
     getDefaultDate(lesson),
@@ -98,28 +98,64 @@ export function RescheduleLessonSheet({
   const [selectedDate, setSelectedDate] = useState(() =>
     getDefaultDate(lesson),
   );
-  const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [selectedSlot, setSelectedSlot] = useState<RescheduleLessonSlot | null>(
+    null,
+  );
   const [phase, setPhase] = useState<SheetPhase>("form");
+  const [submitError, setSubmitError] = useState("");
+
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(SHEET_SLIDE_DISTANCE)).current;
 
   const today = useMemo(() => startOfDay(new Date()), []);
-  const unavailableSlots = useMemo(
-    () => getUnavailableSlots(selectedDate),
+  const selectedDateIso = useMemo(
+    () => formatDateForApi(selectedDate),
     [selectedDate],
   );
-  const canConfirm = selectedTime !== null && phase === "form";
+
+  const slotsQuery = useQuery({
+    queryKey: ["instructor-reschedule-slots", lesson.id, selectedDateIso],
+    enabled: visible && mounted && phase === "form",
+    retry: false,
+    queryFn: async ({ signal }) => {
+      const token = await getToken();
+
+      if (!token) {
+        throw new Error("Please sign in to view available reschedule times.");
+      }
+
+      return fetchRescheduleLessonSlots(
+        lesson.id,
+        selectedDateIso,
+        token,
+        signal,
+      );
+    },
+  });
+
+  const availableSlots = slotsQuery.data ?? [];
+
+  const slotsError =
+    slotsQuery.error instanceof Error ? slotsQuery.error.message : "";
+
+  const errorMessage = submitError || slotsError;
+
+  const canConfirm =
+    selectedSlot !== null && phase === "form" && !slotsQuery.isFetching;
 
   useEffect(() => {
     if (visible) {
       const defaultDate = getDefaultDate(lesson);
+
       setMounted(true);
       setVisibleMonth(
         new Date(defaultDate.getFullYear(), defaultDate.getMonth(), 1),
       );
       setSelectedDate(defaultDate);
-      setSelectedTime(null);
+      setSelectedSlot(null);
+      setSubmitError("");
       setPhase("form");
+
       fadeAnim.setValue(0);
       slideAnim.setValue(SHEET_SLIDE_DISTANCE);
 
@@ -137,6 +173,7 @@ export function RescheduleLessonSheet({
           useNativeDriver: true,
         }),
       ]).start();
+
       return;
     }
 
@@ -162,11 +199,7 @@ export function RescheduleLessonSheet({
         setMounted(false);
       }
     });
-  }, [fadeAnim, lesson, mounted, slideAnim, visible]);
-
-  if (!mounted) {
-    return null;
-  }
+  }, [fadeAnim, lesson.id, mounted, slideAnim, visible]);
 
   function handleSelectDate(date: Date) {
     if (phase !== "form") {
@@ -174,31 +207,39 @@ export function RescheduleLessonSheet({
     }
 
     setSelectedDate(date);
-    setSelectedTime(null);
+    setSelectedSlot(null);
+    setSubmitError("");
   }
 
   async function handleConfirmPress() {
-    if (!selectedTime || phase !== "form") {
+    if (!selectedSlot || phase !== "form") {
       return;
     }
 
     setPhase("submitting");
-    const startedAt = Date.now();
-    const selection = { date: selectedDate, time: selectedTime };
+    setSubmitError("");
+
+    const selection: RescheduleSelection = {
+      date: selectedDate,
+      time: selectedSlot.startTime,
+      startDatetime: selectedSlot.startDatetime,
+    };
 
     try {
       await Promise.resolve(onConfirm(selection));
 
-      const remaining = RESCHEDULING_MS - (Date.now() - startedAt);
-      if (remaining > 0) {
-        await new Promise<void>((resolve) => {
-          setTimeout(resolve, remaining);
-        });
-      }
-
       setPhase("confirmed");
-    } catch {
+    } catch (error) {
+      setSelectedSlot(null);
+
+      setSubmitError(
+        error instanceof Error
+          ? error.message
+          : "Unable to reschedule this lesson.",
+      );
+
       setPhase("form");
+      void slotsQuery.refetch();
     }
   }
 
@@ -212,6 +253,10 @@ export function RescheduleLessonSheet({
     }
 
     onClose();
+  }
+
+  if (!mounted) {
+    return null;
   }
 
   return (
@@ -233,14 +278,19 @@ export function RescheduleLessonSheet({
         <Animated.View
           style={[
             styles.sheet,
-            { paddingBottom: Math.max(insets.bottom, spacing.lg) },
-            { transform: [{ translateY: slideAnim }] },
+            {
+              paddingBottom: Math.max(insets.bottom, spacing.lg),
+            },
+            {
+              transform: [{ translateY: slideAnim }],
+            },
           ]}
         >
           <View style={styles.handle} />
 
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Reschedule lesson</Text>
+
             <Pressable
               onPress={handleClose}
               disabled={phase === "submitting"}
@@ -265,8 +315,10 @@ export function RescheduleLessonSheet({
               <View style={styles.lessonIconWrap}>
                 <CarIcon size={18} color={colors.primary} />
               </View>
+
               <View style={styles.lessonText}>
                 <Text style={styles.lessonTitle}>{lesson.title}</Text>
+
                 <Text style={styles.lessonMeta}>
                   {formatLessonSummary(lesson)}
                 </Text>
@@ -275,6 +327,7 @@ export function RescheduleLessonSheet({
 
             <View style={styles.infoBanner}>
               <InfoIcon />
+
               <Text style={styles.infoText}>
                 Your student will be notified once you confirm the new date and
                 time.
@@ -282,6 +335,7 @@ export function RescheduleLessonSheet({
             </View>
 
             <Text style={styles.sectionLabel}>Select new date</Text>
+
             <MonthCalendar
               visibleMonth={visibleMonth}
               selectedDate={selectedDate}
@@ -303,49 +357,95 @@ export function RescheduleLessonSheet({
             <Text style={styles.sectionLabel}>
               Available times · {formatSelectedDayLabel(selectedDate)}
             </Text>
-            <View style={styles.timeGrid}>
-              {TIME_SLOTS.map((slot) => {
-                const unavailable = unavailableSlots.has(slot);
-                const selected = selectedTime === slot;
 
-                return (
+            {slotsQuery.isPending || slotsQuery.isFetching ? (
+              <View style={styles.slotsState}>
+                <ActivityIndicator size="small" color={colors.primary} />
+                <Text style={styles.slotsStateText}>
+                  Loading available times...
+                </Text>
+              </View>
+            ) : null}
+
+            {!slotsQuery.isFetching && errorMessage ? (
+              <View style={styles.errorBanner}>
+                <Text style={styles.errorText}>{errorMessage}</Text>
+
+                {slotsError ? (
                   <Pressable
-                    key={slot}
                     onPress={() => {
-                      if (!unavailable && phase === "form") {
-                        setSelectedTime(slot);
-                      }
+                      setSubmitError("");
+                      void slotsQuery.refetch();
                     }}
-                    disabled={unavailable || phase !== "form"}
-                    android_ripple={unavailable ? undefined : ANDROID_RIPPLE}
-                    style={[
-                      styles.timeSlot,
-                      unavailable && styles.timeSlotUnavailable,
-                      selected && styles.timeSlotSelected,
+                    style={({ pressed }: PressableState) => [
+                      styles.retryButton,
+                      pressed && styles.pressed,
                     ]}
                   >
-                    <Text
+                    <Text style={styles.retryButtonText}>Try again</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            ) : null}
+
+            {!slotsQuery.isFetching &&
+            !slotsError &&
+            availableSlots.length === 0 ? (
+              <View style={styles.slotsState}>
+                <Text style={styles.slotsStateText}>
+                  No available times for this date.
+                </Text>
+              </View>
+            ) : null}
+
+            {!slotsQuery.isFetching &&
+            !slotsError &&
+            availableSlots.length > 0 ? (
+              <View style={styles.timeGrid}>
+                {availableSlots.map((slot) => {
+                  const selected =
+                    selectedSlot?.startDatetime === slot.startDatetime;
+
+                  return (
+                    <Pressable
+                      key={slot.startDatetime}
+                      onPress={() => {
+                        if (phase !== "form") {
+                          return;
+                        }
+
+                        setSelectedSlot(slot);
+                        setSubmitError("");
+                      }}
+                      disabled={phase !== "form"}
+                      android_ripple={ANDROID_RIPPLE}
                       style={[
-                        styles.timeSlotText,
-                        unavailable && styles.timeSlotTextUnavailable,
-                        selected && styles.timeSlotTextSelected,
+                        styles.timeSlot,
+                        selected && styles.timeSlotSelected,
                       ]}
                     >
-                      {slot}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+                      <Text
+                        style={[
+                          styles.timeSlotText,
+                          selected && styles.timeSlotTextSelected,
+                        ]}
+                      >
+                        {slot.startTime}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ) : null}
           </ScrollView>
 
           <Pressable
-            onPress={handleConfirmPress}
-            disabled={!selectedTime || phase !== "form"}
+            onPress={() => void handleConfirmPress()}
+            disabled={!canConfirm}
             android_ripple={canConfirm ? ANDROID_RIPPLE : undefined}
             style={({ pressed }: PressableState) => [
               styles.confirmButton,
-              selectedTime
+              canConfirm
                 ? styles.confirmButtonActive
                 : styles.confirmButtonDisabled,
               canConfirm && pressed && styles.pressed,
@@ -354,20 +454,22 @@ export function RescheduleLessonSheet({
             <Text
               style={[
                 styles.confirmButtonText,
-                !selectedTime && styles.confirmButtonTextDisabled,
+                !canConfirm && styles.confirmButtonTextDisabled,
               ]}
             >
               {phase === "submitting"
-                ? "Rescheduling......"
+                ? "Rescheduling..."
                 : "Confirm reschedule"}
             </Text>
           </Pressable>
         </Animated.View>
 
-        {phase === "confirmed" && selectedTime ? (
+        {phase === "confirmed" && selectedSlot ? (
           <ConfirmedPopup
             title="Reschedule confirmed"
-            message={`Your lesson is now scheduled for ${formatSelectedDayLabel(selectedDate)} at ${selectedTime}.`}
+            message={`Your lesson is now scheduled for ${formatSelectedDayLabel(
+              selectedDate,
+            )} at ${selectedSlot.startTime}.`}
             onClose={handleConfirmedClose}
           />
         ) : null}
@@ -494,10 +596,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: colors.white,
   },
-  timeSlotUnavailable: {
-    backgroundColor: colors.inputBackground,
-    borderColor: colors.inputBackground,
-  },
   timeSlotSelected: {
     borderColor: colors.primary,
     backgroundColor: "#e8f1ff",
@@ -507,10 +605,38 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: colors.text,
   },
-  timeSlotTextUnavailable: {
-    color: colors.textMuted,
-  },
   timeSlotTextSelected: {
+    color: colors.primary,
+  },
+  slotsState: {
+    minHeight: 56,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+  },
+  slotsStateText: {
+    fontSize: 14,
+    color: colors.textMuted,
+    textAlign: "center",
+  },
+  errorBanner: {
+    borderRadius: 12,
+    backgroundColor: "#fef2f2",
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  errorText: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.error,
+  },
+  retryButton: {
+    alignSelf: "flex-start",
+    paddingVertical: 4,
+  },
+  retryButtonText: {
+    fontSize: 14,
+    fontWeight: "700",
     color: colors.primary,
   },
   confirmButton: {

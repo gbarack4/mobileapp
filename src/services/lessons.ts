@@ -76,3 +76,83 @@ export async function cancelLesson(
 
   return (await response.json()) as CancelLessonResult;
 }
+
+export type RescheduleLessonSlot = {
+  startDatetime: string;
+  endDatetime: string;
+  startTime: string;
+  endTime: string;
+};
+
+export type RescheduleLessonResult = {
+  booking: {
+    id: string;
+    status: "confirmed";
+    startDatetime: string;
+    endDatetime: string;
+  };
+};
+
+export async function fetchRescheduleLessonSlots(
+  lessonId: string,
+  date: string,
+  token: string,
+  signal?: AbortSignal,
+): Promise<RescheduleLessonSlot[]> {
+  const params = new URLSearchParams({ date });
+
+  const response = await fetch(
+    `${getApiUrl()}/bookings/instructor/${encodeURIComponent(
+      lessonId,
+    )}/reschedule-slots?${params.toString()}`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      },
+      signal,
+    },
+  );
+
+  if (!response.ok) {
+    throw new LessonsApiError(
+      await getResponseErrorMessage(response),
+      response.status,
+    );
+  }
+
+  return (await response.json()) as RescheduleLessonSlot[];
+}
+
+export async function rescheduleLesson(
+  lessonId: string,
+  startDatetime: string,
+  token: string,
+): Promise<RescheduleLessonResult> {
+  const response = await fetch(
+    `${getApiUrl()}/bookings/instructor/${encodeURIComponent(
+      lessonId,
+    )}/reschedule`,
+    {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        startDatetime,
+      }),
+    },
+  );
+
+  if (!response.ok) {
+    throw new LessonsApiError(
+      await getResponseErrorMessage(response),
+      response.status,
+    );
+  }
+
+  return (await response.json()) as RescheduleLessonResult;
+}
