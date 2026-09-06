@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from "react";
 import {
   Animated,
   Easing,
@@ -9,21 +9,21 @@ import {
   StyleSheet,
   Text,
   View,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { ConfirmedPopup } from '../confirmed-popup';
-import { CarIcon } from '../icons/dashboard-icons';
-import { SheetCloseIcon, WarningIcon } from '../icons/cancel-lesson-icons';
-import { colors, spacing } from '../../constants/theme';
-import type { Lesson } from '../../types/dashboard';
+import { ConfirmedPopup } from "../confirmed-popup";
+import { CarIcon } from "../icons/dashboard-icons";
+import { SheetCloseIcon, WarningIcon } from "../icons/cancel-lesson-icons";
+import { colors, spacing } from "../../constants/theme";
+import type { Lesson } from "../../types/dashboard";
 
 export type CancellationReason =
-  | 'unwell'
-  | 'personal-emergency'
-  | 'schedule-conflict'
-  | 'instructor-issue'
-  | 'other';
+  | "unwell"
+  | "personal-emergency"
+  | "schedule-conflict"
+  | "instructor-issue"
+  | "other";
 
 type CancelLessonSheetProps = {
   visible: boolean;
@@ -33,36 +33,42 @@ type CancelLessonSheetProps = {
 };
 
 const CANCELLATION_REASONS: { id: CancellationReason; label: string }[] = [
-  { id: 'unwell', label: 'Unwell / illness' },
-  { id: 'personal-emergency', label: 'Personal emergency' },
-  { id: 'schedule-conflict', label: 'Schedule conflict' },
-  { id: 'instructor-issue', label: 'Instructor issue' },
-  { id: 'other', label: 'Other' },
+  { id: "unwell", label: "Unwell / illness" },
+  { id: "personal-emergency", label: "Personal emergency" },
+  { id: "schedule-conflict", label: "Schedule conflict" },
+  { id: "instructor-issue", label: "Instructor issue" },
+  { id: "other", label: "Other" },
 ];
 
 const SHEET_SLIDE_DISTANCE = 720;
 const FADE_DURATION = 220;
 const SLIDE_DURATION = 320;
-const CANCELLING_MS = 2000;
 
-type SheetPhase = 'form' | 'submitting' | 'confirmed';
+type SheetPhase = "form" | "submitting" | "confirmed";
 
 type PressableState = {
   pressed: boolean;
 };
 
 const ANDROID_RIPPLE =
-  Platform.OS === 'android' ? { color: 'rgba(220, 38, 38, 0.08)' } : undefined;
+  Platform.OS === "android" ? { color: "rgba(220, 38, 38, 0.08)" } : undefined;
 
 function formatLessonSummary(lesson: Lesson) {
   return `${lesson.dayOfWeek} ${lesson.day} ${lesson.month} · ${lesson.time} · ${lesson.studentName}`;
 }
 
-export function CancelLessonSheet({ visible, lesson, onClose, onConfirm }: Readonly<CancelLessonSheetProps>) {
+export function CancelLessonSheet({
+  visible,
+  lesson,
+  onClose,
+  onConfirm,
+}: Readonly<CancelLessonSheetProps>) {
   const insets = useSafeAreaInsets();
   const [mounted, setMounted] = useState(visible);
-  const [selectedReason, setSelectedReason] = useState<CancellationReason | null>(null);
-  const [phase, setPhase] = useState<SheetPhase>('form');
+  const [selectedReason, setSelectedReason] =
+    useState<CancellationReason | null>(null);
+  const [phase, setPhase] = useState<SheetPhase>("form");
+  const [errorMessage, setErrorMessage] = useState("");
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(SHEET_SLIDE_DISTANCE)).current;
 
@@ -70,7 +76,8 @@ export function CancelLessonSheet({ visible, lesson, onClose, onConfirm }: Reado
     if (visible) {
       setMounted(true);
       setSelectedReason(null);
-      setPhase('form');
+      setPhase("form");
+      setErrorMessage("");
       fadeAnim.setValue(0);
       slideAnim.setValue(SHEET_SLIDE_DISTANCE);
 
@@ -119,29 +126,26 @@ export function CancelLessonSheet({ visible, lesson, onClose, onConfirm }: Reado
     return null;
   }
 
-  const canConfirm = selectedReason !== null && phase === 'form';
+  const canConfirm = selectedReason !== null && phase === "form";
 
   async function handleConfirmPress() {
-    if (!selectedReason || phase !== 'form') {
+    if (!selectedReason || phase !== "form") {
       return;
     }
 
-    setPhase('submitting');
-    const startedAt = Date.now();
+    setPhase("submitting");
+    setErrorMessage("");
 
     try {
       await onConfirm(selectedReason);
-
-      const remaining = CANCELLING_MS - (Date.now() - startedAt);
-      if (remaining > 0) {
-        await new Promise<void>((resolve) => {
-          setTimeout(resolve, remaining);
-        });
-      }
-
-      setPhase('confirmed');
-    } catch {
-      setPhase('form');
+      setPhase("confirmed");
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Unable to cancel this lesson. Please try again.",
+      );
+      setPhase("form");
     }
   }
 
@@ -150,7 +154,7 @@ export function CancelLessonSheet({ visible, lesson, onClose, onConfirm }: Reado
   }
 
   function handleClose() {
-    if (phase === 'submitting') {
+    if (phase === "submitting") {
       return;
     }
 
@@ -158,7 +162,12 @@ export function CancelLessonSheet({ visible, lesson, onClose, onConfirm }: Reado
   }
 
   return (
-    <Modal visible={mounted} transparent animationType="none" onRequestClose={handleClose}>
+    <Modal
+      visible={mounted}
+      transparent
+      animationType="none"
+      onRequestClose={handleClose}
+    >
       <View style={styles.overlay}>
         <Animated.View style={[styles.backdrop, { opacity: fadeAnim }]}>
           <Pressable
@@ -173,18 +182,23 @@ export function CancelLessonSheet({ visible, lesson, onClose, onConfirm }: Reado
             styles.sheet,
             { paddingBottom: Math.max(insets.bottom, spacing.lg) },
             { transform: [{ translateY: slideAnim }] },
-          ]}>
+          ]}
+        >
           <View style={styles.handle} />
 
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Cancel lesson</Text>
             <Pressable
               onPress={handleClose}
-              disabled={phase === 'submitting'}
+              disabled={phase === "submitting"}
               hitSlop={12}
               android_ripple={ANDROID_RIPPLE}
               accessibilityLabel="Close"
-              style={({ pressed }: PressableState) => [styles.closeButton, pressed && styles.pressed]}>
+              style={({ pressed }: PressableState) => [
+                styles.closeButton,
+                pressed && styles.pressed,
+              ]}
+            >
               <SheetCloseIcon />
             </Pressable>
           </View>
@@ -192,21 +206,24 @@ export function CancelLessonSheet({ visible, lesson, onClose, onConfirm }: Reado
           <ScrollView
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.scrollContent}
-            scrollEnabled={phase === 'form'}>
+            scrollEnabled={phase === "form"}
+          >
             <View style={styles.lessonCard}>
               <View style={styles.lessonIconWrap}>
                 <CarIcon size={16} color="#ef4444" />
               </View>
               <View style={styles.lessonText}>
                 <Text style={styles.lessonTitle}>{lesson.title}</Text>
-                <Text style={styles.lessonMeta}>{formatLessonSummary(lesson)}</Text>
+                <Text style={styles.lessonMeta}>
+                  {formatLessonSummary(lesson)}
+                </Text>
               </View>
             </View>
 
             <View style={styles.warningBanner}>
               <WarningIcon size={16} />
               <Text style={styles.warningText}>
-                Cancelling within 12 hours of the lesson may result in a cancellation fee.
+                Once the lesson has started, it can no longer be cancelled.
               </Text>
             </View>
 
@@ -220,16 +237,27 @@ export function CancelLessonSheet({ visible, lesson, onClose, onConfirm }: Reado
                   <Pressable
                     key={reason.id}
                     onPress={() => setSelectedReason(reason.id)}
-                    disabled={phase !== 'form'}
+                    disabled={phase !== "form"}
                     android_ripple={ANDROID_RIPPLE}
                     style={[
                       styles.reasonRow,
                       selected && styles.reasonRowSelected,
-                    ]}>
-                    <View style={[styles.radioOuter, selected && styles.radioOuterSelected]}>
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.radioOuter,
+                        selected && styles.radioOuterSelected,
+                      ]}
+                    >
                       {selected ? <View style={styles.radioInner} /> : null}
                     </View>
-                    <Text style={[styles.reasonLabel, selected && styles.reasonLabelSelected]}>
+                    <Text
+                      style={[
+                        styles.reasonLabel,
+                        selected && styles.reasonLabelSelected,
+                      ]}
+                    >
                       {reason.label}
                     </Text>
                   </Pressable>
@@ -238,26 +266,34 @@ export function CancelLessonSheet({ visible, lesson, onClose, onConfirm }: Reado
             </View>
           </ScrollView>
 
+          {errorMessage ? (
+            <Text style={styles.errorText}>{errorMessage}</Text>
+          ) : null}
+
           <Pressable
             onPress={handleConfirmPress}
-            disabled={!selectedReason || phase !== 'form'}
+            disabled={!selectedReason || phase !== "form"}
             android_ripple={canConfirm ? ANDROID_RIPPLE : undefined}
             style={({ pressed }: PressableState) => [
               styles.confirmButton,
-              selectedReason ? styles.confirmButtonActive : styles.confirmButtonDisabled,
+              selectedReason
+                ? styles.confirmButtonActive
+                : styles.confirmButtonDisabled,
               canConfirm && pressed && styles.pressed,
-            ]}>
+            ]}
+          >
             <Text
               style={[
                 styles.confirmButtonText,
                 !selectedReason && styles.confirmButtonTextDisabled,
-              ]}>
-              {phase === 'submitting' ? 'Cancelling....' : 'Cancel lesson'}
+              ]}
+            >
+              {phase === "submitting" ? "Cancelling...." : "Cancel lesson"}
             </Text>
           </Pressable>
         </Animated.View>
 
-        {phase === 'confirmed' ? (
+        {phase === "confirmed" ? (
           <ConfirmedPopup
             title="Cancellation confirmed"
             message="The lesson has been cancelled successfully."
@@ -272,11 +308,11 @@ export function CancelLessonSheet({ visible, lesson, onClose, onConfirm }: Reado
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    justifyContent: 'flex-end',
+    justifyContent: "flex-end",
   },
   backdrop: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    backgroundColor: "rgba(0, 0, 0, 0.45)",
   },
   backdropPressable: {
     flex: 1,
@@ -287,43 +323,43 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.sm,
-    maxHeight: '92%',
+    maxHeight: "92%",
   },
   handle: {
-    alignSelf: 'center',
+    alignSelf: "center",
     width: 44,
     height: 5,
     borderRadius: 3,
-    backgroundColor: '#d1d5db',
+    backgroundColor: "#d1d5db",
     marginBottom: spacing.lg,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: spacing.md,
   },
   headerTitle: {
     fontSize: 19,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
     letterSpacing: -0.2,
   },
   closeButton: {
     width: 32,
     height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   scrollContent: {
     gap: spacing.md,
     paddingBottom: spacing.md,
   },
   lessonCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.sm,
-    backgroundColor: '#f9f9f9',
+    backgroundColor: "#f9f9f9",
     borderRadius: 14,
     padding: spacing.md,
   },
@@ -331,9 +367,9 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: '#fee2e2',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#fee2e2",
+    alignItems: "center",
+    justifyContent: "center",
   },
   lessonText: {
     flex: 1,
@@ -341,7 +377,7 @@ const styles = StyleSheet.create({
   },
   lessonTitle: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
   },
   lessonMeta: {
@@ -350,10 +386,10 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   warningBanner: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
     gap: spacing.sm,
-    backgroundColor: '#fff7ed',
+    backgroundColor: "#fff7ed",
     borderRadius: 12,
     padding: spacing.md,
   },
@@ -361,21 +397,21 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 13,
     lineHeight: 18,
-    color: '#9a3412',
+    color: "#9a3412",
   },
   sectionLabel: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.textMuted,
     letterSpacing: 0.8,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
   },
   reasonList: {
     gap: spacing.sm,
   },
   reasonRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.sm,
     borderWidth: 1,
     borderColor: colors.border,
@@ -386,16 +422,16 @@ const styles = StyleSheet.create({
   },
   reasonRowSelected: {
     borderColor: colors.error,
-    backgroundColor: '#fffafa',
+    backgroundColor: "#fffafa",
   },
   radioOuter: {
     width: 20,
     height: 20,
     borderRadius: 10,
     borderWidth: 2,
-    borderColor: '#d1d5db',
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderColor: "#d1d5db",
+    alignItems: "center",
+    justifyContent: "center",
   },
   radioOuterSelected: {
     borderColor: colors.error,
@@ -410,17 +446,17 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     color: colors.text,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   reasonLabelSelected: {
     color: colors.error,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   confirmButton: {
     borderRadius: 14,
     minHeight: 54,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginTop: spacing.sm,
   },
   confirmButtonDisabled: {
@@ -432,12 +468,18 @@ const styles = StyleSheet.create({
   confirmButtonText: {
     color: colors.white,
     fontSize: 17,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   confirmButtonTextDisabled: {
     color: colors.textMuted,
   },
   pressed: {
     opacity: 0.85,
+  },
+  errorText: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.error,
+    textAlign: "center",
   },
 });

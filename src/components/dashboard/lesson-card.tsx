@@ -10,7 +10,7 @@ import {
 } from "react-native";
 
 import { colors } from "../../constants/theme";
-import { cancelLesson } from "../../services/lessons";
+import { useCancelInstructorBooking } from "../../hooks/use-instructor-bookings";
 import type { Lesson } from "../../types/dashboard";
 import { formatLessonMeta } from "../../utils/lessons";
 import { MapPinIcon, MoreVerticalIcon } from "../icons/dashboard-icons";
@@ -73,6 +73,7 @@ function getSchoolInitials(name: string) {
 
 export function LessonCard({ lesson }: Readonly<LessonCardProps>) {
   const [cancelSheetVisible, setCancelSheetVisible] = useState(false);
+  const cancelBooking = useCancelInstructorBooking();
 
   function handleMenuPress() {
     if (lesson.status !== "upcoming") {
@@ -82,8 +83,8 @@ export function LessonCard({ lesson }: Readonly<LessonCardProps>) {
     setCancelSheetVisible(true);
   }
 
-  async function handleConfirmCancellation(reason: CancellationReason) {
-    await cancelLesson(lesson.id, reason);
+  async function handleConfirmCancellation(_reason: CancellationReason) {
+    await cancelBooking.mutateAsync(lesson.id);
   }
 
   return (

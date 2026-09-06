@@ -1,7 +1,8 @@
 import { useAuth } from "@clerk/clerk-expo";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { fetchInstructorBookings } from "@/services/instructor-bookings";
+import { cancelLesson } from "@/services/lessons";
 import type { InstructorBookingCounts } from "@/types/instructor-bookings";
 
 const EMPTY_COUNTS: InstructorBookingCounts = {
@@ -51,4 +52,26 @@ export function useInstructorBookings() {
     error,
     refetch: query.refetch,
   };
+}
+
+export function useCancelInstructorBooking() {
+  const { getToken } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (bookingId: string) => {
+      const token = await getToken();
+
+      if (!token) {
+        throw new Error("Please sign in to cancel this lesson.");
+      }
+
+      return cancelLesson(bookingId, token);
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["instructor-bookings"],
+      });
+    },
+  });
 }
