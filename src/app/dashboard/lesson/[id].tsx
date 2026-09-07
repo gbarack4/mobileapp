@@ -1,6 +1,6 @@
 import { useAuth } from "@clerk/clerk-expo";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import * as Linking from "expo-linking";
+
 import { useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import {
@@ -113,11 +113,10 @@ function getInitials(name: string): string {
 function formatTransmission(
   transmission: InstructorBookingDetails["transmission"],
 ): Lesson["transmission"] {
-  switch (transmission) {
-    case "manual":
-      return "Manual";
-    default:
-      return "Automatic";
+  if (transmission === "manual") {
+    return "Manual";
+  } else {
+    return "Automatic";
   }
 }
 
@@ -416,7 +415,7 @@ export default function LessonDetailScreen() {
             </View>
 
             <Pressable
-              onPress={() => void handleCallStudent()}
+              onPress={() => handleCallStudent()}
               disabled={!activeLesson.studentPhone.trim()}
               android_ripple={ANDROID_RIPPLE}
               style={({ pressed }) => [
