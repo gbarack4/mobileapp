@@ -32,6 +32,7 @@ import type { Lesson, LessonStatus } from "../../../types/dashboard";
 import type { InstructorBookingDetails } from "../../../types/instructor-bookings";
 import { goBackOr } from "../../../utils/navigation";
 import { rescheduleLesson } from "@/services/lessons";
+import { formatAddressWithoutCountry } from "@/utils/address";
 
 type PressableState = {
   pressed: boolean;
@@ -170,7 +171,7 @@ function mapBookingToLesson(booking: InstructorBookingDetails): Lesson {
     transmission: formatTransmission(booking.transmission),
     status: booking.status === "confirmed" ? "upcoming" : booking.status,
     locationName: booking.school.name,
-    locationAddress: booking.pickup.address,
+    locationAddress: formatAddressWithoutCountry(booking.pickup.address),
     latitude: booking.pickup.latitude,
     longitude: booking.pickup.longitude,
     studentInitials: getInitials(booking.student.name),

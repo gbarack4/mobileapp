@@ -30,6 +30,7 @@ import { useInstructorBookings } from "../../hooks/use-instructor-bookings";
 import { getSuprSendClient } from "../../services/suprsend";
 import type { DashboardTab, Lesson, LessonTab } from "../../types/dashboard";
 import type { InstructorBooking } from "../../types/instructor-bookings";
+import { formatAddressWithoutCountry } from "@/utils/address";
 
 const SECTION_TITLES: Record<LessonTab, string> = {
   upcoming: "Upcoming lessons",
@@ -93,7 +94,7 @@ function getPickupLocation(booking: InstructorBooking): string {
   const address = booking.pickupAddress?.trim();
 
   if (address) {
-    return address;
+    return formatAddressWithoutCountry(address);
   }
 
   const suburb = booking.pickupSuburb?.trim();
@@ -101,7 +102,9 @@ function getPickupLocation(booking: InstructorBooking): string {
 
   const location = [suburb, postcode].filter(Boolean).join(" ");
 
-  return location || "Pickup location unavailable";
+  return location
+    ? formatAddressWithoutCountry(location)
+    : "Pickup location unavailable";
 }
 
 function mapInstructorBookingToLesson(booking: InstructorBooking): Lesson {
