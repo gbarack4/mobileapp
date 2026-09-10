@@ -3,6 +3,12 @@ export default {
     name: "instructor-hub",
     slug: "instructor-hub",
     version: "1.0.0",
+    runtimeVersion: {
+      policy: "appVersion",
+    },
+    updates: {
+      url: "https://u.expo.dev/598440c1-e7be-4572-b192-a7ffcb4ed2b1",
+    },
     scheme: "instructorhub",
     orientation: "portrait",
     userInterfaceStyle: "light",
@@ -36,10 +42,7 @@ export default {
         foregroundImage: "./assets/adaptive-icon.png",
         backgroundColor: "#005eff",
       },
-      permissions: [
-        "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION",
-      ],
+      permissions: ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"],
       config: {
         googleMaps: {
           apiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY,
