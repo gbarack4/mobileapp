@@ -8,16 +8,14 @@ import {
   StyleSheet,
   Text,
   View,
+  TextInput,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { colors, spacing } from "../../constants/theme";
-import {
-  getInboxMessageById,
-  getThreadById,
-} from "../../data/mock-inbox";
+import { getInboxMessageById, getThreadById } from "../../data/mock-inbox";
 import type { ChatBubble } from "../../types/inbox";
 import { ChevronLeftIcon } from "../icons/dashboard-icons";
 import { ReplyComposer } from "./reply-composer";
@@ -53,7 +51,7 @@ export function MessageThreadScreen({
   const [headerBlurred, setHeaderBlurred] = useState(false);
   const [composerBlurred, setComposerBlurred] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
-  const inputRef = useRef<unknown>(null);
+  const inputRef = useRef<TextInput | null>(null);
   const headerBlurredRef = useRef(false);
   const composerBlurredRef = useRef(false);
 
@@ -117,9 +115,9 @@ export function MessageThreadScreen({
         fromMe: true,
       },
     ]);
+
     setDraft("");
-    const node = inputRef.current as { focus?: () => void } | null;
-    node?.focus?.();
+    inputRef.current?.focus();
   }
 
   const content = (
@@ -135,39 +133,39 @@ export function MessageThreadScreen({
           onScroll={handleThreadScroll}
           scrollEventThrottle={16}
         >
-        {messages.map((bubble) => (
-          <View
-            key={bubble.id}
-            style={[
-              styles.bubbleWrap,
-              bubble.fromMe ? styles.bubbleWrapMe : styles.bubbleWrapThem,
-            ]}
-          >
+          {messages.map((bubble) => (
             <View
+              key={bubble.id}
               style={[
-                styles.bubble,
-                bubble.fromMe ? styles.bubbleMe : styles.bubbleThem,
+                styles.bubbleWrap,
+                bubble.fromMe ? styles.bubbleWrapMe : styles.bubbleWrapThem,
               ]}
             >
-              <Text
+              <View
                 style={[
-                  styles.bubbleText,
-                  bubble.fromMe && styles.bubbleTextMe,
+                  styles.bubble,
+                  bubble.fromMe ? styles.bubbleMe : styles.bubbleThem,
                 ]}
               >
-                {bubble.text}
+                <Text
+                  style={[
+                    styles.bubbleText,
+                    bubble.fromMe && styles.bubbleTextMe,
+                  ]}
+                >
+                  {bubble.text}
+                </Text>
+              </View>
+              <Text
+                style={[
+                  styles.bubbleTime,
+                  bubble.fromMe && styles.bubbleTimeMe,
+                ]}
+              >
+                {bubble.timeLabel}
               </Text>
             </View>
-            <Text
-              style={[
-                styles.bubbleTime,
-                bubble.fromMe && styles.bubbleTimeMe,
-              ]}
-            >
-              {bubble.timeLabel}
-            </Text>
-          </View>
-        ))}
+          ))}
         </ScrollView>
 
         <View
@@ -242,9 +240,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
     zIndex: 2,
-    ...(Platform.OS === "web"
-      ? ({ position: "relative" } as object)
-      : {}),
+    ...(Platform.OS === "web" ? ({ position: "relative" } as object) : {}),
   },
   flex: {
     flex: 1,

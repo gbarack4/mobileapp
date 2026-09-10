@@ -12,6 +12,16 @@ type SchoolMapListItemProps = {
 const ANDROID_RIPPLE =
   Platform.OS === "android" ? { color: "rgba(0, 94, 255, 0.08)" } : undefined;
 
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+
+  if (parts.length >= 2) {
+    return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  }
+
+  return name.slice(0, 2).toUpperCase();
+}
+
 export function SchoolMapListItem({
   school,
   selected,
@@ -23,8 +33,8 @@ export function SchoolMapListItem({
       android_ripple={ANDROID_RIPPLE}
       style={[styles.item, selected && styles.itemSelected]}
     >
-      <View style={[styles.avatar, { backgroundColor: school.avatarColor }]}>
-        <Text style={styles.avatarText}>{school.initials}</Text>
+      <View style={styles.avatar}>
+        <Text style={styles.avatarText}>{getInitials(school.name)}</Text>
       </View>
 
       <View style={styles.text}>
@@ -59,6 +69,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: colors.primary,
   },
   avatarText: {
     fontSize: 14,

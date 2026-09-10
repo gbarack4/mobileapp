@@ -1,15 +1,16 @@
 import { ClerkProvider, useAuth, useUser } from "@clerk/clerk-expo";
-import { getSuprSendClient } from "@/services/suprsend";
-import { SiteLoaderGate } from "@/components/site-loader/site-loader-gate";
-import { DEV_BYPASS_AUTH } from "@/constants/dev";
-import { colors } from "@/constants/theme";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter, useSegments } from "expo-router";
-import * as SplashScreen from "expo-splash-screen";
 import * as SecureStore from "expo-secure-store";
+import * as SplashScreen from "expo-splash-screen";
 import * as SystemUI from "expo-system-ui";
 import { useEffect } from "react";
 import { Platform, StatusBar, View } from "react-native";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
+import { SiteLoaderGate } from "@/components/site-loader/site-loader-gate";
+import { DEV_BYPASS_AUTH } from "@/constants/dev";
+import { colors } from "@/constants/theme";
+import { getSuprSendClient } from "@/services/suprsend";
 
 const queryClient = new QueryClient();
 
@@ -70,7 +71,7 @@ function RootLayoutNav() {
 
   useEffect(() => {
     if (!isLoaded || !isSignedIn || !user) return;
-    if (typeof window === "undefined") return;
+    if (Platform.OS !== "web") return;
 
     const email = user.primaryEmailAddress?.emailAddress;
 

@@ -94,16 +94,16 @@ export function DeleteAccountDialog({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     paddingHorizontal: spacing.xl,
-    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    backgroundColor: "rgba(15, 23, 42, 0.45)",
   },
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   dialog: {
-    width: '100%',
+    width: "100%",
     maxWidth: 360,
     zIndex: 1,
     backgroundColor: colors.white,
@@ -113,25 +113,25 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.lg,
     gap: spacing.md,
     borderWidth: 1,
-    borderColor: '#fecaca',
+    borderColor: "#fecaca",
   },
   badge: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#fef2f2',
+    alignSelf: "flex-start",
+    backgroundColor: "#fef2f2",
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
   badgeText: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.error,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     letterSpacing: 0.4,
   },
   title: {
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.error,
   },
   body: {
@@ -140,7 +140,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   actions: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: spacing.sm,
     marginTop: spacing.xs,
   },
@@ -149,12 +149,12 @@ const styles = StyleSheet.create({
     minHeight: 48,
     borderRadius: 12,
     backgroundColor: colors.inputBackground,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   cancelButtonText: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text,
   },
   deleteButton: {
@@ -162,8 +162,8 @@ const styles = StyleSheet.create({
     minHeight: 48,
     borderRadius: 12,
     backgroundColor: colors.error,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   deleteButtonDisabled: {
     opacity: 0.85,
@@ -172,13 +172,13 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   deletingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.sm,
   },
   deleteButtonText: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.white,
   },
   pressed: {
