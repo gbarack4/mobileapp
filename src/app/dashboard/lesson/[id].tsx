@@ -1,5 +1,6 @@
 import { useAuth } from "@clerk/clerk-expo";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import * as Location from "expo-location";
 
 import { useLocalSearchParams } from "expo-router";
 import { useState } from "react";
@@ -7,6 +8,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -72,13 +74,13 @@ function formatLessonDate(lesson: Lesson) {
 
 function formatInTimeZone(
   date: Date,
-  timeZone: string,
+  timeZone: string | undefined,
   options: Intl.DateTimeFormatOptions,
 ): string {
   try {
     return new Intl.DateTimeFormat("en-US", {
       ...options,
-      timeZone,
+      ...(timeZone ? { timeZone } : {}),
     }).format(date);
   } catch {
     return new Intl.DateTimeFormat("en-US", options).format(date);
@@ -86,29 +88,37 @@ function formatInTimeZone(
 }
 
 function formatDuration(durationMinutes: number): string {
-  if (durationMinutes < 60) {
-    return `${durationMinutes} min`;
+  const minutes = Math.max(0, Math.round(Number(durationMinutes) || 0));
+
+  if (minutes < 60) {
+    return `${minutes} min`;
   }
 
-  if (durationMinutes % 60 === 0) {
-    const hours = durationMinutes / 60;
+  if (minutes % 60 === 0) {
+    const hours = minutes / 60;
 
     return `${hours} ${hours === 1 ? "hour" : "hours"}`;
   }
 
-  const hours = durationMinutes / 60;
+  const hours = minutes / 60;
 
   return `${Number(hours.toFixed(2))} hours`;
 }
 
-function getInitials(name: string): string {
-  return name
+function getInitials(name?: string | null): string {
+  return (name ?? "")
     .trim()
     .split(/\s+/)
     .filter(Boolean)
     .slice(0, 2)
     .map((part) => part.charAt(0).toUpperCase())
     .join("");
+}
+
+function toCoordinate(value: unknown): number {
+  const coordinate = typeof value === "number" ? value : Number(value);
+
+  return Number.isFinite(coordinate) ? coordinate : Number.NaN;
 }
 
 function formatTransmission(
@@ -133,7 +143,14 @@ function formatLessonPrice(totalPrice: string): string {
 
 function mapBookingToLesson(booking: InstructorBookingDetails): Lesson {
   const startDatetime = new Date(booking.startDatetime);
-  const timeZone = booking.school.timezone;
+  const timeZone = booking.school?.timezone || undefined;
+  const pickup = booking.pickup;
+  const student = booking.student;
+  const completedLessonsCount = student?.completedLessonsCount ?? 0;
+  const pickupAddress =
+    formatAddressWithoutCountry(pickup?.address) ||
+    [pickup?.suburb, pickup?.postcode].filter(Boolean).join(" ") ||
+    "Pickup location unavailable";
 
   const dayOfWeek = formatInTimeZone(startDatetime, timeZone, {
     weekday: "short",
@@ -157,8 +174,6 @@ function mapBookingToLesson(booking: InstructorBookingDetails): Lesson {
     hour12: true,
   }).toUpperCase();
 
-  const completedLessonsCount = booking.student.completedLessonsCount;
-
   return {
     id: booking.id,
     dayOfWeek,
@@ -166,23 +181,23 @@ function mapBookingToLesson(booking: InstructorBookingDetails): Lesson {
     month,
     year,
     time,
-    title: booking.school.name,
+    title: booking.school?.name ?? "Driving Lesson",
     duration: formatDuration(booking.durationMinutes),
     transmission: formatTransmission(booking.transmission),
     status: booking.status === "confirmed" ? "upcoming" : booking.status,
-    locationName: booking.school.name,
-    locationAddress: formatAddressWithoutCountry(booking.pickup.address),
-    latitude: booking.pickup.latitude,
-    longitude: booking.pickup.longitude,
-    studentInitials: getInitials(booking.student.name),
-    studentName: booking.student.name,
-    studentEmail: booking.student.email ?? "",
-    studentPhone: booking.student.phone ?? "",
+    locationName: booking.school?.name ?? "Driving Lesson",
+    locationAddress: pickupAddress,
+    latitude: toCoordinate(pickup?.latitude),
+    longitude: toCoordinate(pickup?.longitude),
+    studentInitials: getInitials(student?.name),
+    studentName: student?.name ?? "Student",
+    studentEmail: student?.email ?? "",
+    studentPhone: student?.phone ?? "",
     studentSubtitle: `Learner · ${completedLessonsCount} ${
       completedLessonsCount === 1 ? "lesson" : "lessons"
     } completed`,
-    studentAvatarUrl: undefined,
-    lessonPrice: formatLessonPrice(booking.totalPrice),
+    studentAvatarUrl: student?.avatarUrl ?? undefined,
+    lessonPrice: formatLessonPrice(booking.totalPrice ?? "0"),
   };
 }
 
@@ -211,6 +226,8 @@ export default function LessonDetailScreen() {
       return fetchInstructorBookingById(bookingId, token, signal);
     },
   });
+
+  const booking = bookingQuery.data;
 
   if (!isLoaded || (enabled && bookingQuery.isPending)) {
     return (
@@ -241,7 +258,7 @@ export default function LessonDetailScreen() {
     );
   }
 
-  if (!bookingId || bookingQuery.isError || !bookingQuery.data) {
+  if (!bookingId || bookingQuery.isError || !booking) {
     return (
       <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
         <View style={styles.missingState}>
@@ -262,7 +279,28 @@ export default function LessonDetailScreen() {
     );
   }
 
-  const activeLesson = mapBookingToLesson(bookingQuery.data);
+  let activeLesson: Lesson;
+
+  try {
+    activeLesson = mapBookingToLesson(booking);
+  } catch {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
+        <View style={styles.missingState}>
+          <Text style={styles.missingTitle}>
+            Lesson details could not be opened
+          </Text>
+
+          <Pressable
+            onPress={() => goBackOr("/dashboard")}
+            style={styles.missingButton}
+          >
+            <Text style={styles.missingButtonText}>Go back</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   function handleCallStudent() {
     const phoneNumber = activeLesson.studentPhone.trim().replace(/[^\d+]/g, "");
@@ -275,11 +313,19 @@ export default function LessonDetailScreen() {
       return;
     }
 
-    window.location.href = `tel:${phoneNumber}`;
+    const url = `tel:${phoneNumber}`;
+
+    if (Platform.OS === "web") {
+      window.location.href = url;
+      return;
+    }
+
+    void Linking.openURL(url);
   }
 
   async function handleGetDirections() {
-    const { latitude, longitude } = activeLesson;
+    const latitude = toCoordinate(activeLesson.latitude);
+    const longitude = toCoordinate(activeLesson.longitude);
 
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
       Alert.alert(
@@ -289,35 +335,54 @@ export default function LessonDetailScreen() {
       return;
     }
 
-    if (typeof window === "undefined" || !navigator.geolocation) {
-      Alert.alert(
-        "Location unavailable",
-        "Your current location could not be determined.",
-      );
-      return;
-    }
+    const destination = `${latitude},${longitude}`;
+    let origin: string | null = null;
 
     try {
-      const position = await new Promise<GeolocationPosition>(
-        (resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject, {
-            enableHighAccuracy: true,
-            timeout: 10_000,
-            maximumAge: 0,
+      if (Platform.OS === "web") {
+        if (typeof navigator === "undefined" || !navigator.geolocation) {
+          throw new Error("Geolocation is unavailable");
+        }
+
+        const position = await new Promise<GeolocationPosition>(
+          (resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+              enableHighAccuracy: true,
+              timeout: 10_000,
+              maximumAge: 0,
+            });
+          },
+        );
+
+        origin = `${position.coords.latitude},${position.coords.longitude}`;
+      } else {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+
+        if (status === "granted") {
+          const position = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
           });
-        },
-      );
 
-      const origin = `${position.coords.latitude},${position.coords.longitude}`;
-      const destination = `${latitude},${longitude}`;
+          origin = `${position.coords.latitude},${position.coords.longitude}`;
+        }
+      }
+    } catch {
+      origin = null;
+    }
 
-      const url =
-        `https://www.google.com/maps/dir/?api=1` +
-        `&origin=${encodeURIComponent(origin)}` +
-        `&destination=${encodeURIComponent(destination)}` +
-        `&travelmode=driving`;
+    const url =
+      `https://www.google.com/maps/dir/?api=1` +
+      (origin ? `&origin=${encodeURIComponent(origin)}` : "") +
+      `&destination=${encodeURIComponent(destination)}` +
+      `&travelmode=driving`;
 
-      window.location.href = url;
+    try {
+      if (Platform.OS === "web") {
+        window.location.href = url;
+        return;
+      }
+
+      await Linking.openURL(url);
     } catch {
       Alert.alert(
         "Location unavailable",
@@ -381,6 +446,7 @@ export default function LessonDetailScreen() {
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          removeClippedSubviews={false}
         >
           <LessonMap
             latitude={activeLesson.latitude}

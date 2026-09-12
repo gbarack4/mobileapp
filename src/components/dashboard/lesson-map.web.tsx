@@ -24,7 +24,21 @@ export function LessonMap({
     googleMapsApiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || "",
   });
 
+  const canShowMap =
+    Number.isFinite(latitude) &&
+    Number.isFinite(longitude) &&
+    Math.abs(latitude) <= 90 &&
+    Math.abs(longitude) <= 180;
+
   const center = { lat: latitude, lng: longitude };
+
+  if (!canShowMap) {
+    return (
+      <View style={styles.centerContainer}>
+        <Text style={styles.errorText}>Map unavailable for this pickup</Text>
+      </View>
+    );
+  }
 
   if (loadError) {
     return (
