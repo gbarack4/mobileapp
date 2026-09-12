@@ -363,6 +363,7 @@ export function AvailabilityScreen({
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>("monday");
   const [locationDraft, setLocationDraft] = useState("");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const [copied, setCopied] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   const selectedDayData = useMemo(
@@ -424,6 +425,19 @@ export function AvailabilityScreen({
   useEffect(() => {
     setSaveStatus((current) => (current === "saved" ? "idle" : current));
   }, [draftAvailability]);
+
+  useEffect(() => {
+    setCopied(false);
+  }, [selectedDay]);
+
+  useEffect(() => {
+    if (!copied) {
+      return;
+    }
+
+    const timeout = setTimeout(() => setCopied(false), SAVE_DELAY_MS);
+    return () => clearTimeout(timeout);
+  }, [copied]);
 
   function updateDay(dayOfWeek: DayOfWeek, slot: AvailabilitySlot | null) {
     setDraftAvailability((current) => ({
@@ -531,6 +545,7 @@ export function AvailabilityScreen({
         slot: { ...template, locations: [...template.locations] },
       })),
     }));
+    setCopied(true);
   }
 
   async function handleSave() {
@@ -660,14 +675,26 @@ export function AvailabilityScreen({
           {selectedDayData.slot ? (
             <Pressable
               onPress={handleCopyToAll}
-              android_ripple={ANDROID_RIPPLE}
+              android_ripple={copied ? undefined : ANDROID_RIPPLE}
+              accessibilityLabel={copied ? "Copied to all days" : "Copy to all days"}
               style={({ pressed }) => [
                 styles.copyButton,
-                pressed && styles.pressed,
+                pressed && !copied && styles.pressed,
               ]}
             >
-              <CopyIcon />
-              <Text style={styles.copyButtonText}>Copy to all</Text>
+              {copied ? (
+                <>
+                  <CheckIcon size={16} color={SAVED_GREEN} />
+                  <Text style={[styles.copyButtonText, styles.copyButtonTextCopied]}>
+                    Copied
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <CopyIcon />
+                  <Text style={styles.copyButtonText}>Copy to all</Text>
+                </>
+              )}
             </Pressable>
           ) : null}
         </View>
@@ -854,6 +881,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     color: colors.primary,
+  },
+  copyButtonTextCopied: {
+    color: SAVED_GREEN,
   },
   slotCard: {
     backgroundColor: "#f9f9f9",
