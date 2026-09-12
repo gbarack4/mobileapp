@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { StyleSheet, View } from "react-native";
+import { Platform, StyleSheet, View } from "react-native";
 import MapView, { Polygon, PROVIDER_GOOGLE } from "react-native-maps";
 
 import { type WorkSuburb } from "../../data/mock-work-locations";
@@ -54,7 +54,7 @@ export function WorkLocationsMap({
       <MapView
         ref={mapRef}
         style={styles.map}
-        provider={PROVIDER_GOOGLE}
+        provider={Platform.OS === "android" ? PROVIDER_GOOGLE : undefined}
         initialRegion={initialRegion}
         scrollEnabled
         zoomEnabled

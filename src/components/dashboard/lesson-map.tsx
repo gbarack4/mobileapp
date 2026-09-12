@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { StyleSheet, View } from "react-native";
+import { Platform, StyleSheet, View } from "react-native";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 
 import { logGoogleMapsDiagnostics } from "../../utils/maps-diagnostics";
@@ -25,7 +25,7 @@ export function LessonMap({
     <View style={styles.nativeMapContainer}>
       <MapView
         style={styles.nativeMap}
-        provider={PROVIDER_GOOGLE}
+        provider={Platform.OS === "android" ? PROVIDER_GOOGLE : undefined}
         initialRegion={{
           latitude,
           longitude,
