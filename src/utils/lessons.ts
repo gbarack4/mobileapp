@@ -1,9 +1,4 @@
-import { MOCK_LESSONS } from '../data/mock-lessons';
 import type { Lesson } from '../types/dashboard';
-
-export function getLessonById(id: string): Lesson | undefined {
-  return MOCK_LESSONS.find((lesson) => lesson.id === id);
-}
 
 function formatShortDuration(duration: string) {
   return duration.replace(/\s*hours?\b/gi, ' hrs').trim();

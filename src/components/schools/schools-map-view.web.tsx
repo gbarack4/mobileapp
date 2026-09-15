@@ -15,6 +15,7 @@ import {
 
 import { colors } from "../../constants/theme";
 import type { School } from "../../types/school";
+import { CITY_MAP_ZOOM } from "../../utils/schools";
 import {
   buildSchoolMarkerHtml,
   schoolToLatLng,
@@ -38,7 +39,7 @@ const mapContainerStyle = {
   height: "100%",
 };
 
-const defaultCenter = { lat: 0, lng: 0 };
+const defaultCenter = { lat: -27.4698, lng: 153.0251 };
 
 export const SchoolsMapView = forwardRef<
   SchoolsMapViewHandle,
@@ -61,56 +62,44 @@ export const SchoolsMapView = forwardRef<
         s.latitude != null && s.longitude != null,
     );
 
-  const fitSchools = (mapInstance: google.maps.Map) => {
+  const getCityCenter = () => {
+    if (userLocation) {
+      return { lat: userLocation.lat, lng: userLocation.lng };
+    }
+
     const validSchools = getValidSchools();
-
-    if (validSchools.length === 0) {
-      if (userLocation) {
-        mapInstance.panTo({ lat: userLocation.lat, lng: userLocation.lng });
-        mapInstance.setZoom(13);
-      }
-      return;
-    }
-
-    if (validSchools.length === 1) {
+    if (validSchools.length > 0) {
       const [lat, lng] = schoolToLatLng(validSchools[0]);
-      mapInstance.panTo({ lat, lng });
-      mapInstance.setZoom(13);
-      return;
+      return { lat, lng };
     }
 
-    const bounds = new window.google.maps.LatLngBounds();
-    validSchools.forEach((school) => {
-      const [lat, lng] = schoolToLatLng(school);
-      bounds.extend({ lat, lng });
-    });
+    return defaultCenter;
+  };
 
-    mapInstance.fitBounds(bounds, {
-      top: 120,
-      right: 64,
-      bottom: 64,
-      left: 64,
-    });
+  const focusCity = (mapInstance: google.maps.Map) => {
+    const center = getCityCenter();
+    mapInstance.panTo(center);
+    mapInstance.setZoom(CITY_MAP_ZOOM);
   };
 
   useImperativeHandle(ref, () => ({
     recenter: () => {
       if (mapRef.current) {
-        fitSchools(mapRef.current);
+        focusCity(mapRef.current);
       }
     },
   }));
 
   useEffect(() => {
     if (mapRef.current && mapReady) {
-      fitSchools(mapRef.current);
+      focusCity(mapRef.current);
     }
   }, [schools, userLocation, mapReady]);
 
   const onLoad = (map: google.maps.Map) => {
     mapRef.current = map;
     setMapReady(true);
-    fitSchools(map);
+    focusCity(map);
   };
 
   const onUnmount = () => {
@@ -135,18 +124,14 @@ export const SchoolsMapView = forwardRef<
   }
 
   const validSchools = getValidSchools();
-  const initialCenter = userLocation
-    ? { lat: userLocation.lat, lng: userLocation.lng }
-    : defaultCenter;
-
-  const initialZoom = validSchools.length === 0 && !userLocation ? 2 : 13;
+  const initialCenter = getCityCenter();
 
   return (
     <View style={styles.container}>
       <GoogleMap
         mapContainerStyle={mapContainerStyle}
         center={initialCenter}
-        zoom={initialZoom}
+        zoom={CITY_MAP_ZOOM}
         onLoad={onLoad}
         onUnmount={onUnmount}
         options={{

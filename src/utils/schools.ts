@@ -27,6 +27,23 @@ function hasValidCoordinates(
   return school.latitude != null && school.longitude != null;
 }
 
+/** Roughly a single city (~25km), not a country or world view. */
+export const CITY_MAP_LATITUDE_DELTA = 0.25;
+export const CITY_MAP_LONGITUDE_DELTA = 0.25;
+export const CITY_MAP_ZOOM = 11;
+
+export function getCityMapRegion(center: {
+  latitude: number;
+  longitude: number;
+}) {
+  return {
+    latitude: center.latitude,
+    longitude: center.longitude,
+    latitudeDelta: CITY_MAP_LATITUDE_DELTA,
+    longitudeDelta: CITY_MAP_LONGITUDE_DELTA,
+  };
+}
+
 export function getSchoolMapRegion(schools: School[]) {
   const validSchools = schools.filter(hasValidCoordinates);
 

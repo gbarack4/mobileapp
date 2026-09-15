@@ -30,4 +30,7 @@ export type InboxNotification = {
   body: string;
   timeLabel: string;
   unread: boolean;
+  avatarUrl?: string | null;
+  avatarColor?: string;
+  initials?: string;
 };

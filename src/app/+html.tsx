@@ -2,9 +2,10 @@ import { ScrollViewStyleReset } from "expo-router/html";
 import type { PropsWithChildren } from "react";
 
 const SITE_LOADER_CSS = `
-html, body {
+html, body, #root {
   margin: 0;
-  background: #005eff;
+  min-height: 100%;
+  background: #ffffff;
 }
 
 .site-loader {
@@ -53,8 +54,9 @@ export default function Root({ children }: Readonly<PropsWithChildren>) {
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
         <meta
           name="viewport"
-          content="width=device-width, initial-scale=1, shrink-to-fit=no"
+          content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover"
         />
+        <meta name="theme-color" content="#ffffff" />
         <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
         <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />

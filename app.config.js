@@ -6,7 +6,7 @@ export default {
     scheme: "instructorhub",
     orientation: "portrait",
     userInterfaceStyle: "light",
-    backgroundColor: "#005eff",
+    backgroundColor: "#ffffff",
     icon: "./assets/icon.png",
     splash: {
       image: "./assets/splash-mark.png",
@@ -16,7 +16,7 @@ export default {
     ios: {
       supportsTablet: true,
       bundleIdentifier: "pro.driveinstructor.instructorhub",
-      backgroundColor: "#005eff",
+      backgroundColor: "#ffffff",
       icon: "./assets/icon.png",
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
@@ -31,7 +31,7 @@ export default {
     },
     android: {
       package: "pro.driveinstructor.instructorhub",
-      backgroundColor: "#005eff",
+      backgroundColor: "#ffffff",
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon.png",
         backgroundColor: "#005eff",
@@ -82,6 +82,8 @@ export default {
     },
     web: {
       favicon: "./public/favicon.png",
+      backgroundColor: "#ffffff",
+      themeColor: "#ffffff",
     },
     extra: {
       eas: {

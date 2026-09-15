@@ -14,18 +14,20 @@ export function PersonIcon() {
   );
 }
 
-export function LockIcon() {
+export function LockIcon({ unlocked = false }: { unlocked?: boolean }) {
+  const stroke = unlocked ? "#005eff" : "#6b7280";
+
   return (
     <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
       <Path
-        d="M7 11V8a5 5 0 0110 0v3"
-        stroke="#6b7280"
+        d={unlocked ? "M7 11V8a5 5 0 019.9-1" : "M7 11V8a5 5 0 0110 0v3"}
+        stroke={stroke}
         strokeWidth="1.75"
         strokeLinecap="round"
       />
       <Path
         d="M6 11h12a2 2 0 012 2v7a2 2 0 01-2 2H6a2 2 0 01-2-2v-7a2 2 0 012-2z"
-        stroke="#6b7280"
+        stroke={stroke}
         strokeWidth="1.75"
         strokeLinejoin="round"
       />

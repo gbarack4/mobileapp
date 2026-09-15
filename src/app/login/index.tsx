@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -69,6 +70,8 @@ const ANDROID_RIPPLE =
   Platform.OS === "android" ? { color: "rgba(0, 94, 255, 0.14)" } : undefined;
 
 const CONTINUING_MS = 1000;
+const TERMS_URL = "https://driveinstructor.pro/terms";
+const PRIVACY_URL = "https://driveinstructor.pro/privacy";
 
 export default function LoginScreen() {
   const { signIn, setActive, isLoaded } = useSignIn();
@@ -92,6 +95,9 @@ export default function LoginScreen() {
     null,
   );
   const [focusedField, setFocusedField] = useState<FocusedField | null>(null);
+  const [passwordVisible, setPasswordVisible] = useState(false);
+  const [newPasswordVisible, setNewPasswordVisible] = useState(false);
+  const [confirmPasswordVisible, setConfirmPasswordVisible] = useState(false);
 
   const trimmedIdentifier = normalizeIdentifier(identifier);
   const isBusy = isSubmitting || isContinuing || oauthLoading !== null;
@@ -502,7 +508,7 @@ export default function LoginScreen() {
           >
             <View style={styles.header} pointerEvents="box-none">
               <Logo size={64} />
-              <Text style={styles.title}>
+              <Text style={styles.title} numberOfLines={1}>
                 {STEP_TITLES[step as Exclude<LoginStep, "verify-code">]}
               </Text>
               {STEP_SUBTITLES[step] ? (
@@ -572,7 +578,7 @@ export default function LoginScreen() {
                       }
                       placeholder="Password"
                       placeholderTextColor={colors.textMuted}
-                      secureTextEntry
+                      secureTextEntry={!passwordVisible}
                       autoCapitalize="none"
                       autoCorrect={false}
                       textContentType="password"
@@ -585,9 +591,17 @@ export default function LoginScreen() {
                       ]}
                       editable={!isBusy}
                     />
-                    <View style={styles.inputIcon} pointerEvents="none">
-                      <LockIcon />
-                    </View>
+                    <Pressable
+                      onPress={() => setPasswordVisible((current) => !current)}
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel={
+                        passwordVisible ? "Hide password" : "Show password"
+                      }
+                      style={styles.inputIcon}
+                    >
+                      <LockIcon unlocked={passwordVisible} />
+                    </Pressable>
                   </View>
                 </>
               ) : null}
@@ -641,7 +655,7 @@ export default function LoginScreen() {
                       }
                       placeholder="New password"
                       placeholderTextColor={colors.textMuted}
-                      secureTextEntry
+                      secureTextEntry={!newPasswordVisible}
                       autoCapitalize="none"
                       autoCorrect={false}
                       textContentType="newPassword"
@@ -653,9 +667,19 @@ export default function LoginScreen() {
                       ]}
                       editable={!isBusy}
                     />
-                    <View style={styles.inputIcon} pointerEvents="none">
-                      <LockIcon />
-                    </View>
+                    <Pressable
+                      onPress={() =>
+                        setNewPasswordVisible((current) => !current)
+                      }
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel={
+                        newPasswordVisible ? "Hide password" : "Show password"
+                      }
+                      style={styles.inputIcon}
+                    >
+                      <LockIcon unlocked={newPasswordVisible} />
+                    </Pressable>
                   </View>
 
                   <Text style={styles.label}>Confirm password</Text>
@@ -674,7 +698,7 @@ export default function LoginScreen() {
                       }
                       placeholder="Confirm password"
                       placeholderTextColor={colors.textMuted}
-                      secureTextEntry
+                      secureTextEntry={!confirmPasswordVisible}
                       autoCapitalize="none"
                       autoCorrect={false}
                       textContentType="newPassword"
@@ -688,9 +712,21 @@ export default function LoginScreen() {
                       ]}
                       editable={!isBusy}
                     />
-                    <View style={styles.inputIcon} pointerEvents="none">
-                      <LockIcon />
-                    </View>
+                    <Pressable
+                      onPress={() =>
+                        setConfirmPasswordVisible((current) => !current)
+                      }
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel={
+                        confirmPasswordVisible
+                          ? "Hide password"
+                          : "Show password"
+                      }
+                      style={styles.inputIcon}
+                    >
+                      <LockIcon unlocked={confirmPasswordVisible} />
+                    </Pressable>
                   </View>
                 </>
               ) : null}
@@ -838,9 +874,22 @@ export default function LoginScreen() {
             ) : null}
 
             {!isForgotFlow ? (
-              <Text style={styles.disclaimer} pointerEvents="none">
-                You consent to receive a verification code by text or WhatsApp.
-                Message and data rates may apply.
+              <Text style={styles.termsDisclaimer}>
+                By signing in, you agree to our{" "}
+                <Text
+                  style={styles.termsLink}
+                  onPress={() => void Linking.openURL(TERMS_URL)}
+                >
+                  Terms and Conditions
+                </Text>{" "}
+                and acknowledge our{" "}
+                <Text
+                  style={styles.termsLink}
+                  onPress={() => void Linking.openURL(PRIVACY_URL)}
+                >
+                  Privacy Policy
+                </Text>
+                .
               </Text>
             ) : null}
           </ScrollView>
@@ -870,12 +919,20 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xxl,
   },
   title: {
+    width: "100%",
     fontSize: 28,
     lineHeight: 34,
     fontWeight: "700",
     color: colors.text,
     textAlign: "center",
     letterSpacing: -0.3,
+    ...(Platform.OS === "web"
+      ? ({
+          whiteSpace: "nowrap",
+          fontSize: "clamp(18px, 5.6vw, 28px)",
+          lineHeight: 34,
+        } as object)
+      : {}),
   },
   subtitle: {
     fontSize: 15,
@@ -934,6 +991,7 @@ const styles = StyleSheet.create({
   inputIcon: {
     position: "absolute",
     right: spacing.lg,
+    zIndex: 2,
   },
   error: {
     color: colors.error,
@@ -1055,7 +1113,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
   },
-  disclaimer: {
+  termsDisclaimer: {
     marginTop: "auto",
     paddingTop: spacing.xxxl,
     textAlign: "center",
@@ -1063,6 +1121,10 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     fontWeight: "500",
+  },
+  termsLink: {
+    color: colors.primary,
+    fontWeight: "700",
   },
   buttonPressed: {
     opacity: 0.85,

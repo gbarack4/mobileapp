@@ -33,8 +33,8 @@ const NAV_ITEMS: {
   Icon: typeof HomeNavIcon;
 }[] = [
   { id: "school", label: "School", Icon: HomeNavIcon },
-  { id: "bookings", label: "Bookings", Icon: BookingsNavIcon },
   { id: "inbox", label: "Inbox", Icon: InboxNavIcon },
+  { id: "bookings", label: "Bookings", Icon: BookingsNavIcon },
   { id: "earnings", label: "Earnings", Icon: EarningsNavIcon },
   { id: "profile", label: "Account", Icon: ProfileNavIcon },
 ];
@@ -67,11 +67,16 @@ export function DashboardBottomNav({
   const notificationBadgeCount =
     realInvites?.filter((invite: any) => !invite._isRead).length ?? 0;
 
+  const bottomSafeArea =
+    Platform.OS === "web"
+      ? (`max(${insets.bottom}px, env(safe-area-inset-bottom, 0px))` as const)
+      : insets.bottom;
+
   return (
     <Animated.View
       style={[
         styles.wrapper,
-        { paddingBottom: insets.bottom },
+        { paddingBottom: bottomSafeArea },
         translateY ? { transform: [{ translateY }] } : null,
       ]}
     >

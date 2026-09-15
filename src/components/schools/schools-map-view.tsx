@@ -1,11 +1,11 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import { Platform, StyleSheet, View } from "react-native";
-import MapView, { Marker, PROVIDER_GOOGLE, Region } from "react-native-maps";
+import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 
 import { colors } from "../../constants/theme";
 import type { School } from "../../types/school";
 import { logGoogleMapsDiagnostics } from "../../utils/maps-diagnostics";
-import { getSchoolMapRegion } from "../../utils/schools";
+import { getCityMapRegion } from "../../utils/schools";
 import { SchoolMapMarker } from "./school-map-marker";
 
 export type SchoolsMapViewHandle = {
@@ -37,49 +37,32 @@ export const SchoolsMapView = forwardRef<
       school.latitude != null && school.longitude != null,
   );
 
-  const rawRegion = getSchoolMapRegion(validSchools);
-
-  const initialRegion: Region | undefined =
-    rawRegion?.latitude != null && rawRegion.longitude != null
+  const cityCenter = userLocation
+    ? { latitude: userLocation.lat, longitude: userLocation.lng }
+    : validSchools[0]
       ? {
-          latitude: rawRegion.latitude,
-          longitude: rawRegion.longitude,
-          latitudeDelta: rawRegion.latitudeDelta,
-          longitudeDelta: rawRegion.longitudeDelta,
+          latitude: validSchools[0].latitude,
+          longitude: validSchools[0].longitude,
         }
-      : userLocation
-        ? {
-            latitude: userLocation.lat,
-            longitude: userLocation.lng,
-            latitudeDelta: 0.08,
-            longitudeDelta: 0.08,
-          }
-        : undefined;
+      : null;
 
-  function fitSchools() {
-    if (validSchools.length === 0 || !mapRef.current) {
+  const initialRegion = cityCenter ? getCityMapRegion(cityCenter) : undefined;
+
+  function focusCity() {
+    if (!cityCenter || !mapRef.current) {
       return;
     }
 
-    mapRef.current.fitToCoordinates(
-      validSchools.map((school) => ({
-        latitude: school.latitude,
-        longitude: school.longitude,
-      })),
-      {
-        edgePadding: { top: 120, right: 64, bottom: 160, left: 64 },
-        animated: true,
-      },
-    );
+    mapRef.current.animateToRegion(getCityMapRegion(cityCenter), 400);
   }
 
   useImperativeHandle(ref, () => ({
-    recenter: fitSchools,
+    recenter: focusCity,
   }));
 
   useEffect(() => {
-    fitSchools();
-  }, [schools]);
+    focusCity();
+  }, [userLocation, schools]);
 
   return (
     <View style={styles.container}>
@@ -94,6 +77,7 @@ export const SchoolsMapView = forwardRef<
         rotateEnabled
         onMapReady={() => {
           console.log("[Maps:SchoolsMapView] onMapReady");
+          focusCity();
         }}
         onMapLoaded={() => {
           console.log("[Maps:SchoolsMapView] onMapLoaded");

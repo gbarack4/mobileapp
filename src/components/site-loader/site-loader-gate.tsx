@@ -39,6 +39,6 @@ export function SiteLoaderGate({ children }: SiteLoaderGateProps) {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.background,
   },
 });

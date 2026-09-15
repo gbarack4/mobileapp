@@ -83,19 +83,8 @@ export function BookingsNavIcon({ size = 22, color = '#111827' }: IconProps) {
 
 export function InboxNavIcon({ size = 22, color = '#9ca3af' }: IconProps) {
   return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Path
-        d="M4 6.5A2.5 2.5 0 016.5 4h11A2.5 2.5 0 0120 6.5v11a2.5 2.5 0 01-2.5 2.5h-11A2.5 2.5 0 014 17.5v-11z"
-        stroke={color}
-        strokeWidth="1.75"
-      />
-      <Path
-        d="M4.5 7l7.5 5.5L19.5 7"
-        stroke={color}
-        strokeWidth="1.75"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+    <Svg width={size} height={size} viewBox="0 -960 960 960" fill={color}>
+      <Path d="M160-200v-80h80v-280q0-83 50-147.5T420-792v-28q0-25 17.5-42.5T480-880q25 0 42.5 17.5T540-820v28q80 20 130 84.5T720-560v280h80v80H160Zm320-300Zm0 420q-33 0-56.5-23.5T400-160h160q0 33-23.5 56.5T480-80ZM320-280h320v-280q0-66-47-113t-113-47q-66 0-113 47t-47 113v280Z" />
     </Svg>
   );
 }

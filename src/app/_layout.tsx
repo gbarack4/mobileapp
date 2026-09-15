@@ -14,7 +14,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 const queryClient = new QueryClient();
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
-SystemUI.setBackgroundColorAsync(colors.primary).catch(() => {});
+SystemUI.setBackgroundColorAsync(colors.background).catch(() => {});
 
 const tokenCache =
   Platform.OS !== "web"

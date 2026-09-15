@@ -90,6 +90,59 @@ function getInitials(name: string): string {
     .join("");
 }
 
+function digitsOnly(value: string): string {
+  return value.replace(/\D/g, "");
+}
+
+function normalizePhoneDigits(value: string): string {
+  let digits = digitsOnly(value);
+
+  if (digits.startsWith("61") && digits.length >= 11) {
+    digits = `0${digits.slice(2)}`;
+  }
+
+  return digits;
+}
+
+function lessonMatchesBookingSearch(lesson: Lesson, rawQuery: string): boolean {
+  const query = rawQuery.trim().toLowerCase();
+
+  if (!query) {
+    return true;
+  }
+
+  const studentName = lesson.studentName.toLowerCase();
+  const studentEmail = lesson.studentEmail.toLowerCase();
+  const studentPhone = lesson.studentPhone.toLowerCase();
+
+  if (
+    studentName.includes(query) ||
+    studentEmail.includes(query) ||
+    studentPhone.includes(query)
+  ) {
+    return true;
+  }
+
+  const queryDigits = digitsOnly(query);
+
+  if (queryDigits.length >= 3) {
+    const storedDigits = digitsOnly(lesson.studentPhone);
+    const storedNormalized = normalizePhoneDigits(lesson.studentPhone);
+    const queryNormalized = normalizePhoneDigits(query);
+
+    if (
+      storedDigits.includes(queryDigits) ||
+      storedNormalized.includes(queryNormalized) ||
+      (queryNormalized.length >= 3 &&
+        storedNormalized.includes(queryNormalized))
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function getPickupLocation(booking: InstructorBooking): string {
   const address = booking.pickupAddress?.trim();
 
@@ -242,32 +295,18 @@ export default function DashboardScreen() {
   );
 
   const lessons = useMemo(() => {
-    const tabLessons = allLessons.filter(
-      (lesson) => lesson.status === lessonTab,
-    );
-
-    const trimmedQuery = searchQuery.trim().toLowerCase();
+    const trimmedQuery = searchQuery.trim();
+    const source = trimmedQuery
+      ? allLessons
+      : allLessons.filter((lesson) => lesson.status === lessonTab);
 
     if (!trimmedQuery) {
-      return tabLessons;
+      return source;
     }
 
-    return tabLessons.filter((lesson) => {
-      const searchableText = [
-        lesson.title,
-        lesson.studentName,
-        lesson.studentEmail,
-        lesson.studentPhone,
-        lesson.locationAddress,
-        lesson.locationName,
-        lesson.time,
-        lesson.duration,
-      ]
-        .join(" ")
-        .toLowerCase();
-
-      return searchableText.includes(trimmedQuery);
-    });
+    return source.filter((lesson) =>
+      lessonMatchesBookingSearch(lesson, trimmedQuery),
+    );
   }, [allLessons, lessonTab, searchQuery]);
 
   useEffect(() => {
@@ -432,7 +471,9 @@ export default function DashboardScreen() {
 
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>
-                  {SECTION_TITLES[lessonTab]}
+                  {searchQuery.trim()
+                    ? "Search results"
+                    : SECTION_TITLES[lessonTab]}
                 </Text>
 
                 <Pressable
