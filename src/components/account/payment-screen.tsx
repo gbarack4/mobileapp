@@ -11,8 +11,8 @@ import {
 
 import { useInstructorStripe } from "@/hooks/use-instructor-stripe";
 import type {
+  PayoutConnectionStatus,
   SchoolStripeConnection,
-  SchoolStripeStatus,
 } from "@/types/payment";
 
 import { colors, spacing } from "../../constants/theme";
@@ -26,14 +26,14 @@ type PaymentScreenProps = {
 const ANDROID_RIPPLE =
   Platform.OS === "android" ? { color: "rgba(0, 0, 0, 0.06)" } : undefined;
 
-const STATUS_LABELS: Record<SchoolStripeStatus, string> = {
+const STATUS_LABELS: Record<PayoutConnectionStatus, string> = {
   connected: "Connected",
   not_connected: "Not connected",
   pending: "Pending",
   disconnected: "Disconnected",
 };
 
-function getStatusTextColor(status: SchoolStripeStatus) {
+function getStatusTextColor(status: PayoutConnectionStatus) {
   if (status === "connected") {
     return "#16a34a";
   }
@@ -49,7 +49,7 @@ function getStatusTextColor(status: SchoolStripeStatus) {
   return colors.textSecondary;
 }
 
-function getSchoolMeta(status: SchoolStripeStatus): string {
+function getSchoolMeta(status: PayoutConnectionStatus): string {
   if (status === "connected") {
     return "Stripe account connected";
   }
@@ -66,7 +66,7 @@ function getSchoolMeta(status: SchoolStripeStatus): string {
 }
 
 function getActionButtonLabel(
-  status: SchoolStripeStatus,
+  status: PayoutConnectionStatus,
   isProcessing: boolean,
 ): string {
   if (status === "disconnected") {
@@ -243,8 +243,7 @@ export function PaymentScreen({ onClose }: Readonly<PaymentScreenProps>) {
       >
         <Text style={styles.introTitle}>Stripe payouts</Text>
         <Text style={styles.introText}>
-          Connect Stripe to receive payouts from the schools you work with. Your
-          Stripe payout account can be used across multiple schools.
+          Connect Stripe to receive payouts from each school you work with.
         </Text>
 
         {error ? (

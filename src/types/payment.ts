@@ -1,7 +1,7 @@
-export type SchoolStripeStatus =
-  | "connected"
+export type PayoutConnectionStatus =
   | "not_connected"
   | "pending"
+  | "connected"
   | "disconnected";
 
 export type SchoolStripeConnection = {
@@ -9,39 +9,21 @@ export type SchoolStripeConnection = {
   name: string;
   initials: string;
   avatarColor: string;
-  stripeStatus: SchoolStripeStatus;
+  stripeStatus: PayoutConnectionStatus;
   stripeAccountLabel?: string;
 };
-
-export type PayoutConnectionStatus =
-  | "not_connected"
-  | "pending"
-  | "connected"
-  | "disconnected";
-
-export type StripeRecipientStatus =
-  | "active"
-  | "pending"
-  | "restricted"
-  | "unsupported"
-  | null;
 
 export type InstructorStripeSchool = {
   schoolId: string;
   name: string;
   payoutConnectionStatus: PayoutConnectionStatus;
-  stripeRecipientStatus: StripeRecipientStatus;
-};
-
-export type StripeOnboardingResponse = {
-  url: string;
 };
 
 export type StripeConnectionStatusResponse = {
-  status: PayoutConnectionStatus;
-  stripeStatus: StripeRecipientStatus;
+  stripeAccountId: string | null;
+  payoutConnectionStatus: PayoutConnectionStatus;
 };
 
-export type StripeReconnectResponse = StripeConnectionStatusResponse & {
+export type StripeConnectionResponse = StripeConnectionStatusResponse & {
   url: string | null;
 };

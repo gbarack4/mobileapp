@@ -1,8 +1,7 @@
 import type {
   InstructorStripeSchool,
+  StripeConnectionResponse,
   StripeConnectionStatusResponse,
-  StripeOnboardingResponse,
-  StripeReconnectResponse,
 } from "@/types/payment";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL?.replace(/\/+$/, "");
@@ -43,6 +42,7 @@ async function getResponseErrorMessage(response: Response): Promise<string> {
 async function request<T>(
   path: string,
   token: string,
+  schoolId?: string,
   options?: RequestInit,
 ): Promise<T> {
   const response = await fetch(`${getApiUrl()}${path}`, {
@@ -51,6 +51,7 @@ async function request<T>(
       Authorization: `Bearer ${token}`,
       Accept: "application/json",
       "Content-Type": "application/json",
+      ...(schoolId ? { "x-school-id": schoolId } : {}),
       ...options?.headers,
     },
   });
@@ -66,18 +67,19 @@ export function getInstructorStripeSchools(
   token: string,
 ): Promise<InstructorStripeSchool[]> {
   return request<InstructorStripeSchool[]>(
-    "/instructor/stripe-connect/schools",
+    "/stripe/instructor-connect/schools",
     token,
   );
 }
 
-export function createInstructorStripeOnboarding(
+export function createInstructorStripeConnection(
   schoolId: string,
   token: string,
-): Promise<StripeOnboardingResponse> {
-  return request<StripeOnboardingResponse>(
-    `/instructor/stripe-connect/schools/${schoolId}/onboarding`,
+): Promise<StripeConnectionResponse> {
+  return request<StripeConnectionResponse>(
+    "/stripe/instructor-connect",
     token,
+    schoolId,
     {
       method: "POST",
     },
@@ -89,8 +91,9 @@ export function getInstructorStripeStatus(
   token: string,
 ): Promise<StripeConnectionStatusResponse> {
   return request<StripeConnectionStatusResponse>(
-    `/instructor/stripe-connect/schools/${schoolId}/status`,
+    "/stripe/instructor-connect/status",
     token,
+    schoolId,
   );
 }
 
@@ -99,8 +102,9 @@ export function disconnectInstructorStripeSchool(
   token: string,
 ): Promise<StripeConnectionStatusResponse> {
   return request<StripeConnectionStatusResponse>(
-    `/instructor/stripe-connect/schools/${schoolId}/disconnect`,
+    "/stripe/instructor-connect/disconnect",
     token,
+    schoolId,
     {
       method: "POST",
     },
@@ -110,10 +114,11 @@ export function disconnectInstructorStripeSchool(
 export function reconnectInstructorStripeSchool(
   schoolId: string,
   token: string,
-): Promise<StripeReconnectResponse> {
-  return request<StripeReconnectResponse>(
-    `/instructor/stripe-connect/schools/${schoolId}/reconnect`,
+): Promise<StripeConnectionResponse> {
+  return request<StripeConnectionResponse>(
+    "/stripe/instructor-connect/reconnect",
     token,
+    schoolId,
     {
       method: "POST",
     },

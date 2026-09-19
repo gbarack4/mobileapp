@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Linking } from "react-native";
 
 import {
-  createInstructorStripeOnboarding,
+  createInstructorStripeConnection,
   disconnectInstructorStripeSchool,
   getInstructorStripeSchools,
   getInstructorStripeStatus,
@@ -13,7 +13,6 @@ import {
 import type {
   InstructorStripeSchool,
   SchoolStripeConnection,
-  SchoolStripeStatus,
 } from "@/types/payment";
 
 const AVATAR_COLORS = ["#2563eb", "#7c3aed", "#0f766e", "#b45309"] as const;
@@ -40,32 +39,6 @@ function getAvatarColor(schoolId: string): string {
   return AVATAR_COLORS[hash % AVATAR_COLORS.length];
 }
 
-function mapStripeStatus(
-  connection: InstructorStripeSchool,
-): SchoolStripeStatus {
-  if (connection.payoutConnectionStatus === "disconnected") {
-    return "disconnected";
-  }
-
-  if (
-    connection.payoutConnectionStatus === "connected" &&
-    connection.stripeRecipientStatus === "active"
-  ) {
-    return "connected";
-  }
-
-  if (
-    connection.payoutConnectionStatus === "pending" ||
-    (connection.payoutConnectionStatus === "connected" &&
-      (connection.stripeRecipientStatus === "pending" ||
-        connection.stripeRecipientStatus === "restricted"))
-  ) {
-    return "pending";
-  }
-
-  return "not_connected";
-}
-
 function mapSchoolConnection(
   connection: InstructorStripeSchool,
 ): SchoolStripeConnection {
@@ -74,7 +47,7 @@ function mapSchoolConnection(
     name: connection.name,
     initials: getInitials(connection.name),
     avatarColor: getAvatarColor(connection.schoolId),
-    stripeStatus: mapStripeStatus(connection),
+    stripeStatus: connection.payoutConnectionStatus,
   };
 }
 
@@ -84,6 +57,12 @@ function firstParam(value: string | string[] | undefined): string | undefined {
 
 export function useInstructorStripe() {
   const { getToken, isLoaded, isSignedIn } = useAuth();
+
+  const getTokenRef = useRef(getToken);
+
+  useEffect(() => {
+    getTokenRef.current = getToken;
+  }, [getToken]);
 
   const params = useLocalSearchParams<{
     stripe?: string | string[];
@@ -133,7 +112,7 @@ export function useInstructorStripe() {
     setError(null);
 
     try {
-      const token = await getToken();
+      const token = await getTokenRef.current();
 
       if (!token) {
         throw new Error("Authentication required.");
@@ -163,31 +142,21 @@ export function useInstructorStripe() {
       setConnectingSchoolId(schoolId);
       setError(null);
 
-      setConnections((current) =>
-        current.map((connection) =>
-          connection.schoolId === schoolId
-            ? {
-                ...connection,
-                stripeStatus: "pending",
-              }
-            : connection,
-        ),
-      );
-
       try {
-        const token = await getToken();
+        const token = await getTokenRef.current();
 
         if (!token) {
           throw new Error("Authentication required.");
         }
 
-        const result = await createInstructorStripeOnboarding(schoolId, token);
+        const result = await createInstructorStripeConnection(schoolId, token);
 
-        if (!result.url) {
-          throw new Error("Stripe onboarding URL was not returned.");
+        if (result.url) {
+          await Linking.openURL(result.url);
+          return;
         }
 
-        await Linking.openURL(result.url);
+        await loadSchools();
       } catch (requestError) {
         await loadSchools();
 
@@ -200,7 +169,7 @@ export function useInstructorStripe() {
         setConnectingSchoolId(null);
       }
     },
-    [connectingSchoolId, getToken, loadSchools],
+    [connectingSchoolId, loadSchools],
   );
 
   const disconnect = useCallback(
@@ -213,14 +182,13 @@ export function useInstructorStripe() {
       setError(null);
 
       try {
-        const token = await getToken();
+        const token = await getTokenRef.current();
 
         if (!token) {
           throw new Error("Authentication required.");
         }
 
         await disconnectInstructorStripeSchool(schoolId, token);
-
         await loadSchools();
       } catch (requestError) {
         setError(
@@ -245,7 +213,7 @@ export function useInstructorStripe() {
       setError(null);
 
       try {
-        const token = await getToken();
+        const token = await getTokenRef.current();
 
         if (!token) {
           throw new Error("Authentication required.");
@@ -274,7 +242,7 @@ export function useInstructorStripe() {
 
   const syncStatus = useCallback(
     async (schoolId: string) => {
-      const token = await getToken();
+      const token = await getTokenRef.current();
 
       if (!token) {
         throw new Error("Authentication required.");
