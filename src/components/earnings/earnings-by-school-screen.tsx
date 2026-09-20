@@ -10,13 +10,13 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { colors, spacing } from "../../constants/theme";
-import type { SchoolWeeklyEarningsSummary } from "../../types/earnings";
+import type { InstructorSchoolEarningsSummary } from "../../types/instructor-earnings";
 import { formatCurrency } from "../../utils/earnings";
 import { ChevronLeftIcon } from "../icons/dashboard-icons";
 
 type EarningsBySchoolScreenProps = {
   visible: boolean;
-  summary: SchoolWeeklyEarningsSummary;
+  summary: InstructorSchoolEarningsSummary;
   onClose: () => void;
 };
 
@@ -80,9 +80,10 @@ export function EarningsBySchoolScreen({
 
           <View style={styles.schoolList}>
             {summary.schools.map((school) => {
-              const sharePercent = Math.round(
-                (school.amountCents / summary.totalCents) * 100,
-              );
+              const sharePercent =
+                summary.totalCents > 0
+                  ? Math.round((school.amountCents / summary.totalCents) * 100)
+                  : 0;
 
               return (
                 <View key={school.schoolId} style={styles.schoolCard}>
