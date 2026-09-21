@@ -5,10 +5,8 @@ export type YesNo = "yes" | "no";
 export type DocumentType =
   | "driverLicence"
   | "instructorAccreditation"
-  | "insuranceCertificate"
   | "vehicleRegistration"
-  | "workingWithChildrenCheck"
-  | "policeCheck";
+  | "workingWithChildrenCheck";
 
 export type OnboardingAddress = {
   line1: string;
@@ -31,8 +29,6 @@ export type OnboardingForm = {
   profilePhotoName: string | null;
   dateOfBirth: string;
   address: OnboardingAddress;
-  emergencyContactName: string;
-  emergencyContactPhone: string;
   driverLicenceNumber: string;
   driverLicenceExpiry: string;
   instructorAccreditationNumber: string;
@@ -55,8 +51,6 @@ export const INITIAL_ONBOARDING_FORM: OnboardingForm = {
   profilePhotoName: null,
   dateOfBirth: "",
   address: { ...EMPTY_ONBOARDING_ADDRESS },
-  emergencyContactName: "",
-  emergencyContactPhone: "",
   driverLicenceNumber: "",
   driverLicenceExpiry: "",
   instructorAccreditationNumber: "",
@@ -74,9 +68,7 @@ export const INITIAL_ONBOARDING_FORM: OnboardingForm = {
   documents: {
     driverLicence: null,
     instructorAccreditation: null,
-    insuranceCertificate: null,
     vehicleRegistration: null,
     workingWithChildrenCheck: null,
-    policeCheck: null,
   },
 };

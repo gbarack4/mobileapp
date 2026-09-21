@@ -101,22 +101,23 @@ const YES_NO_OPTIONS: { value: YesNo; label: string }[] = [
   { value: "no", label: "No" },
 ];
 
-const DOCUMENT_FIELDS: { type: DocumentType; label: string; hint?: string }[] =
-  [
-    { type: "driverLicence", label: "Driver licence" },
-    {
-      type: "instructorAccreditation",
-      label: "Instructor accreditation certificate",
-    },
-    { type: "insuranceCertificate", label: "Insurance certificate" },
-    { type: "vehicleRegistration", label: "Vehicle registration" },
-    {
-      type: "workingWithChildrenCheck",
-      label: "Working with children check",
-      hint: "If required",
-    },
-    { type: "policeCheck", label: "Police check", hint: "If required" },
-  ];
+const DOCUMENT_FIELDS: {
+  type: DocumentType;
+  label: string;
+  hint?: string;
+}[] = [
+  { type: "driverLicence", label: "Driver licence" },
+  {
+    type: "instructorAccreditation",
+    label: "Instructor accreditation certificate",
+  },
+  { type: "vehicleRegistration", label: "Vehicle registration" },
+  {
+    type: "workingWithChildrenCheck",
+    label: "Working with children check",
+    hint: "If required",
+  },
+];
 
 export default function OnboardingScreen() {
   const { getToken } = useAuth();
@@ -143,10 +144,28 @@ export default function OnboardingScreen() {
         const draft = await getOnboardingDraft(token);
 
         if (draft && Object.keys(draft.formData).length > 0) {
-          setForm((prev) => ({
-            ...prev,
-            ...draft.formData,
-          }));
+          setForm((prev) => {
+            const draftForm = draft.formData as Partial<OnboardingForm>;
+
+            return {
+              ...prev,
+              ...draftForm,
+              address: {
+                ...prev.address,
+                ...draftForm.address,
+              },
+              documents: {
+                driverLicence: draftForm.documents?.driverLicence ?? null,
+                instructorAccreditation:
+                  draftForm.documents?.instructorAccreditation ?? null,
+                vehicleRegistration:
+                  draftForm.documents?.vehicleRegistration ?? null,
+                workingWithChildrenCheck:
+                  draftForm.documents?.workingWithChildrenCheck ?? null,
+              },
+            };
+          });
+
           setStepIndex(draft.currentStepIndex);
         }
       } catch (err) {
@@ -231,14 +250,6 @@ export default function OnboardingScreen() {
           setError("Enter date of birth as DD/MM/YYYY.");
           return false;
         }
-        if (!form.emergencyContactName.trim()) {
-          setError("Enter an emergency contact name.");
-          return false;
-        }
-        if (form.emergencyContactPhone.replace(/\D/g, "").length < 7) {
-          setError("Enter a valid emergency contact phone number.");
-          return false;
-        }
         break;
       case "licence":
         if (!form.driverLicenceNumber.trim()) {
@@ -305,10 +316,6 @@ export default function OnboardingScreen() {
         }
         if (!form.documents.instructorAccreditation) {
           setError("Upload your instructor accreditation certificate.");
-          return false;
-        }
-        if (!form.documents.insuranceCertificate) {
-          setError("Upload your insurance certificate.");
           return false;
         }
         if (!form.documents.vehicleRegistration) {
@@ -392,7 +399,8 @@ export default function OnboardingScreen() {
         profilePhotoUri: s3Url,
         profilePhotoName: fileName,
       }));
-    } catch {
+    } catch (err) {
+      console.error("Profile photo upload failed:", err);
       setError("Could not upload photo. Please try again.");
     } finally {
       setIsContinuing(false);

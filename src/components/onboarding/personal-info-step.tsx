@@ -19,7 +19,7 @@ type PersonalInfoStepProps = {
     key: K,
     value: OnboardingAddress[K],
   ) => void;
-  onSelectPhoto: (uri: string, fileName: string) => void;
+  onSelectPhoto: (uri: string, fileName: string, mimeType?: string) => void;
   onRemovePhoto: () => void;
 };
 
@@ -67,8 +67,6 @@ export function PersonalInfoStep({
   const suburbRef = useRef<TextInput>(null);
   const stateRef = useRef<TextInput>(null);
   const postcodeRef = useRef<TextInput>(null);
-  const emergencyNameRef = useRef<TextInput>(null);
-  const emergencyPhoneRef = useRef<TextInput>(null);
 
   return (
     <View style={styles.container}>
@@ -180,44 +178,10 @@ export function PersonalInfoStep({
         onBlur={() => onBlurField("address.postcode")}
         placeholder="4000"
         keyboardType="number-pad"
-        returnKeyType="next"
-        onSubmitEditing={() => emergencyNameRef.current?.focus()}
+        returnKeyType="done"
         focused={focusedField === "address.postcode"}
         maxLength={4}
         ref={postcodeRef}
-      />
-
-      <SectionHeader
-        title="Emergency contact"
-        subtitle="Someone we can reach if something happens during a lesson."
-      />
-
-      <AuthTextField
-        label="Contact name"
-        value={form.emergencyContactName}
-        onChangeText={(value) => onUpdateField("emergencyContactName", value)}
-        onFocus={() => onFocusField("emergencyContactName")}
-        onBlur={() => onBlurField("emergencyContactName")}
-        placeholder="Full name"
-        autoCapitalize="words"
-        returnKeyType="next"
-        onSubmitEditing={() => emergencyPhoneRef.current?.focus()}
-        focused={focusedField === "emergencyContactName"}
-        ref={emergencyNameRef}
-      />
-
-      <AuthTextField
-        label="Contact phone"
-        value={form.emergencyContactPhone}
-        onChangeText={(value) => onUpdateField("emergencyContactPhone", value)}
-        onFocus={() => onFocusField("emergencyContactPhone")}
-        onBlur={() => onBlurField("emergencyContactPhone")}
-        placeholder="04XX XXX XXX"
-        keyboardType="phone-pad"
-        textContentType="telephoneNumber"
-        returnKeyType="done"
-        focused={focusedField === "emergencyContactPhone"}
-        ref={emergencyPhoneRef}
       />
     </View>
   );

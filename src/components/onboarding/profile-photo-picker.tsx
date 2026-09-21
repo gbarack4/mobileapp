@@ -8,6 +8,7 @@ import {
   Text,
   View,
 } from "react-native";
+
 import { colors, radius, spacing } from "../../constants/theme";
 
 type ProfilePhotoPickerProps = {
@@ -20,6 +21,8 @@ type ProfilePhotoPickerProps = {
 const ANDROID_RIPPLE =
   Platform.OS === "android" ? { color: "rgba(0, 94, 255, 0.14)" } : undefined;
 
+const MAX_PROFILE_PHOTO_BYTES = 10 * 1024 * 1024;
+
 export function ProfilePhotoPicker({
   photoUri,
   photoName,
@@ -30,6 +33,7 @@ export function ProfilePhotoPicker({
     if (Platform.OS !== "web") {
       const { status } =
         await ImagePicker.requestMediaLibraryPermissionsAsync();
+
       if (status !== "granted") {
         Alert.alert(
           "Permission Required",
@@ -46,23 +50,37 @@ export function ProfilePhotoPicker({
       quality: 0.8,
     });
 
-    if (!result.canceled && result.assets && result.assets.length > 0) {
-      const asset = result.assets[0];
-
-      const uri = asset.uri;
-      const fileName =
-        asset.fileName || uri.split("/").pop() || "profile-photo.jpg";
-      const mimeType = asset.mimeType || "image/jpeg";
-
-      onSelect(uri, fileName, mimeType);
+    if (result.canceled || !result.assets?.length) {
+      return;
     }
+
+    const asset = result.assets[0];
+
+    if (
+      typeof asset.fileSize === "number" &&
+      asset.fileSize > MAX_PROFILE_PHOTO_BYTES
+    ) {
+      Alert.alert(
+        "Photo Too Large",
+        "Please choose a profile photo smaller than 10 MB.",
+      );
+      return;
+    }
+
+    const uri = asset.uri;
+    const fileName =
+      asset.fileName || uri.split("/").pop() || "profile-photo.jpg";
+    const mimeType = asset.mimeType || "image/jpeg";
+
+    onSelect(uri, fileName, mimeType);
   }
 
   return (
     <View style={styles.container}>
       <Text style={styles.label}>Profile photo</Text>
+
       <Text style={styles.hint}>
-        A clear headshot helps schools recognise you. JPG or PNG, max 5 MB.
+        A clear headshot helps schools recognise you. JPG or PNG, max 10 MB.
       </Text>
 
       <View style={styles.card}>
@@ -91,6 +109,7 @@ export function ProfilePhotoPicker({
             <Text style={styles.photoTitle}>
               {photoUri ? "Photo added" : "Add profile photo"}
             </Text>
+
             <Text style={styles.photoSubtitle}>
               {photoName ??
                 (photoUri ? "Tap to change" : "Tap to upload from your device")}
@@ -110,6 +129,7 @@ export function ProfilePhotoPicker({
             >
               <Text style={styles.actionButtonText}>Change photo</Text>
             </Pressable>
+
             <Pressable
               onPress={onRemove}
               android_ripple={ANDROID_RIPPLE}
