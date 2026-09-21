@@ -20,24 +20,20 @@ import { ChevronLeftIcon } from "../icons/dashboard-icons";
 
 type DocumentsDto = Partial<Record<DocumentType, string | null>>;
 
-type HubDocumentStatus = "uploaded" | "required" | "optional";
-
 type HubDocumentItem = {
   id: DocumentType;
   label: string;
-  required: boolean;
-  status: HubDocumentStatus;
+  status: "uploaded" | "required";
   fileName?: string;
-};
-
-type DocumentsScreenProps = {
-  onClose: () => void;
 };
 
 type DocumentConfig = {
   id: DocumentType;
   label: string;
-  required: boolean;
+};
+
+type DocumentsScreenProps = {
+  onClose: () => void;
 };
 
 const ANDROID_RIPPLE =
@@ -47,22 +43,18 @@ const DOCUMENTS: DocumentConfig[] = [
   {
     id: "driverLicence",
     label: "Driver Licence",
-    required: true,
   },
   {
     id: "instructorAccreditation",
     label: "Accreditation",
-    required: true,
   },
   {
     id: "vehicleRegistration",
     label: "Vehicle Registration",
-    required: true,
   },
   {
     id: "workingWithChildrenCheck",
     label: "WWCC",
-    required: false,
   },
 ];
 
@@ -72,19 +64,9 @@ function mapProfileDocsToItems(docs?: DocumentsDto | null): HubDocumentItem[] {
   return DOCUMENTS.map((document) => {
     const value = safeDocs[document.id];
 
-    let status: HubDocumentStatus;
-
-    if (value) {
-      status = "uploaded";
-    } else if (document.required) {
-      status = "required";
-    } else {
-      status = "optional";
-    }
-
     return {
       ...document,
-      status,
+      status: value ? "uploaded" : "required",
       fileName: value || undefined,
     };
   });
@@ -100,26 +82,12 @@ function extractFileName(urlOrName?: string | null) {
   return urlOrName;
 }
 
-function getStatusLabel(status: HubDocumentStatus) {
-  switch (status) {
-    case "uploaded":
-      return "Up to date";
-    case "required":
-      return "Upload required";
-    case "optional":
-      return "Optional";
-  }
+function getStatusLabel(status: HubDocumentItem["status"]) {
+  return status === "uploaded" ? "Up to date" : "Upload required";
 }
 
-function getStatusColor(status: HubDocumentStatus) {
-  switch (status) {
-    case "uploaded":
-      return "#16a34a";
-    case "required":
-      return colors.error;
-    case "optional":
-      return colors.textSecondary;
-  }
+function getStatusColor(status: HubDocumentItem["status"]) {
+  return status === "uploaded" ? "#16a34a" : colors.error;
 }
 
 type DocumentCardProps = {
@@ -191,8 +159,7 @@ export function DocumentsScreen({ onClose }: Readonly<DocumentsScreenProps>) {
     profile?.documents as DocumentsDto | undefined,
   );
 
-  const requiredDocuments = documents.filter((document) => document.required);
-  const upToDateRequiredCount = requiredDocuments.filter(
+  const upToDateCount = documents.filter(
     (document) => document.status === "uploaded",
   ).length;
 
@@ -265,12 +232,10 @@ export function DocumentsScreen({ onClose }: Readonly<DocumentsScreenProps>) {
           <>
             <View style={styles.summaryCard}>
               <Text style={styles.summaryValue}>
-                {upToDateRequiredCount} of {requiredDocuments.length}
+                {upToDateCount} of {documents.length}
               </Text>
 
-              <Text style={styles.summaryLabel}>
-                required documents up to date
-              </Text>
+              <Text style={styles.summaryLabel}>documents up to date</Text>
             </View>
 
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
