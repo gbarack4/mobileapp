@@ -36,10 +36,8 @@ import { useQueryClient } from "@tanstack/react-query";
 type DocumentsDto = {
   driverLicence: string;
   instructorAccreditation: string;
-  insuranceCertificate: string;
   vehicleRegistration: string;
   workingWithChildrenCheck?: string | null;
-  policeCheck?: string | null;
 };
 
 type HubDocumentStatus = "uploaded" | "expiring" | "required";
@@ -55,10 +53,8 @@ type HubDocumentItem = {
 const DOC_LABELS: Record<keyof DocumentsDto, string> = {
   driverLicence: "Driver Licence",
   instructorAccreditation: "Accreditation",
-  insuranceCertificate: "Insurance Certificate",
   vehicleRegistration: "Vehicle Registration",
   workingWithChildrenCheck: "WWCC",
-  policeCheck: "Police Check",
 };
 
 function mapProfileDocsToItems(docs?: any): HubDocumentItem[] {
