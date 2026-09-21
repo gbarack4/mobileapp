@@ -1,4 +1,5 @@
 import { useAuth } from "@clerk/clerk-expo";
+import { useQueryClient } from "@tanstack/react-query";
 import * as DocumentPicker from "expo-document-picker";
 import { useState } from "react";
 import {
@@ -11,26 +12,21 @@ import {
   View,
 } from "react-native";
 
+import { useProfileQuery } from "@/hooks/use-profile";
 import { colors, spacing } from "../../constants/theme";
+import { uploadDocumentToBackend } from "../../services/uploadService";
+import type { DocumentType } from "../../types/onboarding";
 import { ChevronLeftIcon } from "../icons/dashboard-icons";
 
-import { useProfileQuery } from "@/hooks/use-profile";
-import { useQueryClient } from "@tanstack/react-query";
-import { uploadDocumentToBackend } from "../../services/uploadService";
+type DocumentsDto = Partial<Record<DocumentType, string | null>>;
 
-type DocumentsDto = {
-  driverLicence: string;
-  instructorAccreditation: string;
-  insuranceCertificate: string;
-  vehicleRegistration: string;
-  workingWithChildrenCheck?: string | null;
-  policeCheck?: string | null;
-};
+type HubDocumentStatus = "uploaded" | "required" | "optional";
 
 type HubDocumentItem = {
-  id: keyof DocumentsDto;
+  id: DocumentType;
   label: string;
-  status: "uploaded" | "required";
+  required: boolean;
+  status: HubDocumentStatus;
   fileName?: string;
 };
 
@@ -38,26 +34,57 @@ type DocumentsScreenProps = {
   onClose: () => void;
 };
 
+type DocumentConfig = {
+  id: DocumentType;
+  label: string;
+  required: boolean;
+};
+
 const ANDROID_RIPPLE =
   Platform.OS === "android" ? { color: "rgba(0, 0, 0, 0.06)" } : undefined;
 
-const DOC_LABELS: Record<keyof DocumentsDto, string> = {
-  driverLicence: "Driver Licence",
-  instructorAccreditation: "Accreditation",
-  insuranceCertificate: "Insurance Certificate",
-  vehicleRegistration: "Vehicle Registration",
-  workingWithChildrenCheck: "WWCC",
-  policeCheck: "Police Check",
-};
+const DOCUMENTS: DocumentConfig[] = [
+  {
+    id: "driverLicence",
+    label: "Driver Licence",
+    required: true,
+  },
+  {
+    id: "instructorAccreditation",
+    label: "Accreditation",
+    required: true,
+  },
+  {
+    id: "vehicleRegistration",
+    label: "Vehicle Registration",
+    required: true,
+  },
+  {
+    id: "workingWithChildrenCheck",
+    label: "WWCC",
+    required: false,
+  },
+];
 
 function mapProfileDocsToItems(docs?: DocumentsDto | null): HubDocumentItem[] {
-  const safeDocs = docs || ({} as DocumentsDto);
-  return Object.entries(DOC_LABELS).map(([key, label]) => {
-    const value = safeDocs[key as keyof DocumentsDto];
+  const safeDocs = docs ?? {};
+
+  return DOCUMENTS.map((document) => {
+    const value = safeDocs[document.id];
+
+    let status: HubDocumentStatus;
+
+    if (value) {
+      status = "uploaded";
+    } else if (document.required) {
+      status = "required";
+    } else {
+      status = "optional";
+    }
+
     return {
-      id: key as keyof DocumentsDto,
-      label,
-      status: value ? "uploaded" : "required",
+      ...document,
+      status,
       fileName: value || undefined,
     };
   });
@@ -65,16 +92,40 @@ function mapProfileDocsToItems(docs?: DocumentsDto | null): HubDocumentItem[] {
 
 function extractFileName(urlOrName?: string | null) {
   if (!urlOrName) return "No document uploaded yet";
+
   if (urlOrName.startsWith("http")) {
     return urlOrName.split("/").pop() || urlOrName;
   }
+
   return urlOrName;
+}
+
+function getStatusLabel(status: HubDocumentStatus) {
+  switch (status) {
+    case "uploaded":
+      return "Up to date";
+    case "required":
+      return "Upload required";
+    case "optional":
+      return "Optional";
+  }
+}
+
+function getStatusColor(status: HubDocumentStatus) {
+  switch (status) {
+    case "uploaded":
+      return "#16a34a";
+    case "required":
+      return colors.error;
+    case "optional":
+      return colors.textSecondary;
+  }
 }
 
 type DocumentCardProps = {
   document: HubDocumentItem;
   isUploading: boolean;
-  onUpload: (documentId: string) => void;
+  onUpload: (documentId: DocumentType) => void;
 };
 
 function DocumentCard({
@@ -98,11 +149,11 @@ function DocumentCard({
           style={[
             styles.statusBadgeText,
             {
-              color: document.status === "uploaded" ? "#16a34a" : colors.error,
+              color: getStatusColor(document.status),
             },
           ]}
         >
-          {document.status === "uploaded" ? "Up to date" : "Upload required"}
+          {getStatusLabel(document.status)}
         </Text>
       </View>
 
@@ -133,15 +184,19 @@ export function DocumentsScreen({ onClose }: Readonly<DocumentsScreenProps>) {
 
   const { data: profile, isLoading } = useProfileQuery();
 
-  const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const [uploadingId, setUploadingId] = useState<DocumentType | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const documents = mapProfileDocsToItems(
     profile?.documents as DocumentsDto | undefined,
   );
-  const upToDateCount = documents.filter((d) => d.status === "uploaded").length;
 
-  async function handleUpload(documentType: string) {
+  const requiredDocuments = documents.filter((document) => document.required);
+  const upToDateRequiredCount = requiredDocuments.filter(
+    (document) => document.status === "uploaded",
+  ).length;
+
+  async function handleUpload(documentType: DocumentType) {
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: ["application/pdf", "image/jpeg", "image/png"],
@@ -151,10 +206,13 @@ export function DocumentsScreen({ onClose }: Readonly<DocumentsScreenProps>) {
       if (result.canceled || !result.assets?.length) return;
 
       const file = result.assets[0];
+
       const token = await getToken();
       if (!token) throw new Error("Not authenticated");
 
-      const currentDoc = documents.find((d) => d.id === documentType);
+      const currentDoc = documents.find(
+        (document) => document.id === documentType,
+      );
       const oldFileUrl = currentDoc?.fileName;
 
       setUploadingId(documentType);
@@ -184,14 +242,17 @@ export function DocumentsScreen({ onClose }: Readonly<DocumentsScreenProps>) {
         <Pressable onPress={onClose} style={styles.backButton}>
           <ChevronLeftIcon size={22} />
         </Pressable>
+
         <Text style={styles.headerTitle}>Documents</Text>
+
         <View style={styles.headerSpacer} />
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <Text style={styles.introTitle}>Instructor documents</Text>
+
         <Text style={styles.introText}>
-          Keep your licence, checks, and insurance up to date.
+          Keep your licence, accreditation and vehicle documents up to date.
         </Text>
 
         {isLoading ? (
@@ -204,19 +265,22 @@ export function DocumentsScreen({ onClose }: Readonly<DocumentsScreenProps>) {
           <>
             <View style={styles.summaryCard}>
               <Text style={styles.summaryValue}>
-                {upToDateCount} of {documents.length}
+                {upToDateRequiredCount} of {requiredDocuments.length}
               </Text>
-              <Text style={styles.summaryLabel}>documents up to date</Text>
+
+              <Text style={styles.summaryLabel}>
+                required documents up to date
+              </Text>
             </View>
 
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
             <View style={styles.documentList}>
-              {documents.map((doc) => (
+              {documents.map((document) => (
                 <DocumentCard
-                  key={doc.id}
-                  document={doc}
-                  isUploading={uploadingId === doc.id}
+                  key={document.id}
+                  document={document}
+                  isUploading={uploadingId === document.id}
                   onUpload={handleUpload}
                 />
               ))}
@@ -257,9 +321,6 @@ const styles = StyleSheet.create({
   headerSpacer: {
     width: 32,
   },
-  scroll: {
-    flex: 1,
-  },
   scrollContent: {
     paddingHorizontal: spacing.xl,
     paddingBottom: spacing.xxxl,
@@ -292,13 +353,6 @@ const styles = StyleSheet.create({
   summaryLabel: {
     fontSize: 14,
     color: colors.textSecondary,
-  },
-  sectionLabel: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: colors.textMuted,
-    letterSpacing: 0.8,
-    textTransform: "uppercase",
   },
   documentList: {
     gap: spacing.sm,
