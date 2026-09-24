@@ -5,7 +5,10 @@ import { colors, spacing } from "../../constants/theme";
 import {
   buildCalendarCells,
   formatMonthYear,
+  isDateInInclusiveRange,
   isSameDay,
+  startOfDay,
+  type DateRange,
 } from "../../utils/lesson-dates";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -13,8 +16,12 @@ const LONG_PRESS_MS = 450;
 
 type MonthCalendarProps = {
   visibleMonth: Date;
-  selectedDate: Date;
+  selectedDate?: Date;
+  rangeStart?: Date | null;
+  rangeEnd?: Date | null;
   lessonCounts: Map<number, number>;
+  compact?: boolean;
+  blockedRanges?: DateRange[];
   onSelectDate: (date: Date) => void;
   onLongPressDate?: (date: Date) => void;
   /** Fired while a day cell is pressed — use to disable parent ScrollView on native. */
@@ -27,10 +34,43 @@ type MonthCalendarProps = {
 const ANDROID_RIPPLE =
   Platform.OS === "android" ? { color: "rgba(0, 94, 255, 0.08)" } : undefined;
 
+function getBlockedRangeHighlight(date: Date, ranges: DateRange[]) {
+  let inBlocked = false;
+  let isStart = false;
+  let isEnd = false;
+
+  ranges.forEach((range) => {
+    if (!isDateInInclusiveRange(date, range.start, range.end)) {
+      return;
+    }
+
+    inBlocked = true;
+
+    const from = startOfDay(range.start);
+    const to = startOfDay(range.end);
+    const start = from <= to ? from : to;
+    const end = from <= to ? to : from;
+
+    if (isSameDay(date, start)) {
+      isStart = true;
+    }
+
+    if (isSameDay(date, end)) {
+      isEnd = true;
+    }
+  });
+
+  return { inBlocked, isStart, isEnd };
+}
+
 export function MonthCalendar({
   visibleMonth,
   selectedDate,
+  rangeStart,
+  rangeEnd,
   lessonCounts,
+  compact = false,
+  blockedRanges = [],
   onSelectDate,
   onLongPressDate,
   onDayPressActiveChange,
@@ -111,11 +151,42 @@ export function MonthCalendar({
       <View style={styles.grid}>
         {cells.map((day, index) => {
           if (day === null) {
-            return <View key={`empty-${index}`} style={styles.dayCell} />;
+            return (
+              <View
+                key={`empty-${index}`}
+                style={compact ? styles.dayCellCompact : styles.dayCell}
+              />
+            );
           }
 
           const cellDate = new Date(year, month, day);
-          const selected = isSameDay(cellDate, selectedDate);
+          const blocked = getBlockedRangeHighlight(cellDate, blockedRanges);
+          const isRangeStart = Boolean(
+            rangeStart && isSameDay(cellDate, rangeStart) && !blocked.inBlocked,
+          );
+          const isRangeEnd = Boolean(
+            rangeEnd && isSameDay(cellDate, rangeEnd) && !blocked.inBlocked,
+          );
+          const inRange = Boolean(
+            rangeStart &&
+              rangeEnd &&
+              !blocked.inBlocked &&
+              isDateInInclusiveRange(cellDate, rangeStart, rangeEnd),
+          );
+          const selected =
+            isRangeStart ||
+            isRangeEnd ||
+            blocked.isStart ||
+            blocked.isEnd ||
+            Boolean(
+              selectedDate &&
+                !rangeStart &&
+                !rangeEnd &&
+                isSameDay(cellDate, selectedDate),
+            );
+          const showRangeTrack = inRange && !(isRangeStart && isRangeEnd);
+          const showBlockedTrack =
+            blocked.inBlocked && !(blocked.isStart && blocked.isEnd);
           const isToday = isSameDay(cellDate, today);
           const disabled = isBeforeMinDate(cellDate);
           const lessonCount = lessonCounts.get(day) ?? 0;
@@ -156,26 +227,66 @@ export function MonthCalendar({
               }}
               disabled={disabled}
               android_ripple={disabled ? undefined : ANDROID_RIPPLE}
-              style={styles.dayCell}
+              style={compact ? styles.dayCellCompact : styles.dayCell}
             >
+              {showBlockedTrack ? (
+                <View
+                  pointerEvents="none"
+                  style={[
+                    styles.rangeTrack,
+                    styles.rangeTrackBlocked,
+                    compact && styles.rangeTrackCompact,
+                    blocked.isStart && styles.rangeTrackStart,
+                    blocked.isEnd && styles.rangeTrackEnd,
+                  ]}
+                />
+              ) : null}
+              {showRangeTrack ? (
+                <View
+                  pointerEvents="none"
+                  style={[
+                    styles.rangeTrack,
+                    compact && styles.rangeTrackCompact,
+                    isRangeStart && styles.rangeTrackStart,
+                    isRangeEnd && styles.rangeTrackEnd,
+                  ]}
+                />
+              ) : null}
               <View
                 style={[
-                  styles.dayInner,
-                  isToday && !selected && !disabled && styles.dayInnerToday,
-                  selected && styles.dayInnerSelected,
+                  compact ? styles.dayInnerCompact : styles.dayInner,
+                  isToday &&
+                    !selected &&
+                    !inRange &&
+                    !blocked.inBlocked &&
+                    !disabled &&
+                    styles.dayInnerToday,
+                  inRange && !selected && styles.dayInnerInRange,
+                  blocked.inBlocked &&
+                    !blocked.isStart &&
+                    !blocked.isEnd &&
+                    styles.dayInnerInRangeBlocked,
+                  (isRangeStart || isRangeEnd) && styles.dayInnerSelected,
+                  (blocked.isStart || blocked.isEnd) &&
+                    styles.dayInnerSelectedBlocked,
                   disabled && styles.dayInnerDisabled,
                 ]}
               >
                 <Text
                   style={[
-                    styles.dayText,
+                    compact ? styles.dayTextCompact : styles.dayText,
+                    inRange && !selected && styles.dayTextInRange,
+                    blocked.inBlocked &&
+                      !blocked.isStart &&
+                      !blocked.isEnd &&
+                      styles.dayTextInRangeBlocked,
                     selected && styles.dayTextSelected,
                     disabled && styles.dayTextDisabled,
                   ]}
                 >
                   {day}
                 </Text>
-                {lessonCount > 0 ? (
+                {!compact && lessonCount > 0 ? (
                   <View
                     style={[
                       styles.lessonCountBadge,
@@ -191,9 +302,9 @@ export function MonthCalendar({
                       {lessonCount}
                     </Text>
                   </View>
-                ) : (
+                ) : !compact ? (
                   <View style={styles.lessonCountPlaceholder} />
-                )}
+                ) : null}
               </View>
             </Pressable>
           );
@@ -251,7 +362,35 @@ const styles = StyleSheet.create({
     aspectRatio: 1,
     alignItems: "center",
     justifyContent: "center",
-    padding: 2,
+    paddingVertical: 2,
+  },
+  dayCellCompact: {
+    width: `${100 / 7}%`,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  rangeTrack: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: "50%",
+    height: 6,
+    marginTop: -3,
+    backgroundColor: colors.primary,
+  },
+  rangeTrackCompact: {
+    height: 4,
+    marginTop: -2,
+  },
+  rangeTrackBlocked: {
+    backgroundColor: colors.error,
+  },
+  rangeTrackStart: {
+    left: "50%",
+  },
+  rangeTrackEnd: {
+    right: "50%",
   },
   dayInner: {
     minWidth: 40,
@@ -262,12 +401,30 @@ const styles = StyleSheet.create({
     gap: 3,
     paddingHorizontal: 4,
     paddingVertical: 4,
+    zIndex: 1,
+  },
+  dayInnerCompact: {
+    minWidth: 32,
+    minHeight: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 1,
   },
   dayInnerToday: {
     backgroundColor: "#e8f1ff",
   },
+  dayInnerInRange: {
+    backgroundColor: "#e8f1ff",
+  },
+  dayInnerInRangeBlocked: {
+    backgroundColor: "#fde8e8",
+  },
   dayInnerSelected: {
     backgroundColor: colors.primary,
+  },
+  dayInnerSelectedBlocked: {
+    backgroundColor: colors.error,
   },
   dayInnerDisabled: {
     opacity: 0.35,
@@ -276,6 +433,17 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
     color: colors.text,
+  },
+  dayTextCompact: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: colors.text,
+  },
+  dayTextInRange: {
+    color: colors.primary,
+  },
+  dayTextInRangeBlocked: {
+    color: colors.error,
   },
   dayTextSelected: {
     color: colors.white,

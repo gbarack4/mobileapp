@@ -1,4 +1,5 @@
 import { useAuth } from "@clerk/clerk-expo";
+import { router } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -10,7 +11,7 @@ import {
   View,
 } from "react-native";
 
-import { ChevronLeftIcon, ChevronRightIcon } from "../icons/dashboard-icons";
+import { CalendarIcon, ChevronLeftIcon, ChevronRightIcon } from "../icons/dashboard-icons";
 import { colors, spacing } from "../../constants/theme";
 import {
   formatBreakTimeLabel,
@@ -255,6 +256,20 @@ export function CalendarSettingsScreen({
           settings sync with your live availability.
         </Text>
 
+        <Pressable
+          onPress={() => router.push("/dashboard/calendar")}
+          android_ripple={ANDROID_RIPPLE}
+          accessibilityRole="button"
+          accessibilityLabel="Calendar block"
+          style={({ pressed }) => [
+            styles.calendarBlockButton,
+            pressed && styles.pressed,
+          ]}
+        >
+          <CalendarIcon size={18} color={colors.white} />
+          <Text style={styles.calendarBlockButtonText}>Calendar block</Text>
+        </Pressable>
+
         {saveError ? <Text style={styles.errorText}>{saveError}</Text> : null}
 
         <View style={styles.card}>
@@ -453,18 +468,31 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     color: colors.textSecondary,
   },
+  calendarBlockButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.primary,
+    borderRadius: 14,
+    minHeight: 48,
+    paddingHorizontal: spacing.lg,
+  },
+  calendarBlockButtonText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: colors.white,
+  },
   errorText: {
     fontSize: 13,
     lineHeight: 18,
     color: colors.error,
   },
   card: {
-    borderWidth: 1,
-    borderColor: colors.border,
     borderRadius: 16,
     padding: spacing.lg,
     gap: spacing.md,
-    backgroundColor: colors.background,
+    backgroundColor: "#f9f9f9",
   },
   cardHeader: {
     flexDirection: "row",
@@ -510,7 +538,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 999,
-    backgroundColor: "#f9f9f9",
+    backgroundColor: colors.white,
     alignItems: "center",
   },
   pillSelected: {
@@ -528,10 +556,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
     borderRadius: 14,
-    backgroundColor: "#f9f9f9",
+    backgroundColor: colors.white,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
     minHeight: 64,

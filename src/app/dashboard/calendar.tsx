@@ -12,7 +12,6 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { DayAvailabilitySheet } from "../../components/dashboard/day-availability-sheet";
-import { LessonCard } from "../../components/dashboard/lesson-card";
 import { MonthCalendar } from "../../components/dashboard/month-calendar";
 import { CloseIcon } from "../../components/icons/lesson-detail-icons";
 import { colors, spacing } from "../../constants/theme";
@@ -21,18 +20,27 @@ import {
   getInstructorAvailability,
   type DailyAvailabilityPayload,
 } from "../../services/availability";
+import {
+  addBlockedSlots,
+  removeBlockedSlots,
+} from "../../services/blocked-time-slots";
 import type { Lesson } from "../../types/dashboard";
 import type { InstructorBooking } from "../../types/instructor-bookings";
 import {
-  formatSelectedDayLabel,
-  getLessonCountsInMonth,
-  getLessonsForDate,
+  eachDayInclusive,
+  isSameDateRange,
+  normalizeDateRange,
   shiftMonth,
+  startOfDay,
+  type DateRange,
 } from "../../utils/lesson-dates";
 import { goBackOr } from "../../utils/navigation";
 
 const ANDROID_RIPPLE =
   Platform.OS === "android" ? { color: "rgba(0, 94, 255, 0.08)" } : undefined;
+const ANDROID_UNBLOCK_RIPPLE =
+  Platform.OS === "android" ? { color: "rgba(220, 38, 38, 0.12)" } : undefined;
+const RANGE_ACTION_DELAY_MS = 2500;
 
 function formatInTimeZone(
   date: Date,
@@ -145,6 +153,114 @@ function mapInstructorBookingToLesson(booking: InstructorBooking): Lesson {
   };
 }
 
+const DEFAULT_START = "08:00";
+const DEFAULT_END = "17:00";
+const DEFAULT_INTERVAL = 15;
+
+function timeToMinutes(time: string) {
+  const [hours, minutes] = time.split(":").map(Number);
+
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
+    return null;
+  }
+
+  return hours * 60 + minutes;
+}
+
+function minutesToTime24(totalMinutes: number) {
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+function formatSlotLabel(time24: string) {
+  const [hoursRaw, minutes] = time24.split(":");
+  let hours = Number(hoursRaw);
+
+  if (!Number.isFinite(hours)) {
+    return time24;
+  }
+
+  hours = hours % 12 || 12;
+
+  return `${hours}:${minutes}`;
+}
+
+function buildTimeSlots(
+  startTime: string,
+  endTime: string,
+  intervalMinutes: number,
+) {
+  const start = timeToMinutes(startTime);
+  const end = timeToMinutes(endTime);
+  const interval =
+    Number.isFinite(intervalMinutes) && intervalMinutes > 0
+      ? intervalMinutes
+      : DEFAULT_INTERVAL;
+
+  if (start === null || end === null || end < start) {
+    return [];
+  }
+
+  const slots: string[] = [];
+
+  for (let minutes = start; minutes <= end; minutes += interval) {
+    slots.push(formatSlotLabel(minutesToTime24(minutes)));
+  }
+
+  return slots;
+}
+
+function getSlotsForDate(
+  date: Date,
+  availability: DailyAvailabilityPayload[] | null,
+) {
+  const dayData = availability?.find((day) => day.dayOfWeek === date.getDay());
+
+  if (dayData) {
+    if (!dayData.isWorking || !dayData.startTime || !dayData.endTime) {
+      return [];
+    }
+
+    return buildTimeSlots(
+      dayData.startTime,
+      dayData.endTime,
+      DEFAULT_INTERVAL,
+    );
+  }
+
+  return buildTimeSlots(DEFAULT_START, DEFAULT_END, DEFAULT_INTERVAL);
+}
+
+function wait(ms: number) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function applyRangeSlots(
+  start: Date,
+  end: Date,
+  availability: DailyAvailabilityPayload[] | null,
+  action: "block" | "unblock",
+) {
+  eachDayInclusive(start, end).forEach((date) => {
+    const slots = getSlotsForDate(date, availability);
+
+    if (slots.length === 0) {
+      return;
+    }
+
+    if (action === "unblock") {
+      removeBlockedSlots(date, slots);
+      return;
+    }
+
+    addBlockedSlots(date, slots);
+  });
+}
+
 export default function CalendarScreen() {
   const { getToken, isLoaded, isSignedIn } = useAuth();
 
@@ -156,7 +272,9 @@ export default function CalendarScreen() {
     return new Date(today.getFullYear(), today.getMonth(), 1);
   });
 
-  const [selectedDate, setSelectedDate] = useState(() => new Date());
+  const [rangeStart, setRangeStart] = useState<Date | null>(null);
+
+  const [rangeEnd, setRangeEnd] = useState<Date | null>(null);
 
   const [availabilityDate, setAvailabilityDate] = useState<Date | null>(null);
 
@@ -164,15 +282,20 @@ export default function CalendarScreen() {
 
   const [calendarPressActive, setCalendarPressActive] = useState(false);
 
+  const [rangeAction, setRangeAction] = useState<
+    "ready" | "blocking" | "unblocking"
+  >("ready");
+
+  const [blockedRanges, setBlockedRanges] = useState<DateRange[]>([]);
+
+  const rangeActionIdRef = useRef(0);
+
   const [availability, setAvailability] = useState<
     DailyAvailabilityPayload[] | null
   >(null);
 
   const {
     bookings,
-    loading: bookingsLoading,
-    error: bookingsError,
-    refetch: refetchBookings,
   } = useInstructorBookings();
 
   useEffect(() => {
@@ -184,20 +307,18 @@ export default function CalendarScreen() {
     [bookings],
   );
 
-  const lessonCounts = useMemo(
-    () =>
-      getLessonCountsInMonth(
-        lessons,
-        visibleMonth.getFullYear(),
-        visibleMonth.getMonth(),
+  const rangeComplete = Boolean(rangeStart && rangeEnd);
+  const isBusy = rangeAction === "blocking" || rangeAction === "unblocking";
+  const isCurrentRangeBlocked = Boolean(
+    rangeStart &&
+      rangeEnd &&
+      blockedRanges.some((range) =>
+        isSameDateRange(range, rangeStart, rangeEnd),
       ),
-    [lessons, visibleMonth],
   );
-
-  const selectedLessons = useMemo(
-    () => getLessonsForDate(lessons, selectedDate),
-    [lessons, selectedDate],
-  );
+  const isBlocked =
+    rangeAction === "unblocking" ||
+    (rangeAction !== "blocking" && isCurrentRangeBlocked);
 
   const loadAvailability = useCallback(async () => {
     try {
@@ -218,23 +339,16 @@ export default function CalendarScreen() {
   }, [isLoaded, isSignedIn, loadAvailability]);
 
   function handlePreviousMonth() {
-    const nextMonth = shiftMonth(visibleMonth, -1);
-
-    setVisibleMonth(nextMonth);
-
-    setSelectedDate(new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 1));
+    setVisibleMonth(shiftMonth(visibleMonth, -1));
   }
 
   function handleNextMonth() {
-    const nextMonth = shiftMonth(visibleMonth, 1);
-
-    setVisibleMonth(nextMonth);
-
-    setSelectedDate(new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 1));
+    setVisibleMonth(shiftMonth(visibleMonth, 1));
   }
 
   function handleSelectDate(date: Date) {
-    setSelectedDate(date);
+    rangeActionIdRef.current += 1;
+    setRangeAction("ready");
 
     if (
       date.getMonth() !== visibleMonth.getMonth() ||
@@ -242,12 +356,24 @@ export default function CalendarScreen() {
     ) {
       setVisibleMonth(new Date(date.getFullYear(), date.getMonth(), 1));
     }
+
+    if (!rangeStart || rangeEnd) {
+      setRangeStart(date);
+      setRangeEnd(null);
+      return;
+    }
+
+    if (startOfDay(date).getTime() < startOfDay(rangeStart).getTime()) {
+      setRangeEnd(rangeStart);
+      setRangeStart(date);
+      return;
+    }
+
+    setRangeEnd(date);
   }
 
   function handleLongPressDate(date: Date) {
     setCalendarPressActive(false);
-
-    handleSelectDate(date);
 
     setAvailabilityDate(date);
     setAvailabilityVisible(true);
@@ -257,53 +383,42 @@ export default function CalendarScreen() {
     }
   }
 
-  function renderSelectedDayLessons() {
-    if (bookingsLoading) {
-      return (
-        <View style={styles.loadingState}>
-          <ActivityIndicator size="small" color={colors.primary} />
+  async function handleBlockRange() {
+    if (!rangeStart || !rangeEnd || isBusy) {
+      return;
+    }
 
-          <Text style={styles.loadingText}>Loading lessons...</Text>
-        </View>
+    const start = rangeStart;
+    const end = rangeEnd;
+    const actionId = rangeActionIdRef.current + 1;
+    rangeActionIdRef.current = actionId;
+
+    if (isCurrentRangeBlocked) {
+      setRangeAction("unblocking");
+      await wait(RANGE_ACTION_DELAY_MS);
+
+      if (rangeActionIdRef.current !== actionId) {
+        return;
+      }
+
+      applyRangeSlots(start, end, availability, "unblock");
+      setBlockedRanges((current) =>
+        current.filter((range) => !isSameDateRange(range, start, end)),
       );
+      setRangeAction("ready");
+      return;
     }
 
-    if (bookingsError) {
-      return (
-        <View style={styles.emptyState}>
-          <Text style={styles.errorTitle}>Unable to load lessons</Text>
+    setRangeAction("blocking");
+    await wait(RANGE_ACTION_DELAY_MS);
 
-          <Text style={styles.emptySubtitle}>{bookingsError}</Text>
-
-          <Pressable
-            onPress={() => void refetchBookings()}
-            android_ripple={ANDROID_RIPPLE}
-            style={({ pressed }) => [
-              styles.retryButton,
-              pressed && styles.pressed,
-            ]}
-          >
-            <Text style={styles.retryButtonText}>Try again</Text>
-          </Pressable>
-        </View>
-      );
+    if (rangeActionIdRef.current !== actionId) {
+      return;
     }
 
-    if (selectedLessons.length > 0) {
-      return selectedLessons.map((lesson) => (
-        <LessonCard key={lesson.id} lesson={lesson} />
-      ));
-    }
-
-    return (
-      <View style={styles.emptyState}>
-        <Text style={styles.emptyTitle}>No lessons scheduled</Text>
-
-        <Text style={styles.emptySubtitle}>
-          Pick another day to view lessons.
-        </Text>
-      </View>
-    );
+    applyRangeSlots(start, end, availability, "block");
+    setBlockedRanges((current) => [...current, normalizeDateRange(start, end)]);
+    setRangeAction("ready");
   }
 
   return (
@@ -332,8 +447,11 @@ export default function CalendarScreen() {
         >
           <MonthCalendar
             visibleMonth={visibleMonth}
-            selectedDate={selectedDate}
-            lessonCounts={lessonCounts}
+            rangeStart={rangeStart}
+            rangeEnd={rangeEnd}
+            lessonCounts={new Map()}
+            compact
+            blockedRanges={blockedRanges}
             onSelectDate={handleSelectDate}
             onLongPressDate={handleLongPressDate}
             onDayPressActiveChange={setCalendarPressActive}
@@ -341,13 +459,51 @@ export default function CalendarScreen() {
             onNextMonth={handleNextMonth}
           />
 
-          <View style={styles.divider} />
-
-          <Text style={styles.dayLabel}>
-            {formatSelectedDayLabel(selectedDate)}
-          </Text>
-
-          <View style={styles.lessonList}>{renderSelectedDayLessons()}</View>
+          <Pressable
+            onPress={() => void handleBlockRange()}
+            disabled={!rangeComplete || isBusy}
+            android_ripple={
+              !rangeComplete
+                ? undefined
+                : isBlocked
+                  ? ANDROID_UNBLOCK_RIPPLE
+                  : ANDROID_RIPPLE
+            }
+            accessibilityRole="button"
+            accessibilityLabel={
+              rangeAction === "blocking"
+                ? "Blocking"
+                : rangeAction === "unblocking"
+                  ? "Unblocking"
+                  : isBlocked
+                    ? "Unblock"
+                    : "Block"
+            }
+            style={({ pressed }) => [
+              styles.blockButton,
+              isBlocked && styles.unblockButton,
+              !rangeComplete && !isBusy && styles.blockButtonDisabled,
+              pressed && rangeComplete && !isBusy && styles.pressed,
+            ]}
+          >
+            {isBusy ? (
+              <View style={styles.blockButtonLoading}>
+                <ActivityIndicator size="small" color={colors.white} />
+                <Text style={styles.blockButtonText}>
+                  {rangeAction === "unblocking" ? "Unblocking..." : "Blocking..."}
+                </Text>
+              </View>
+            ) : (
+              <Text
+                style={[
+                  styles.blockButtonText,
+                  !rangeComplete && styles.blockButtonTextDisabled,
+                ]}
+              >
+                {isBlocked ? "Unblock" : "Block"}
+              </Text>
+            )}
+          </Pressable>
         </ScrollView>
 
         <DayAvailabilitySheet
@@ -389,66 +545,31 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xl,
     gap: spacing.lg,
   },
-  divider: {
-    height: 1,
-    backgroundColor: colors.border,
-    marginTop: spacing.sm,
-  },
-  dayLabel: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: colors.textMuted,
-    letterSpacing: 0.8,
-  },
-  lessonList: {
-    gap: spacing.md,
-  },
-  loadingState: {
-    paddingVertical: spacing.xxl,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.sm,
-  },
-  loadingText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-  },
-  emptyState: {
-    backgroundColor: "#f9f9f9",
-    borderRadius: 16,
-    padding: spacing.xl,
-    alignItems: "center",
-    gap: spacing.sm,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: colors.text,
-  },
-  errorTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: colors.error,
-  },
-  emptySubtitle: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    textAlign: "center",
-  },
-  retryButton: {
-    marginTop: spacing.sm,
-    minHeight: 40,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    borderRadius: 10,
+  blockButton: {
+    minHeight: 52,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.primary,
   },
-  retryButtonText: {
-    fontSize: 14,
-    fontWeight: "600",
+  unblockButton: {
+    backgroundColor: colors.error,
+  },
+  blockButtonLoading: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  blockButtonText: {
+    fontSize: 16,
+    fontWeight: "700",
     color: colors.white,
+  },
+  blockButtonDisabled: {
+    backgroundColor: colors.inputBackground,
+  },
+  blockButtonTextDisabled: {
+    color: colors.textMuted,
   },
   pressed: {
     opacity: 0.85,

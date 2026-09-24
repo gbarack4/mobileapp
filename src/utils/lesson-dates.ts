@@ -43,6 +43,60 @@ export function isSameDay(a: Date, b: Date): boolean {
   );
 }
 
+export function startOfDay(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+export function isDateInInclusiveRange(
+  date: Date,
+  start: Date,
+  end: Date,
+): boolean {
+  const time = startOfDay(date).getTime();
+  const from = startOfDay(start).getTime();
+  const to = startOfDay(end).getTime();
+
+  return time >= Math.min(from, to) && time <= Math.max(from, to);
+}
+
+export function eachDayInclusive(start: Date, end: Date): Date[] {
+  const from = startOfDay(start);
+  const to = startOfDay(end);
+  const first = from <= to ? from : to;
+  const last = from <= to ? to : from;
+  const days: Date[] = [];
+  const cursor = new Date(first);
+
+  while (cursor <= last) {
+    days.push(new Date(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return days;
+}
+
+export type DateRange = {
+  start: Date;
+  end: Date;
+};
+
+export function normalizeDateRange(start: Date, end: Date): DateRange {
+  const from = startOfDay(start);
+  const to = startOfDay(end);
+
+  return from <= to ? { start: from, end: to } : { start: to, end: from };
+}
+
+export function isSameDateRange(
+  range: DateRange,
+  start: Date,
+  end: Date,
+): boolean {
+  const other = normalizeDateRange(start, end);
+
+  return isSameDay(range.start, other.start) && isSameDay(range.end, other.end);
+}
+
 export function formatMonthYear(date: Date): string {
   return `${MONTH_NAMES[date.getMonth()]} ${date.getFullYear()}`;
 }
