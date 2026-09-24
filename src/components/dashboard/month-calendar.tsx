@@ -266,7 +266,7 @@ export function MonthCalendar({
                     !blocked.isStart &&
                     !blocked.isEnd &&
                     styles.dayInnerInRangeBlocked,
-                  (isRangeStart || isRangeEnd) && styles.dayInnerSelected,
+                  selected && styles.dayInnerSelected,
                   (blocked.isStart || blocked.isEnd) &&
                     styles.dayInnerSelectedBlocked,
                   disabled && styles.dayInnerDisabled,
