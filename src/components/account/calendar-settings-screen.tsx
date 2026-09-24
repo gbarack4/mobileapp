@@ -257,7 +257,7 @@ export function CalendarSettingsScreen({
         </Text>
 
         <Pressable
-          onPress={() => router.push("/dashboard/calendar")}
+          onPress={() => router.push("/dashboard/account/calendar-block")}
           android_ripple={ANDROID_RIPPLE}
           accessibilityRole="button"
           accessibilityLabel="Calendar block"
