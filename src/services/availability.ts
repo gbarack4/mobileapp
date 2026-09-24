@@ -1,4 +1,9 @@
 import { findWorkSuburbByName } from "@/data/mock-work-locations";
+import type {
+  AvailabilityBlock,
+  AvailabilityDateRangePayload,
+  AvailabilityUnblockResponse,
+} from "@/types/availability-blocks";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
@@ -135,4 +140,90 @@ export async function getInstructorAvailability(
     })),
     travelTime: day.travelTime,
   }));
+}
+
+export async function getAvailabilityBlocks(
+  getToken: () => Promise<string | null>,
+  startDate: string,
+  endDate: string,
+): Promise<AvailabilityBlock[]> {
+  const token = await getToken();
+
+  const searchParams = new URLSearchParams({
+    startDate,
+    endDate,
+  });
+
+  const res = await fetch(
+    `${API_URL}/availability/blocks?${searchParams.toString()}`,
+    {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    },
+  );
+
+  if (!res.ok) {
+    const errorData = await res.text();
+
+    console.error("Failed to fetch availability blocks:", errorData);
+
+    throw new Error("Failed to fetch availability blocks");
+  }
+
+  return res.json();
+}
+
+export async function createAvailabilityBlock(
+  getToken: () => Promise<string | null>,
+  payload: AvailabilityDateRangePayload,
+): Promise<AvailabilityBlock> {
+  const token = await getToken();
+
+  const res = await fetch(`${API_URL}/availability/blocks`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const errorData = await res.text();
+
+    console.error("Failed to create availability block:", errorData);
+
+    throw new Error("Failed to create availability block");
+  }
+
+  return res.json();
+}
+
+export async function unblockAvailabilityRange(
+  getToken: () => Promise<string | null>,
+  payload: AvailabilityDateRangePayload,
+): Promise<AvailabilityUnblockResponse> {
+  const token = await getToken();
+
+  const res = await fetch(`${API_URL}/availability/blocks/unblock`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const errorData = await res.text();
+
+    console.error("Failed to unblock availability range:", errorData);
+
+    throw new Error("Failed to unblock availability range");
+  }
+
+  return res.json();
 }

@@ -2,6 +2,7 @@ import { useAuth } from "@clerk/clerk-expo";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Platform,
   Pressable,
   ScrollView,
@@ -17,18 +18,16 @@ import { CloseIcon } from "../../../components/icons/lesson-detail-icons";
 import { colors, spacing } from "../../../constants/theme";
 import { useInstructorBookings } from "../../../hooks/use-instructor-bookings";
 import {
+  createAvailabilityBlock,
+  getAvailabilityBlocks,
   getInstructorAvailability,
+  unblockAvailabilityRange,
   type DailyAvailabilityPayload,
 } from "../../../services/availability";
-import {
-  addBlockedSlots,
-  removeBlockedSlots,
-} from "../../../services/blocked-time-slots";
 import type { Lesson } from "../../../types/dashboard";
+import type { AvailabilityBlock } from "../../../types/availability-blocks";
 import type { InstructorBooking } from "../../../types/instructor-bookings";
 import {
-  eachDayInclusive,
-  isSameDateRange,
   normalizeDateRange,
   shiftMonth,
   startOfDay,
@@ -40,7 +39,6 @@ const ANDROID_RIPPLE =
   Platform.OS === "android" ? { color: "rgba(0, 94, 255, 0.08)" } : undefined;
 const ANDROID_UNBLOCK_RIPPLE =
   Platform.OS === "android" ? { color: "rgba(220, 38, 38, 0.12)" } : undefined;
-const RANGE_ACTION_DELAY_MS = 2500;
 
 function formatInTimeZone(
   date: Date,
@@ -153,118 +151,35 @@ function mapInstructorBookingToLesson(booking: InstructorBooking): Lesson {
   };
 }
 
-const DEFAULT_START = "08:00";
-const DEFAULT_END = "17:00";
-const DEFAULT_INTERVAL = 15;
+function formatCalendarDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
 
-function timeToMinutes(time: string) {
-  const [hours, minutes] = time.split(":").map(Number);
-
-  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
-    return null;
-  }
-
-  return hours * 60 + minutes;
+  return `${year}-${month}-${day}`;
 }
 
-function minutesToTime24(totalMinutes: number) {
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
+function parseCalendarDate(value: string): Date {
+  const [year, month, day] = value.split("-").map(Number);
 
-  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+  return new Date(year, month - 1, day);
 }
 
-function formatSlotLabel(time24: string) {
-  const [hoursRaw, minutes] = time24.split(":");
-  let hours = Number(hoursRaw);
+function getMonthDateRange(month: Date) {
+  const start = new Date(month.getFullYear(), month.getMonth(), 1);
+  const end = new Date(month.getFullYear(), month.getMonth() + 1, 0);
 
-  if (!Number.isFinite(hours)) {
-    return time24;
-  }
-
-  hours = hours % 12 || 12;
-
-  return `${hours}:${minutes}`;
-}
-
-function buildTimeSlots(
-  startTime: string,
-  endTime: string,
-  intervalMinutes: number,
-) {
-  const start = timeToMinutes(startTime);
-  const end = timeToMinutes(endTime);
-  const interval =
-    Number.isFinite(intervalMinutes) && intervalMinutes > 0
-      ? intervalMinutes
-      : DEFAULT_INTERVAL;
-
-  if (start === null || end === null || end < start) {
-    return [];
-  }
-
-  const slots: string[] = [];
-
-  for (let minutes = start; minutes <= end; minutes += interval) {
-    slots.push(formatSlotLabel(minutesToTime24(minutes)));
-  }
-
-  return slots;
-}
-
-function getSlotsForDate(
-  date: Date,
-  availability: DailyAvailabilityPayload[] | null,
-) {
-  const dayData = availability?.find((day) => day.dayOfWeek === date.getDay());
-
-  if (dayData) {
-    if (!dayData.isWorking || !dayData.startTime || !dayData.endTime) {
-      return [];
-    }
-
-    return buildTimeSlots(
-      dayData.startTime,
-      dayData.endTime,
-      DEFAULT_INTERVAL,
-    );
-  }
-
-  return buildTimeSlots(DEFAULT_START, DEFAULT_END, DEFAULT_INTERVAL);
-}
-
-function wait(ms: number) {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
-
-function applyRangeSlots(
-  start: Date,
-  end: Date,
-  availability: DailyAvailabilityPayload[] | null,
-  action: "block" | "unblock",
-) {
-  eachDayInclusive(start, end).forEach((date) => {
-    const slots = getSlotsForDate(date, availability);
-
-    if (slots.length === 0) {
-      return;
-    }
-
-    if (action === "unblock") {
-      removeBlockedSlots(date, slots);
-      return;
-    }
-
-    addBlockedSlots(date, slots);
-  });
+  return {
+    startDate: formatCalendarDate(start),
+    endDate: formatCalendarDate(end),
+  };
 }
 
 export default function CalendarScreen() {
   const { getToken, isLoaded, isSignedIn } = useAuth();
 
   const getTokenRef = useRef(getToken);
+  const today = useMemo(() => startOfDay(new Date()), []);
 
   const [visibleMonth, setVisibleMonth] = useState(() => {
     const today = new Date();
@@ -286,17 +201,15 @@ export default function CalendarScreen() {
     "ready" | "blocking" | "unblocking"
   >("ready");
 
-  const [blockedRanges, setBlockedRanges] = useState<DateRange[]>([]);
-
-  const rangeActionIdRef = useRef(0);
+  const [availabilityBlocks, setAvailabilityBlocks] = useState<
+    AvailabilityBlock[]
+  >([]);
 
   const [availability, setAvailability] = useState<
     DailyAvailabilityPayload[] | null
   >(null);
 
-  const {
-    bookings,
-  } = useInstructorBookings();
+  const { bookings } = useInstructorBookings();
 
   useEffect(() => {
     getTokenRef.current = getToken;
@@ -307,14 +220,30 @@ export default function CalendarScreen() {
     [bookings],
   );
 
+  const blockedRanges = useMemo<DateRange[]>(
+    () =>
+      availabilityBlocks.map((block) =>
+        normalizeDateRange(
+          parseCalendarDate(block.startDate),
+          parseCalendarDate(block.endDate),
+        ),
+      ),
+    [availabilityBlocks],
+  );
+
   const rangeComplete = Boolean(rangeStart && rangeEnd);
   const isBusy = rangeAction === "blocking" || rangeAction === "unblocking";
+  const selectedStartDate = rangeStart ? formatCalendarDate(rangeStart) : null;
+  const selectedEndDate = rangeEnd ? formatCalendarDate(rangeEnd) : null;
+
   const isCurrentRangeBlocked = Boolean(
-    rangeStart &&
-      rangeEnd &&
-      blockedRanges.some((range) =>
-        isSameDateRange(range, rangeStart, rangeEnd),
-      ),
+    selectedStartDate &&
+    selectedEndDate &&
+    availabilityBlocks.some(
+      (block) =>
+        block.startDate <= selectedStartDate &&
+        block.endDate >= selectedEndDate,
+    ),
   );
   const isBlocked =
     rangeAction === "unblocking" ||
@@ -330,13 +259,30 @@ export default function CalendarScreen() {
     }
   }, []);
 
+  const loadBlocks = useCallback(async () => {
+    const { startDate, endDate } = getMonthDateRange(visibleMonth);
+
+    try {
+      const data = await getAvailabilityBlocks(
+        getTokenRef.current,
+        startDate,
+        endDate,
+      );
+
+      setAvailabilityBlocks(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Failed to load calendar blocks:", error);
+    }
+  }, [visibleMonth]);
+
   useEffect(() => {
     if (!isLoaded || !isSignedIn) {
       return;
     }
 
     void loadAvailability();
-  }, [isLoaded, isSignedIn, loadAvailability]);
+    void loadBlocks();
+  }, [isLoaded, isSignedIn, loadAvailability, loadBlocks]);
 
   function handlePreviousMonth() {
     setVisibleMonth(shiftMonth(visibleMonth, -1));
@@ -347,7 +293,10 @@ export default function CalendarScreen() {
   }
 
   function handleSelectDate(date: Date) {
-    rangeActionIdRef.current += 1;
+    if (startOfDay(date).getTime() < today.getTime()) {
+      return;
+    }
+
     setRangeAction("ready");
 
     if (
@@ -388,37 +337,43 @@ export default function CalendarScreen() {
       return;
     }
 
-    const start = rangeStart;
-    const end = rangeEnd;
-    const actionId = rangeActionIdRef.current + 1;
-    rangeActionIdRef.current = actionId;
+    if (startOfDay(rangeStart).getTime() < today.getTime()) {
+      Alert.alert(
+        "Calendar block",
+        "You cannot block availability in the past.",
+      );
+      return;
+    }
 
-    if (isCurrentRangeBlocked) {
-      setRangeAction("unblocking");
-      await wait(RANGE_ACTION_DELAY_MS);
+    const payload = {
+      startDate: formatCalendarDate(rangeStart),
+      endDate: formatCalendarDate(rangeEnd),
+    };
 
-      if (rangeActionIdRef.current !== actionId) {
-        return;
+    try {
+      if (isCurrentRangeBlocked) {
+        setRangeAction("unblocking");
+
+        await unblockAvailabilityRange(getTokenRef.current, payload);
+      } else {
+        setRangeAction("blocking");
+
+        await createAvailabilityBlock(getTokenRef.current, payload);
       }
 
-      applyRangeSlots(start, end, availability, "unblock");
-      setBlockedRanges((current) =>
-        current.filter((range) => !isSameDateRange(range, start, end)),
+      await loadBlocks();
+    } catch (error) {
+      console.error("Failed to update calendar block:", error);
+
+      Alert.alert(
+        "Calendar block",
+        isCurrentRangeBlocked
+          ? "Failed to unblock the selected dates."
+          : "Failed to block the selected dates.",
       );
+    } finally {
       setRangeAction("ready");
-      return;
     }
-
-    setRangeAction("blocking");
-    await wait(RANGE_ACTION_DELAY_MS);
-
-    if (rangeActionIdRef.current !== actionId) {
-      return;
-    }
-
-    applyRangeSlots(start, end, availability, "block");
-    setBlockedRanges((current) => [...current, normalizeDateRange(start, end)]);
-    setRangeAction("ready");
   }
 
   return (
@@ -447,6 +402,7 @@ export default function CalendarScreen() {
         >
           <MonthCalendar
             visibleMonth={visibleMonth}
+            minSelectableDate={today}
             rangeStart={rangeStart}
             rangeEnd={rangeEnd}
             lessonCounts={new Map()}
@@ -490,7 +446,9 @@ export default function CalendarScreen() {
               <View style={styles.blockButtonLoading}>
                 <ActivityIndicator size="small" color={colors.white} />
                 <Text style={styles.blockButtonText}>
-                  {rangeAction === "unblocking" ? "Unblocking..." : "Blocking..."}
+                  {rangeAction === "unblocking"
+                    ? "Unblocking..."
+                    : "Blocking..."}
                 </Text>
               </View>
             ) : (
