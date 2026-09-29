@@ -10,6 +10,7 @@ import * as SystemUI from "expo-system-ui";
 import { useEffect } from "react";
 import { Platform, StatusBar, View } from "react-native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { getInstructorAccountStatus } from "@/services/instructor-account";
 
 const queryClient = new QueryClient();
 
@@ -44,7 +45,7 @@ if (!publishableKey) {
 }
 
 function RootLayoutNav() {
-  const { isLoaded, isSignedIn } = useAuth();
+  const { getToken, isLoaded, isSignedIn } = useAuth();
   const { user } = useUser();
 
   const segments = useSegments();
@@ -54,19 +55,67 @@ function RootLayoutNav() {
     if (DEV_BYPASS_AUTH) return;
     if (!isLoaded) return;
 
-    const inAuthGroup =
+    let cancelled = false;
+
+    const inPublicGroup =
       segments[0] === "login" ||
       segments[0] === "signup" ||
-      segments[0] === "sso-callback";
+      segments[0] === "sso-callback" ||
+      segments[0] === "invite";
 
-    const isSharedRoute = segments[0] === "invite";
+    const inRecoveryScreen = segments[0] === "account-recovery";
 
-    if (!isSignedIn && !inAuthGroup && !isSharedRoute) {
-      router.replace("/login");
-    } else if (isSignedIn && inAuthGroup) {
-      router.replace("/dashboard");
+    if (!isSignedIn) {
+      if (!inPublicGroup) {
+        router.replace("/login");
+      }
+
+      return;
     }
-  }, [isSignedIn, isLoaded, segments, router]);
+
+    async function resolveSignedInRoute() {
+      try {
+        const token = await getToken();
+
+        if (!token || cancelled) {
+          return;
+        }
+
+        const accountStatus = await getInstructorAccountStatus(token);
+
+        if (cancelled) {
+          return;
+        }
+
+        if (
+          accountStatus.status === "deletion_requested" ||
+          accountStatus.status === "recovery_expired"
+        ) {
+          if (!inRecoveryScreen) {
+            router.replace("/account-recovery");
+          }
+
+          return;
+        }
+
+        if (inPublicGroup || inRecoveryScreen) {
+          router.replace("/dashboard");
+        }
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        console.error("Failed to resolve instructor account status:", error);
+      }
+    }
+
+    void resolveSignedInRoute();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoaded, isSignedIn, segments, router]);
 
   useEffect(() => {
     if (!isLoaded || !isSignedIn || !user) return;

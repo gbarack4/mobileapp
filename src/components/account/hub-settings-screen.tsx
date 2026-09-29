@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  Alert,
   Platform,
   Pressable,
   ScrollView,
@@ -20,6 +21,11 @@ import {
 import { colors, spacing } from "../../constants/theme";
 import { DeleteAccountDialog } from "./delete-account-dialog";
 import { HubSettingsRow } from "./hub-settings-row";
+import { useAuth, useClerk } from "@clerk/clerk-expo";
+import {
+  deleteInstructorAccount,
+  InstructorAccountApiError,
+} from "@/services/instructor-account";
 
 type HubQuickLinkScreenProps = {
   screen: HubQuickLinkId;
@@ -108,6 +114,8 @@ function HubQuickLinkSettingsScreen({
   screen,
   onBack,
 }: Readonly<HubQuickLinkScreenProps>) {
+  const { getToken } = useAuth();
+  const { signOut } = useClerk();
   const copy = SCREEN_COPY[screen];
   const title = HUB_QUICK_LINKS_LABELS[screen];
   const [toggleState, setToggleState] = useState<Record<string, boolean>>(
@@ -150,18 +158,59 @@ function HubQuickLinkSettingsScreen({
     setDeleteDialogOpen(false);
   }
 
-  function handleConfirmDelete() {
+  async function handleConfirmDelete() {
     if (deletingAccount) {
       return;
     }
 
     setDeletingAccount(true);
 
-    // TODO: connect to NestJS delete account API
-    setTimeout(() => {
-      setDeletingAccount(false);
+    try {
+      const token = await getToken();
+
+      if (!token) {
+        throw new Error("Your session has expired. Please sign in again.");
+      }
+
+      await deleteInstructorAccount(token);
+
       setDeleteDialogOpen(false);
-    }, 2000);
+
+      await signOut();
+    } catch (error) {
+      if (error instanceof InstructorAccountApiError) {
+        if (error.status === 409 && error.blockers) {
+          const reasons: string[] = [];
+
+          if (error.blockers.upcomingBookings) {
+            reasons.push("You still have upcoming lessons.");
+          }
+
+          if (error.blockers.unpaidEarnings) {
+            reasons.push("You still have unpaid earnings.");
+          }
+
+          Alert.alert(
+            "Account cannot be deleted",
+            reasons.length > 0 ? reasons.join("\n") : error.message,
+          );
+
+          return;
+        }
+
+        Alert.alert("Unable to delete account", error.message);
+        return;
+      }
+
+      Alert.alert(
+        "Unable to delete account",
+        error instanceof Error
+          ? error.message
+          : "Something went wrong. Please try again.",
+      );
+    } finally {
+      setDeletingAccount(false);
+    }
   }
 
   return (
@@ -209,11 +258,15 @@ function HubQuickLinkSettingsScreen({
   );
 }
 
-export function HubSecurityScreen({ onBack }: Readonly<{ onBack: () => void }>) {
+export function HubSecurityScreen({
+  onBack,
+}: Readonly<{ onBack: () => void }>) {
   return <HubQuickLinkSettingsScreen screen="security" onBack={onBack} />;
 }
 
-export function HubPrivacyDataScreen({ onBack }: Readonly<{ onBack: () => void }>) {
+export function HubPrivacyDataScreen({
+  onBack,
+}: Readonly<{ onBack: () => void }>) {
   return <HubQuickLinkSettingsScreen screen="privacy-data" onBack={onBack} />;
 }
 
