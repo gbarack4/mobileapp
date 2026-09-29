@@ -10,6 +10,8 @@ import {
 } from "react-native";
 
 import { ChevronLeftIcon } from "../icons/dashboard-icons";
+import { DeleteAccountBlockedDialog } from "./delete-account-blocked-dialog";
+import type { InstructorAccountDeletionBlockers } from "../../types/instructor-account";
 import {
   HUB_PERSONAL_INFO_SECTIONS,
   HUB_PRIVACY_SECTIONS,
@@ -24,6 +26,7 @@ import { HubSettingsRow } from "./hub-settings-row";
 import { useAuth, useClerk } from "@clerk/clerk-expo";
 import {
   deleteInstructorAccount,
+  getInstructorDeletionEligibility,
   InstructorAccountApiError,
 } from "@/services/instructor-account";
 
@@ -135,14 +138,50 @@ function HubQuickLinkSettingsScreen({
   );
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
+  const [checkingDeletionEligibility, setCheckingDeletionEligibility] =
+    useState(false);
+  const [deletionBlockers, setDeletionBlockers] =
+    useState<InstructorAccountDeletionBlockers | null>(null);
 
-  function handleRowPress(item: HubSettingItem) {
-    if (item.id === "delete-account") {
-      setDeleteDialogOpen(true);
+  async function handleRowPress(item: HubSettingItem) {
+    if (item.id !== "delete-account") {
+      // TODO: connect to NestJS hub account settings API
       return;
     }
 
-    // TODO: connect to NestJS hub account settings API
+    if (checkingDeletionEligibility || deletingAccount) {
+      return;
+    }
+
+    setCheckingDeletionEligibility(true);
+
+    try {
+      const token = await getToken();
+
+      if (!token) {
+        throw new Error("Your session has expired. Please sign in again.");
+      }
+
+      const eligibility = await getInstructorDeletionEligibility(token);
+
+      if (!eligibility.canDelete) {
+        setDeletionBlockers(eligibility.blockers);
+        return;
+      }
+
+      setDeleteDialogOpen(true);
+
+      setDeleteDialogOpen(true);
+    } catch (error) {
+      Alert.alert(
+        "Unable to check account",
+        error instanceof Error
+          ? error.message
+          : "Something went wrong. Please try again.",
+      );
+    } finally {
+      setCheckingDeletionEligibility(false);
+    }
   }
 
   function handleToggle(id: string, enabled: boolean) {
@@ -247,6 +286,12 @@ function HubQuickLinkSettingsScreen({
           onRowPress={handleRowPress}
         />
       </ScrollView>
+
+      <DeleteAccountBlockedDialog
+        visible={deletionBlockers !== null}
+        blockers={deletionBlockers}
+        onClose={() => setDeletionBlockers(null)}
+      />
 
       <DeleteAccountDialog
         visible={deleteDialogOpen}

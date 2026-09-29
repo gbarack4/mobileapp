@@ -1,6 +1,7 @@
 import type {
   InstructorAccountApiErrorBody,
   InstructorAccountDeletionBlockers,
+  InstructorAccountDeletionEligibility,
   InstructorAccountDeletionResult,
   InstructorAccountRestoreResult,
   InstructorAccountStatusResult,
@@ -102,4 +103,29 @@ export async function restoreInstructorAccount(
   }
 
   return (await response.json()) as InstructorAccountRestoreResult;
+}
+
+export async function getInstructorDeletionEligibility(
+  token: string,
+): Promise<InstructorAccountDeletionEligibility> {
+  const response = await fetch(
+    `${getApiUrl()}/instructors/account/deletion-eligibility`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      },
+    },
+  );
+
+  if (!response.ok) {
+    const body = await getErrorBody(response);
+
+    throw new InstructorAccountApiError(
+      body.message ?? `Request failed with status ${response.status}`,
+      response.status,
+    );
+  }
+
+  return (await response.json()) as InstructorAccountDeletionEligibility;
 }

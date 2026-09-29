@@ -31,3 +31,10 @@ export type InstructorAccountRestoreResult = {
   success: true;
   status: "restored";
 };
+
+export type InstructorAccountDeletionEligibility = {
+  canDelete: boolean;
+  blockers: InstructorAccountDeletionBlockers;
+  deletionRequestedAt: string | null;
+  recoveryExpiresAt: string | null;
+};
