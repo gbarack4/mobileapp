@@ -16,10 +16,11 @@ export type InstructorAccountApiErrorBody = {
 };
 
 export type InstructorAccountStatus =
+  | "onboarding_required"
   | "active"
+  | "inactive"
   | "deletion_requested"
-  | "recovery_expired"
-  | "inactive";
+  | "recovery_expired";
 
 export type InstructorAccountStatusResult = {
   status: InstructorAccountStatus;

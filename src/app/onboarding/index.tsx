@@ -2,7 +2,7 @@ import { useAuth } from "@clerk/clerk-expo";
 import * as DocumentPicker from "expo-document-picker";
 import type { DocumentPickerAsset } from "expo-document-picker";
 import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -151,6 +151,8 @@ const DOCUMENT_FIELDS: {
 
 export default function OnboardingScreen() {
   const { getToken } = useAuth();
+  const getTokenRef = useRef(getToken);
+  getTokenRef.current = getToken;
   const { step: stepParam } = useLocalSearchParams<{
     step?: string | string[];
   }>();
@@ -175,7 +177,7 @@ export default function OnboardingScreen() {
   useEffect(() => {
     async function loadDraft() {
       try {
-        const token = await getToken();
+       const token = await getTokenRef.current();
         if (!token) return;
 
         const draft = await getOnboardingDraft(token);
@@ -226,7 +228,7 @@ export default function OnboardingScreen() {
     }
 
     void loadDraft();
-  }, [getToken, stepParam]);
+  }, [stepParam]);
 
   if (isLoadingDraft) {
     return (

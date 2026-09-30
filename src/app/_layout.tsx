@@ -7,7 +7,7 @@ import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import * as SecureStore from "expo-secure-store";
 import * as SystemUI from "expo-system-ui";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Platform, StatusBar, View } from "react-native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { getInstructorAccountStatus } from "@/services/instructor-account";
@@ -46,76 +46,100 @@ if (!publishableKey) {
 
 function RootLayoutNav() {
   const { getToken, isLoaded, isSignedIn } = useAuth();
+  const getTokenRef = useRef(getToken);
+getTokenRef.current = getToken;
   const { user } = useUser();
 
-  const segments = useSegments();
-  const router = useRouter();
+ const segments = useSegments();
+ const router = useRouter();
+const rootSegment = segments[0];
 
-  useEffect(() => {
-    if (DEV_BYPASS_AUTH) return;
-    if (!isLoaded) return;
+useEffect(() => {
+  if (DEV_BYPASS_AUTH) return;
+  if (!isLoaded) return;
 
-    let cancelled = false;
+  let cancelled = false;
 
-    const inPublicGroup =
-      segments[0] === "login" ||
-      segments[0] === "signup" ||
-      segments[0] === "sso-callback" ||
-      segments[0] === "invite";
+  const inPublicGroup =
+    rootSegment === "login" ||
+    rootSegment === "signup" ||
+    rootSegment === "sso-callback" ||
+    rootSegment === "invite";
 
-    const inRecoveryScreen = segments[0] === "account-recovery";
+  const inRecoveryScreen = rootSegment === "account-recovery";
+  const inOnboardingScreen = rootSegment === "onboarding";
 
-    if (!isSignedIn) {
-      if (!inPublicGroup) {
-        router.replace("/login");
-      }
-
-      return;
+  if (!isSignedIn) {
+    if (!inPublicGroup) {
+      router.replace("/login");
     }
 
-    async function resolveSignedInRoute() {
-      try {
-        const token = await getToken();
+    return;
+  }
 
-        if (!token || cancelled) {
-          return;
-        }
+  async function resolveSignedInRoute() {
+    try {
+      const token = await getTokenRef.current();
 
-        const accountStatus = await getInstructorAccountStatus(token);
-
-        if (cancelled) {
-          return;
-        }
-
-        if (
-          accountStatus.status === "deletion_requested" ||
-          accountStatus.status === "recovery_expired"
-        ) {
-          if (!inRecoveryScreen) {
-            router.replace("/account-recovery");
-          }
-
-          return;
-        }
-
-        if (inPublicGroup || inRecoveryScreen) {
-          router.replace("/dashboard");
-        }
-      } catch (error) {
-        if (cancelled) {
-          return;
-        }
-
-        console.error("Failed to resolve instructor account status:", error);
+      if (!token || cancelled) {
+        return;
       }
+
+      const accountStatus = await getInstructorAccountStatus(token);
+
+      if (cancelled) {
+        return;
+      }
+
+      if (accountStatus.status === "onboarding_required") {
+        if (!inOnboardingScreen) {
+          router.replace("/onboarding");
+        }
+
+        return;
+      }
+
+      if (
+        accountStatus.status === "deletion_requested" ||
+        accountStatus.status === "recovery_expired"
+      ) {
+        if (!inRecoveryScreen) {
+          router.replace("/account-recovery");
+        }
+
+        return;
+      }
+
+      if (
+        inPublicGroup ||
+        inRecoveryScreen ||
+        inOnboardingScreen
+      ) {
+        router.replace("/dashboard");
+      }
+    } catch (error) {
+      if (cancelled) {
+        return;
+      }
+
+      console.error(
+        "Failed to resolve instructor account status:",
+        error,
+      );
     }
+  }
 
-    void resolveSignedInRoute();
+  void resolveSignedInRoute();
 
-    return () => {
-      cancelled = true;
-    };
-  }, [isLoaded, isSignedIn, segments, router]);
+  return () => {
+    cancelled = true;
+  };
+}, [ 
+  isLoaded,
+  isSignedIn,
+  rootSegment,
+  router,
+]);
 
   useEffect(() => {
     if (!isLoaded || !isSignedIn || !user) return;
