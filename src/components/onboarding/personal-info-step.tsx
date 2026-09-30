@@ -21,6 +21,7 @@ type PersonalInfoStepProps = {
   ) => void;
   onSelectPhoto: (uri: string, fileName: string, mimeType?: string) => void;
   onRemovePhoto: () => void;
+  photoError?: string | null;
 };
 
 function formatDateOfBirthInput(value: string) {
@@ -61,6 +62,7 @@ export function PersonalInfoStep({
   onUpdateAddress,
   onSelectPhoto,
   onRemovePhoto,
+  photoError,
 }: Readonly<PersonalInfoStepProps>) {
   const line1Ref = useRef<TextInput>(null);
   const line2Ref = useRef<TextInput>(null);
@@ -78,6 +80,7 @@ export function PersonalInfoStep({
       <ProfilePhotoPicker
         photoUri={form.profilePhotoUri}
         photoName={form.profilePhotoName}
+        uploadError={photoError}
         onSelect={onSelectPhoto}
         onRemove={onRemovePhoto}
       />

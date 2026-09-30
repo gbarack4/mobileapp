@@ -1,6 +1,7 @@
 import { useAuth } from "@clerk/clerk-expo";
 import * as DocumentPicker from "expo-document-picker";
-import { router } from "expo-router";
+import type { DocumentPickerAsset } from "expo-document-picker";
+import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -24,6 +25,7 @@ import { DocumentUploadField } from "../../components/onboarding/document-upload
 import { PersonalInfoStep } from "../../components/onboarding/personal-info-step";
 import { SelectionPills } from "../../components/onboarding/selection-pills";
 import { colors, radius, spacing } from "../../constants/theme";
+import { DEV_BYPASS_AUTH } from "../../constants/dev";
 import {
   getOnboardingDraft,
   saveOnboardingDraft,
@@ -53,6 +55,34 @@ type PressableState = {
 
 const ANDROID_RIPPLE =
   Platform.OS === "android" ? { color: "rgba(0, 94, 255, 0.14)" } : undefined;
+const LOCAL_DOCUMENT_TEST_MS = 1800;
+const COMPLETE_SETUP_MS = 3000;
+const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
+const DOCUMENT_UPLOAD_FAILED_MESSAGE = "Upload failed. Max 10 MB file.";
+
+function wait(ms: number) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function getDocumentSize(file: DocumentPickerAsset) {
+  if (typeof file.size === "number") {
+    return file.size;
+  }
+
+  if (Platform.OS === "web" && file.uri) {
+    try {
+      const response = await fetch(file.uri);
+      const blob = await response.blob();
+      return blob.size;
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+}
 
 const STEPS: OnboardingStep[] = [
   {
@@ -121,15 +151,22 @@ const DOCUMENT_FIELDS: {
 
 export default function OnboardingScreen() {
   const { getToken } = useAuth();
+  const { step: stepParam } = useLocalSearchParams<{
+    step?: string | string[];
+  }>();
   const [stepIndex, setStepIndex] = useState(0);
   const [form, setForm] = useState<OnboardingForm>(INITIAL_ONBOARDING_FORM);
   const [focusedField, setFocusedField] = useState<FocusedField>(null);
   const [error, setError] = useState<string | null>(null);
+  const [photoError, setPhotoError] = useState<string | null>(null);
   const [isContinuing, setIsContinuing] = useState(false);
   const [isLoadingDraft, setIsLoadingDraft] = useState(true);
   const [uploadingDocType, setUploadingDocType] = useState<DocumentType | null>(
     null,
   );
+  const [documentErrors, setDocumentErrors] = useState<
+    Partial<Record<DocumentType, string | null>>
+  >({});
 
   const currentStep = STEPS[stepIndex];
   const isLastStep = stepIndex === STEPS.length - 1;
@@ -171,12 +208,25 @@ export default function OnboardingScreen() {
       } catch (err) {
         console.error("Failed to load onboarding draft:", err);
       } finally {
+        if (__DEV__) {
+          const raw = Array.isArray(stepParam) ? stepParam[0] : stepParam;
+          const requested = Number(raw);
+
+          if (
+            Number.isInteger(requested) &&
+            requested >= 1 &&
+            requested <= STEPS.length
+          ) {
+            setStepIndex(requested - 1);
+          }
+        }
+
         setIsLoadingDraft(false);
       }
     }
 
-    loadDraft();
-  }, []);
+    void loadDraft();
+  }, [getToken, stepParam]);
 
   if (isLoadingDraft) {
     return (
@@ -348,23 +398,35 @@ export default function OnboardingScreen() {
     clearError();
 
     try {
+      if (isLastStep) {
+        if (DEV_BYPASS_AUTH) {
+          await wait(COMPLETE_SETUP_MS);
+        } else {
+          const token = await getToken();
+          if (!token) throw new Error("No authentication token found.");
+
+          await Promise.all([
+            submitFinalOnboarding(form, token),
+            wait(COMPLETE_SETUP_MS),
+          ]);
+        }
+
+        router.replace("/onboarding/welcome");
+        return;
+      }
+
       const token = await getToken();
       if (!token) throw new Error("No authentication token found.");
 
-      if (isLastStep) {
-        await submitFinalOnboarding(form, token);
-        router.replace("/dashboard");
-      } else {
-        const nextStepIndex = stepIndex + 1;
-        await saveOnboardingDraft(
-          {
-            currentStepIndex: nextStepIndex,
-            formData: form,
-          },
-          token,
-        );
-        setStepIndex(nextStepIndex);
-      }
+      const nextStepIndex = stepIndex + 1;
+      await saveOnboardingDraft(
+        {
+          currentStepIndex: nextStepIndex,
+          formData: form,
+        },
+        token,
+      );
+      setStepIndex(nextStepIndex);
     } catch (err: any) {
       setError(err.message || "Failed to save progress. Please try again.");
     } finally {
@@ -379,6 +441,7 @@ export default function OnboardingScreen() {
   ) {
     setIsContinuing(true);
     clearError();
+    setPhotoError(null);
 
     try {
       const token = await getToken();
@@ -401,7 +464,7 @@ export default function OnboardingScreen() {
       }));
     } catch (err) {
       console.error("Profile photo upload failed:", err);
-      setError("Could not upload photo. Please try again.");
+      setPhotoError("Upload failed. Max 10 MB.");
     } finally {
       setIsContinuing(false);
     }
@@ -414,6 +477,7 @@ export default function OnboardingScreen() {
       profilePhotoName: null,
     }));
     clearError();
+    setPhotoError(null);
   }
 
   async function handleDocumentUpload(type: DocumentType) {
@@ -421,16 +485,41 @@ export default function OnboardingScreen() {
 
     try {
       clearError();
+      setDocumentErrors((current) => ({ ...current, [type]: null }));
 
       const result = await DocumentPicker.getDocumentAsync({
-        type: ["application/pdf", "image/jpeg", "image/png"],
+        type: DEV_BYPASS_AUTH
+          ? "*/*"
+          : ["application/pdf", "image/jpeg", "image/png"],
         copyToCacheDirectory: true,
       });
 
       if (result.canceled) return;
 
       const file = result.assets[0];
+      const fileSize = await getDocumentSize(file);
+
+      if (fileSize !== null && fileSize > MAX_DOCUMENT_BYTES) {
+        setDocumentErrors((current) => ({
+          ...current,
+          [type]: DOCUMENT_UPLOAD_FAILED_MESSAGE,
+        }));
+        return;
+      }
+
       setUploadingDocType(type);
+
+      if (DEV_BYPASS_AUTH) {
+        await wait(LOCAL_DOCUMENT_TEST_MS);
+        setForm((current) => ({
+          ...current,
+          documents: {
+            ...current.documents,
+            [type]: file.uri,
+          },
+        }));
+        return;
+      }
 
       const token = await getToken();
       if (!token) throw new Error("No token");
@@ -455,7 +544,10 @@ export default function OnboardingScreen() {
       }));
     } catch (err) {
       console.error(`Upload error for ${type}:`, err);
-      setError(`Failed to upload ${type}. Please try again.`);
+      setDocumentErrors((current) => ({
+        ...current,
+        [type]: DOCUMENT_UPLOAD_FAILED_MESSAGE,
+      }));
     } finally {
       setUploadingDocType(null);
     }
@@ -472,6 +564,7 @@ export default function OnboardingScreen() {
         onUpdateAddress={updateAddress}
         onSelectPhoto={handlePhotoSelect}
         onRemovePhoto={handlePhotoRemove}
+        photoError={photoError}
       />
     );
   }
@@ -713,6 +806,8 @@ export default function OnboardingScreen() {
               label={document.label}
               hint={document.hint}
               fileName={displayFileName}
+              uploading={uploadingDocType === document.type}
+              error={documentErrors[document.type]}
               onPress={() => handleDocumentUpload(document.type)}
             />
           );
@@ -770,11 +865,16 @@ export default function OnboardingScreen() {
             {stepIndex > 0 ? (
               <Pressable
                 onPress={handleBack}
+                disabled={isContinuing}
                 android_ripple={ANDROID_RIPPLE}
                 style={({ pressed, hovered }: PressableState) => [
                   styles.secondaryButton,
-                  hovered && !pressed && styles.secondaryButtonHovered,
-                  pressed && styles.buttonPressed,
+                  hovered &&
+                    !pressed &&
+                    !isContinuing &&
+                    styles.secondaryButtonHovered,
+                  pressed && !isContinuing && styles.buttonPressed,
+                  isContinuing && styles.primaryButtonDisabled,
                 ]}
               >
                 <Text style={styles.secondaryButtonText}>Back</Text>
@@ -797,15 +897,20 @@ export default function OnboardingScreen() {
                 pressed && !isContinuing && styles.buttonPressed,
               ]}
             >
-              <Text style={styles.primaryButtonText}>
-                {isContinuing
-                  ? isLastStep
-                    ? "Completing...."
-                    : "Continuing...."
-                  : isLastStep
-                    ? "Complete setup"
-                    : "Continue"}
-              </Text>
+              {isContinuing && isLastStep ? (
+                <View style={styles.primaryButtonLoading}>
+                  <ActivityIndicator size="small" color={colors.white} />
+                  <Text style={styles.primaryButtonText}>Completing...</Text>
+                </View>
+              ) : (
+                <Text style={styles.primaryButtonText}>
+                  {isContinuing
+                    ? "Continuing...."
+                    : isLastStep
+                      ? "Complete setup"
+                      : "Continue"}
+                </Text>
+              )}
             </Pressable>
           </View>
         </ScrollView>
@@ -912,6 +1017,11 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: 17,
     fontWeight: "600",
+  },
+  primaryButtonLoading: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
   },
   secondaryButton: {
     flex: 1,

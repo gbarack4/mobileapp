@@ -17,6 +17,14 @@ import {
 } from "@/services/instructor-account";
 import type { InstructorAccountStatusResult } from "@/types/instructor-account";
 
+const RESTORE_DELAY_MS = 3000;
+
+function wait(ms: number) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
 function formatRecoveryDate(value: string): string {
   const date = new Date(value);
 
@@ -97,7 +105,7 @@ export default function AccountRecoveryScreen() {
         throw new Error("Your session has expired. Please sign in again.");
       }
 
-      await restoreInstructorAccount(token);
+      await Promise.all([restoreInstructorAccount(token), wait(RESTORE_DELAY_MS)]);
 
       router.replace("/dashboard");
     } catch (error) {
@@ -107,7 +115,6 @@ export default function AccountRecoveryScreen() {
           ? error.message
           : "Something went wrong. Please try again.",
       );
-    } finally {
       setRestoring(false);
     }
   }
@@ -164,7 +171,10 @@ export default function AccountRecoveryScreen() {
             ]}
           >
             {restoring ? (
-              <ActivityIndicator size="small" color="#ffffff" />
+              <View style={styles.primaryButtonLoading}>
+                <ActivityIndicator size="small" color="#ffffff" />
+                <Text style={styles.primaryButtonText}>Restoring...</Text>
+              </View>
             ) : (
               <Text style={styles.primaryButtonText}>Restore account</Text>
             )}
@@ -238,6 +248,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: colors.primary,
     paddingHorizontal: spacing.lg,
+  },
+  primaryButtonLoading: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
   },
   primaryButtonText: {
     fontSize: 16,

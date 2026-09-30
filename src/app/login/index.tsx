@@ -4,6 +4,8 @@ import * as WebBrowser from "expo-web-browser";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
+  Easing,
   KeyboardAvoidingView,
   Linking,
   Platform,
@@ -70,6 +72,9 @@ const ANDROID_RIPPLE =
   Platform.OS === "android" ? { color: "rgba(0, 94, 255, 0.14)" } : undefined;
 
 const CONTINUING_MS = 1000;
+const STEP_DROPDOWN_MS = 360;
+const PASSWORD_DROPDOWN_HEIGHT = 160;
+const SOCIAL_DROPDOWN_HEIGHT = 340;
 const TERMS_URL = "https://driveinstructor.pro/terms";
 const PRIVACY_URL = "https://driveinstructor.pro/privacy";
 
@@ -79,6 +84,8 @@ export default function LoginScreen() {
 
   const passwordRef = useRef<TextInput>(null);
   const codeRef = useRef<TextInput>(null);
+  const passwordReveal = useRef(new Animated.Value(0)).current;
+  const socialReveal = useRef(new Animated.Value(1)).current;
 
   const [step, setStep] = useState<LoginStep>("identifier");
   const [identifier, setIdentifier] = useState("");
@@ -101,10 +108,9 @@ export default function LoginScreen() {
 
   const trimmedIdentifier = normalizeIdentifier(identifier);
   const isBusy = isSubmitting || isContinuing || oauthLoading !== null;
-  const showSocialLogin = step === "identifier";
   const identifierEditable =
     step === "identifier" || step === "forgot-password";
-  const showPasswordField = step === "password";
+  const showPasswordLogin = step === "identifier" || step === "password";
   const showForgotPasswordLink = step === "password";
   const isForgotFlow = step === "forgot-password" || step === "reset-password";
   const isVerifyStep = step === "verify-code";
@@ -120,6 +126,30 @@ export default function LoginScreen() {
       void WebBrowser.coolDownAsync();
     };
   }, []);
+
+  useEffect(() => {
+    const passwordOpen = step === "password";
+    const socialOpen = step === "identifier";
+
+    Animated.parallel([
+      Animated.timing(passwordReveal, {
+        toValue: passwordOpen ? 1 : 0,
+        duration: STEP_DROPDOWN_MS,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }),
+      Animated.timing(socialReveal, {
+        toValue: socialOpen ? 1 : 0,
+        duration: STEP_DROPDOWN_MS,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }),
+    ]).start(({ finished }) => {
+      if (finished && passwordOpen) {
+        passwordRef.current?.focus();
+      }
+    });
+  }, [passwordReveal, socialReveal, step]);
 
   function clearMessages() {
     setError(null);
@@ -245,10 +275,7 @@ export default function LoginScreen() {
       }
 
       clearMessages();
-      runAfterContinuing(() => {
-        setStep("password");
-        setTimeout(() => passwordRef.current?.focus(), 100);
-      });
+      setStep("password");
       return;
     }
 
@@ -517,11 +544,41 @@ export default function LoginScreen() {
             </View>
 
             <View style={styles.form}>
-              {renderBackLink()}
+              <View>
+                {showPasswordLogin ? (
+                  <Animated.View
+                    pointerEvents={step === "password" ? "auto" : "none"}
+                    style={[
+                      styles.dropdownSection,
+                      {
+                        opacity: passwordReveal,
+                        maxHeight: passwordReveal.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0, 36],
+                        }),
+                        marginBottom: passwordReveal.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0, spacing.sm],
+                        }),
+                      },
+                    ]}
+                  >
+                    <Pressable
+                      onPress={handleBackToIdentifier}
+                      style={styles.backLink}
+                    >
+                      <Text style={styles.backLinkText}>
+                        ← Use a different email or number
+                      </Text>
+                    </Pressable>
+                  </Animated.View>
+                ) : (
+                  renderBackLink()
+                )}
 
-              <Text style={styles.label}>Mobile number or email</Text>
+                <Text style={styles.label}>Mobile number or email</Text>
 
-              <View style={styles.inputWrapper}>
+              <View style={[styles.inputWrapper, styles.identifierField]}>
                 <TextInput
                   value={identifier}
                   onChangeText={(value) => {
@@ -558,8 +615,32 @@ export default function LoginScreen() {
                 </View>
               </View>
 
-              {showPasswordField ? (
-                <>
+              {showPasswordLogin ? (
+                <Animated.View
+                  pointerEvents={step === "password" ? "auto" : "none"}
+                  style={[
+                    styles.passwordDropdown,
+                    {
+                      opacity: passwordReveal,
+                      maxHeight: passwordReveal.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, PASSWORD_DROPDOWN_HEIGHT],
+                      }),
+                      marginTop: passwordReveal.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, spacing.md],
+                      }),
+                      transform: [
+                        {
+                          translateY: passwordReveal.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [-10, 0],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                >
                   <Text style={styles.label}>Password</Text>
                   <View style={styles.inputWrapper}>
                     <TextInput
@@ -589,7 +670,7 @@ export default function LoginScreen() {
                         styles.input,
                         focusedField === "password" && styles.inputFocused,
                       ]}
-                      editable={!isBusy}
+                      editable={!isBusy && step === "password"}
                     />
                     <Pressable
                       onPress={() => setPasswordVisible((current) => !current)}
@@ -603,8 +684,9 @@ export default function LoginScreen() {
                       <LockIcon unlocked={passwordVisible} />
                     </Pressable>
                   </View>
-                </>
+                </Animated.View>
               ) : null}
+              </View>
 
               {step === "reset-password" ? (
                 <>
@@ -762,7 +844,33 @@ export default function LoginScreen() {
                 )}
               </Pressable>
 
-              {showForgotPasswordLink ? (
+              {showPasswordLogin ? (
+                <Animated.View
+                  pointerEvents={step === "password" ? "auto" : "none"}
+                  style={[
+                    styles.dropdownSection,
+                    {
+                      opacity: passwordReveal,
+                      maxHeight: passwordReveal.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, 48],
+                      }),
+                    },
+                  ]}
+                >
+                  <Pressable
+                    onPress={handleForgotPassword}
+                    disabled={isBusy}
+                    android_ripple={ANDROID_RIPPLE}
+                    style={({ pressed, hovered }: PressableState) => [
+                      styles.textButton,
+                      (pressed || hovered) && styles.textButtonActive,
+                    ]}
+                  >
+                    <Text style={styles.textButtonLabel}>Forgot password?</Text>
+                  </Pressable>
+                </Animated.View>
+              ) : showForgotPasswordLink ? (
                 <Pressable
                   onPress={handleForgotPassword}
                   disabled={isBusy}
@@ -790,8 +898,20 @@ export default function LoginScreen() {
               ) : null}
             </View>
 
-            {showSocialLogin ? (
-              <>
+            {showPasswordLogin ? (
+              <Animated.View
+                pointerEvents={step === "identifier" ? "auto" : "none"}
+                style={[
+                  styles.socialDropdown,
+                  {
+                    opacity: socialReveal,
+                    maxHeight: socialReveal.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, SOCIAL_DROPDOWN_HEIGHT],
+                    }),
+                  },
+                ]}
+              >
                 <View style={styles.divider} pointerEvents="none">
                   <View style={styles.dividerLine} />
                   <Text style={styles.dividerText}>or</Text>
@@ -853,24 +973,22 @@ export default function LoginScreen() {
                     )}
                   </Pressable>
                 </View>
-              </>
-            ) : null}
 
-            {step === "identifier" ? (
-              <View style={styles.signUpRow}>
-                <Text style={styles.signUpText}>Don't have an account? </Text>
-                <Pressable
-                  onPress={handleSignUpPress}
-                  disabled={isBusy}
-                  hitSlop={8}
-                  style={({ pressed, hovered }: PressableState) => [
-                    styles.signUpPressable,
-                    (pressed || hovered) && styles.textButtonActive,
-                  ]}
-                >
-                  <Text style={styles.signUpLink}>Sign up</Text>
-                </Pressable>
-              </View>
+                <View style={styles.signUpRow}>
+                  <Text style={styles.signUpText}>Don't have an account? </Text>
+                  <Pressable
+                    onPress={handleSignUpPress}
+                    disabled={isBusy}
+                    hitSlop={8}
+                    style={({ pressed, hovered }: PressableState) => [
+                      styles.signUpPressable,
+                      (pressed || hovered) && styles.textButtonActive,
+                    ]}
+                  >
+                    <Text style={styles.signUpLink}>Sign up</Text>
+                  </Pressable>
+                </View>
+              </Animated.View>
             ) : null}
 
             {!isForgotFlow ? (
@@ -944,6 +1062,19 @@ const styles = StyleSheet.create({
   form: {
     gap: spacing.md,
     zIndex: 1,
+  },
+  dropdownSection: {
+    overflow: "hidden",
+  },
+  identifierField: {
+    marginTop: spacing.md,
+  },
+  passwordDropdown: {
+    overflow: "hidden",
+    gap: spacing.md,
+  },
+  socialDropdown: {
+    overflow: "hidden",
   },
   backLink: {
     alignSelf: "flex-start",

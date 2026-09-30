@@ -1,6 +1,6 @@
 import * as ImagePicker from "expo-image-picker";
+import { useState } from "react";
 import {
-  Alert,
   Image,
   Platform,
   Pressable,
@@ -14,6 +14,7 @@ import { colors, radius, spacing } from "../../constants/theme";
 type ProfilePhotoPickerProps = {
   photoUri: string | null;
   photoName?: string | null;
+  uploadError?: string | null;
   onSelect: (uri: string, fileName: string, mimeType?: string) => void;
   onRemove: () => void;
 };
@@ -22,57 +23,78 @@ const ANDROID_RIPPLE =
   Platform.OS === "android" ? { color: "rgba(0, 94, 255, 0.14)" } : undefined;
 
 const MAX_PROFILE_PHOTO_BYTES = 10 * 1024 * 1024;
+const UPLOAD_FAILED_MESSAGE = "Upload failed. Max 10 MB.";
 
 export function ProfilePhotoPicker({
   photoUri,
   photoName,
+  uploadError,
   onSelect,
   onRemove,
 }: Readonly<ProfilePhotoPickerProps>) {
-  async function handlePickPhoto() {
-    if (Platform.OS !== "web") {
-      const { status } =
-        await ImagePicker.requestMediaLibraryPermissionsAsync();
+  const [localError, setLocalError] = useState<string | null>(null);
+  const errorMessage = localError ?? uploadError ?? null;
 
-      if (status !== "granted") {
-        Alert.alert(
-          "Permission Required",
-          "Sorry, we need camera roll permissions to upload a photo.",
-        );
-        return;
+  async function getAssetSize(asset: ImagePicker.ImagePickerAsset) {
+    if (typeof asset.fileSize === "number") {
+      return asset.fileSize;
+    }
+
+    if (Platform.OS === "web" && asset.uri) {
+      try {
+        const response = await fetch(asset.uri);
+        const blob = await response.blob();
+        return blob.size;
+      } catch {
+        return null;
       }
     }
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
+    return null;
+  }
 
-    if (result.canceled || !result.assets?.length) {
-      return;
+  async function handlePickPhoto() {
+    setLocalError(null);
+
+    try {
+      if (Platform.OS !== "web") {
+        const { status } =
+          await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+        if (status !== "granted") {
+          setLocalError(UPLOAD_FAILED_MESSAGE);
+          return;
+        }
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (result.canceled || !result.assets?.length) {
+        return;
+      }
+
+      const asset = result.assets[0];
+      const fileSize = await getAssetSize(asset);
+
+      if (fileSize !== null && fileSize > MAX_PROFILE_PHOTO_BYTES) {
+        setLocalError(UPLOAD_FAILED_MESSAGE);
+        return;
+      }
+
+      const uri = asset.uri;
+      const fileName =
+        asset.fileName || uri.split("/").pop() || "profile-photo.jpg";
+      const mimeType = asset.mimeType || "image/jpeg";
+
+      onSelect(uri, fileName, mimeType);
+    } catch {
+      setLocalError(UPLOAD_FAILED_MESSAGE);
     }
-
-    const asset = result.assets[0];
-
-    if (
-      typeof asset.fileSize === "number" &&
-      asset.fileSize > MAX_PROFILE_PHOTO_BYTES
-    ) {
-      Alert.alert(
-        "Photo Too Large",
-        "Please choose a profile photo smaller than 10 MB.",
-      );
-      return;
-    }
-
-    const uri = asset.uri;
-    const fileName =
-      asset.fileName || uri.split("/").pop() || "profile-photo.jpg";
-    const mimeType = asset.mimeType || "image/jpeg";
-
-    onSelect(uri, fileName, mimeType);
   }
 
   return (
@@ -82,6 +104,10 @@ export function ProfilePhotoPicker({
       <Text style={styles.hint}>
         A clear headshot helps schools recognise you. JPG or PNG, max 10 MB.
       </Text>
+
+      {errorMessage ? (
+        <Text style={styles.error}>{errorMessage}</Text>
+      ) : null}
 
       <View style={styles.card}>
         <Pressable
@@ -131,7 +157,10 @@ export function ProfilePhotoPicker({
             </Pressable>
 
             <Pressable
-              onPress={onRemove}
+              onPress={() => {
+                setLocalError(null);
+                onRemove();
+              }}
               android_ripple={ANDROID_RIPPLE}
               style={({ pressed }) => [
                 styles.actionButton,
@@ -161,6 +190,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     color: colors.textMuted,
+  },
+  error: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "600",
+    color: colors.error,
   },
   card: {
     backgroundColor: "#f9f9f9",

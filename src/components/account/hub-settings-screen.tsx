@@ -37,6 +37,13 @@ type HubQuickLinkScreenProps = {
 
 const ANDROID_RIPPLE =
   Platform.OS === "android" ? { color: "rgba(0, 0, 0, 0.06)" } : undefined;
+const DELETE_DELAY_MS = 3000;
+
+function wait(ms: number) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
 
 const HUB_QUICK_LINKS_LABELS: Record<HubQuickLinkId, string> = {
   "personal-info": "Personal info",
@@ -211,7 +218,10 @@ function HubQuickLinkSettingsScreen({
         throw new Error("Your session has expired. Please sign in again.");
       }
 
-      await deleteInstructorAccount(token);
+      await Promise.all([
+        deleteInstructorAccount(token),
+        wait(DELETE_DELAY_MS),
+      ]);
 
       setDeleteDialogOpen(false);
 
@@ -234,10 +244,12 @@ function HubQuickLinkSettingsScreen({
             reasons.length > 0 ? reasons.join("\n") : error.message,
           );
 
+          setDeletingAccount(false);
           return;
         }
 
         Alert.alert("Unable to delete account", error.message);
+        setDeletingAccount(false);
         return;
       }
 
@@ -247,7 +259,6 @@ function HubQuickLinkSettingsScreen({
           ? error.message
           : "Something went wrong. Please try again.",
       );
-    } finally {
       setDeletingAccount(false);
     }
   }
