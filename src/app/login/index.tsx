@@ -1,6 +1,14 @@
-import { useSSO, useSignIn } from "@clerk/clerk-expo";
+import { useAuth } from "../../lib/auth/auth-provider";
+import {
+  confirmSignUp,
+  resendSignUpCode,
+  signInWithPassword,
+  requestPasswordReset,
+  confirmPasswordReset,
+} from "../../lib/auth/cognito.client";
+import { authErrorMessage, authErrorName } from "../../lib/auth/auth-errors";
+import { getAuthOperationVersion } from "../../lib/auth/session-manager";
 import { router } from "expo-router";
-import * as WebBrowser from "expo-web-browser";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -19,22 +27,10 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { VerifyCodeStep } from "../../components/auth/verify-code-step";
-import {
-  AppleIcon,
-  GoogleIcon,
-  LockIcon,
-  PersonIcon,
-} from "../../components/icons/auth-icons";
+import { LockIcon, PersonIcon } from "../../components/icons/auth-icons";
 import { Logo } from "../../components/logo";
 import { colors, radius, spacing } from "../../constants/theme";
-import { setSessionEmail } from "../../services/session";
-import {
-  isValidIdentifier,
-  isValidPassword,
-  normalizeIdentifier,
-} from "../../utils/validation";
-
-WebBrowser.maybeCompleteAuthSession();
+import { isValidPassword, normalizeIdentifier } from "../../utils/validation";
 
 type LoginStep =
   | "identifier"
@@ -63,30 +59,26 @@ const STEP_TITLES: Record<Exclude<LoginStep, "verify-code">, string> = {
 
 const STEP_SUBTITLES: Partial<Record<LoginStep, string>> = {
   "forgot-password":
-    "Enter your email or mobile number and we'll text you a code to reset your password.",
-  "reset-password":
-    "Enter the code from your email/text message and choose a new password.",
+    "Enter your email and we'll send you a code to reset your password.",
+  "reset-password": "Enter the code from your email and choose a new password.",
 };
 
 const ANDROID_RIPPLE =
   Platform.OS === "android" ? { color: "rgba(0, 94, 255, 0.14)" } : undefined;
 
-const CONTINUING_MS = 1000;
 const STEP_DROPDOWN_MS = 360;
 const PASSWORD_DROPDOWN_HEIGHT = 160;
-const SOCIAL_DROPDOWN_HEIGHT = 340;
 const TERMS_URL = "https://driveinstructor.pro/terms";
 const PRIVACY_URL = "https://driveinstructor.pro/privacy";
 
 export default function LoginScreen() {
-  const { signIn, setActive, isLoaded } = useSignIn();
-  const { startSSOFlow } = useSSO();
-
+  const { completeSignIn, isLoaded } = useAuth();
   const passwordRef = useRef<TextInput>(null);
   const codeRef = useRef<TextInput>(null);
   const passwordReveal = useRef(new Animated.Value(0)).current;
-  const socialReveal = useRef(new Animated.Value(1)).current;
-
+  const mounted = useRef(true);
+  const busy = useRef(false);
+  const verified = useRef(false);
   const [step, setStep] = useState<LoginStep>("identifier");
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -97,17 +89,12 @@ export default function LoginScreen() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isContinuing, setIsContinuing] = useState(false);
-  const [oauthLoading, setOauthLoading] = useState<"apple" | "google" | null>(
-    null,
-  );
   const [focusedField, setFocusedField] = useState<FocusedField | null>(null);
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [newPasswordVisible, setNewPasswordVisible] = useState(false);
   const [confirmPasswordVisible, setConfirmPasswordVisible] = useState(false);
-
   const trimmedIdentifier = normalizeIdentifier(identifier);
-  const isBusy = isSubmitting || isContinuing || oauthLoading !== null;
+  const isBusy = isSubmitting;
   const identifierEditable =
     step === "identifier" || step === "forgot-password";
   const showPasswordLogin = step === "identifier" || step === "password";
@@ -117,338 +104,179 @@ export default function LoginScreen() {
   const primaryDisabled = isBusy || !isLoaded;
 
   useEffect(() => {
-    if (Platform.OS === "web") {
-      return;
-    }
-
-    void WebBrowser.warmUpAsync();
+    mounted.current = true;
     return () => {
-      void WebBrowser.coolDownAsync();
+      mounted.current = false;
     };
   }, []);
-
   useEffect(() => {
-    const passwordOpen = step === "password";
-    const socialOpen = step === "identifier";
-
-    Animated.parallel([
-      Animated.timing(passwordReveal, {
-        toValue: passwordOpen ? 1 : 0,
-        duration: STEP_DROPDOWN_MS,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: false,
-      }),
-      Animated.timing(socialReveal, {
-        toValue: socialOpen ? 1 : 0,
-        duration: STEP_DROPDOWN_MS,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: false,
-      }),
-    ]).start(({ finished }) => {
-      if (finished && passwordOpen) {
-        passwordRef.current?.focus();
-      }
+    const animation = Animated.timing(passwordReveal, {
+      toValue: step === "password" ? 1 : 0,
+      duration: STEP_DROPDOWN_MS,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
     });
-  }, [passwordReveal, socialReveal, step]);
+    animation.start(({ finished }) => {
+      if (finished && step === "password") passwordRef.current?.focus();
+    });
+    return () => animation.stop();
+  }, [passwordReveal, step]);
 
   function clearMessages() {
     setError(null);
     setSuccess(null);
   }
-
-  function ensureClerkReady(action: string): boolean {
-    if (isLoaded && signIn) {
-      return true;
-    }
-
-    console.log(`[Login] blocked ${action}: Clerk isLoaded=${isLoaded}`);
-    setError("Sign-in is still loading. Please wait a moment and try again.");
-    return false;
-  }
-
   function handleBackToIdentifier() {
-    console.log("[Login] onPress: backToIdentifier");
+    if (busy.current) return;
+    verified.current = false;
     setStep("identifier");
     setPassword("");
     setVerificationCode("");
-    setResetCode("");
-    setNewPassword("");
-    setConfirmPassword("");
     clearMessages();
-    setFocusedField(null);
   }
-
   function handleBackToPassword() {
-    console.log("[Login] onPress: backToPassword");
+    if (busy.current) return;
     setStep("password");
     setVerificationCode("");
     setResetCode("");
     setNewPassword("");
     setConfirmPassword("");
     clearMessages();
-    setFocusedField(null);
-    setTimeout(() => passwordRef.current?.focus(), 100);
   }
-
   function handleForgotPassword() {
-    console.log("[Login] onPress: forgotPassword");
+    if (busy.current) return;
     setStep("forgot-password");
     setPassword("");
     clearMessages();
-    setFocusedField(null);
   }
-
   function handleSignUpPress() {
-    console.log("[Login] onPress: signUp", { isLoaded, isBusy });
-    if (isBusy) {
-      return;
-    }
-    router.push("/signup");
+    if (!busy.current) router.push("/signup");
   }
-
-  function runAfterContinuing(action: () => void) {
-    setIsContinuing(true);
-    setTimeout(() => {
-      setIsContinuing(false);
-      action();
-    }, CONTINUING_MS);
+  function isCurrent(version: number) {
+    return mounted.current && version === getAuthOperationVersion();
   }
-
-  async function handleVerifyAndSignIn() {
-    console.log("[Login] onPress: verifyAndSignIn", { isLoaded });
-    if (!ensureClerkReady("verifyAndSignIn") || !signIn) {
-      return;
+  async function finishSignIn(version: number) {
+    const response = await signInWithPassword(trimmedIdentifier, password);
+    if (!isCurrent(version)) return;
+    if (!response.AuthenticationResult || response.ChallengeName) {
+      const challenge = new Error("Additional authentication is required");
+      challenge.name = "UnsupportedAuthChallenge";
+      throw challenge;
     }
-
-    if (verificationCode.length !== 6) {
+    await completeSignIn(response.AuthenticationResult, undefined, version);
+  }
+  async function runAction(action: (version: number) => Promise<void>) {
+    if (!isLoaded || busy.current) return;
+    busy.current = true;
+    setIsSubmitting(true);
+    clearMessages();
+    const version = getAuthOperationVersion();
+    try {
+      await action(version);
+    } catch (err: unknown) {
+      if (mounted.current) setError(authErrorMessage(err));
+    } finally {
+      busy.current = false;
+      if (mounted.current) setIsSubmitting(false);
+    }
+  }
+  function handleResendCode() {
+    void runAction(async () => {
+      await resendSignUpCode(trimmedIdentifier);
+      if (mounted.current)
+        setSuccess("A new verification code has been sent to your email.");
+    });
+  }
+  function handleVerifyAndSignIn() {
+    if (!verified.current && !/^\d{6}$/.test(verificationCode)) {
       setError("Enter the 6-digit code.");
       return;
     }
-
-    clearMessages();
-    setIsSubmitting(true);
-
-    try {
-      const completeSignIn = await signIn.attemptSecondFactor({
-        strategy: "email_code",
-        code: verificationCode,
-      });
-
-      if (completeSignIn.status === "complete") {
-        await setActive({ session: completeSignIn.createdSessionId });
-        if (trimmedIdentifier.includes("@")) {
-          setSessionEmail(trimmedIdentifier);
-        }
-        router.replace("/dashboard");
-      } else {
-        setError("Verification failed.");
+    void runAction(async (version) => {
+      if (!verified.current) {
+        await confirmSignUp(trimmedIdentifier, verificationCode);
+        if (!isCurrent(version)) return;
+        verified.current = true;
       }
-    } catch (err: any) {
-      setError(
-        err.errors?.[0]?.longMessage || "Invalid code. Please try again.",
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
-
-  async function handleContinue() {
-    console.log("[Login] onPress: continue", {
-      step,
-      isLoaded,
-      isContinuing,
-      isSubmitting,
+      await finishSignIn(version);
     });
-
-    if (isContinuing || isSubmitting) {
+  }
+  function handleContinue() {
+    if (busy.current || !isLoaded) return;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedIdentifier)) {
+      setError("Enter a valid email address.");
       return;
     }
-
-    if (!ensureClerkReady("continue") || !signIn) {
-      return;
-    }
-
     if (step === "identifier") {
-      if (!isValidIdentifier(trimmedIdentifier)) {
-        setError("Enter a valid mobile number or email address.");
-        return;
-      }
-
       clearMessages();
       setStep("password");
       return;
     }
-
     if (step === "password") {
-      if (!password.trim()) {
+      if (!password) {
         setError("Enter your password.");
         return;
       }
-
-      clearMessages();
-      setIsSubmitting(true);
-
-      try {
-        const completeSignIn = await signIn.create({
-          identifier: trimmedIdentifier,
-          password,
-        });
-
-        if (completeSignIn.status === "complete") {
-          await setActive({ session: completeSignIn.createdSessionId });
-          if (trimmedIdentifier.includes("@")) {
-            setSessionEmail(trimmedIdentifier);
+      void runAction(async (version) => {
+        try {
+          await finishSignIn(version);
+        } catch (err: unknown) {
+          if (!isCurrent(version)) throw err;
+          if (authErrorName(err) === "UserNotConfirmedException") {
+            verified.current = false;
+            setStep("verify-code");
+            await resendSignUpCode(trimmedIdentifier);
+          } else if (authErrorName(err) === "PasswordResetRequiredException") {
+            setStep("forgot-password");
+            setSuccess("Please reset your password to continue.");
+          } else {
+            throw err;
           }
-          router.replace("/dashboard");
-        } else if (completeSignIn.status === "needs_second_factor") {
-          await signIn.prepareSecondFactor({ strategy: "email_code" });
-          setStep("verify-code");
-        } else {
-          setError("Unexpected status. Please try again.");
         }
-      } catch (err: any) {
-        setError(err.errors?.[0]?.longMessage || "Invalid email or password.");
-      } finally {
-        setIsSubmitting(false);
-      }
+      });
       return;
     }
-
     if (step === "forgot-password") {
-      if (!isValidIdentifier(trimmedIdentifier)) {
-        setError("Enter a valid mobile number or email address.");
-        return;
-      }
-
-      clearMessages();
-      setIsSubmitting(true);
-
-      try {
-        await signIn.create({
-          strategy: "reset_password_email_code",
-          identifier: trimmedIdentifier,
-        });
-
-        setStep("reset-password");
-        setTimeout(() => codeRef.current?.focus(), 100);
-      } catch (err: any) {
-        setError(
-          err.errors?.[0]?.longMessage ||
-            "Could not send reset code. Try again.",
-        );
-      } finally {
-        setIsSubmitting(false);
-      }
+      void runAction(async (version) => {
+        await requestPasswordReset(trimmedIdentifier);
+        if (isCurrent(version)) {
+          setStep("reset-password");
+          setResetCode("");
+        }
+      });
       return;
     }
-
-    if (!resetCode.trim()) {
-      setError("Enter the reset code.");
+    if (!/^\d{6}$/.test(resetCode.trim())) {
+      setError("Enter the 6-digit reset code.");
       return;
     }
-
     if (!isValidPassword(newPassword)) {
       setError("Password must be at least 8 characters.");
       return;
     }
-
     if (newPassword !== confirmPassword) {
       setError("Passwords do not match.");
       return;
     }
-
-    clearMessages();
-    setIsSubmitting(true);
-
-    try {
-      const result = await signIn.attemptFirstFactor({
-        strategy: "reset_password_email_code",
-        code: resetCode.trim(),
-        password: newPassword,
-      });
-
-      if (result.status === "complete") {
-        await setActive({ session: result.createdSessionId });
-        setSuccess("Password updated successfully!");
-        setTimeout(() => router.replace("/dashboard"), 1500);
-      } else {
-        setError("Failed to reset password. Please try again.");
-      }
-    } catch (err: any) {
-      setError(
-        err.errors?.[0]?.longMessage ||
-          "Unable to reset password. Please try again.",
+    void runAction(async (version) => {
+      await confirmPasswordReset(
+        trimmedIdentifier,
+        resetCode.trim(),
+        newPassword,
       );
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
-
-  async function handleOAuth(provider: "apple" | "google") {
-    console.log("[Login] onPress: oauth", { provider, isLoaded, isBusy });
-
-    if (isBusy) {
-      return;
-    }
-
-    if (!ensureClerkReady(`oauth:${provider}`)) {
-      return;
-    }
-
-    clearMessages();
-    setOauthLoading(provider);
-
-    try {
-      const strategy = provider === "apple" ? "oauth_apple" : "oauth_google";
-
-      const {
-        createdSessionId,
-        setActive: setOAuthActive,
-        authSessionResult,
-      } = await startSSOFlow({
-        strategy,
-      });
-
-      if (createdSessionId && setOAuthActive) {
-        await setOAuthActive({ session: createdSessionId });
-        router.replace("/dashboard");
-        return;
-      }
-
-      if (
-        authSessionResult?.type === "cancel" ||
-        authSessionResult?.type === "dismiss"
-      ) {
-        return;
-      }
-
-      setError(
-        "Could not complete sign-in. If you don't have an account yet, tap Sign up first.",
-      );
-    } catch (err: any) {
-      console.log("[Login] oauth error", err);
-      setError(err.errors?.[0]?.longMessage || "OAuth authentication failed.");
-    } finally {
-      setOauthLoading(null);
-    }
+      if (!isCurrent(version)) return;
+      setPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setResetCode("");
+      setStep("password");
+      setSuccess("Password updated. Sign in with your new password.");
+    });
   }
 
   function getPrimaryButtonLabel() {
     if (!isLoaded) {
       return "Loading...";
-    }
-
-    if (isContinuing) {
-      switch (step) {
-        case "identifier":
-          return "Continuing....";
-        case "password":
-          return "Signing in....";
-        case "forgot-password":
-          return "Sending....";
-        case "reset-password":
-          return "Resetting....";
-      }
     }
 
     if (isSubmitting) {
@@ -480,9 +308,7 @@ export default function LoginScreen() {
     if (step === "password") {
       return (
         <Pressable onPress={handleBackToIdentifier} style={styles.backLink}>
-          <Text style={styles.backLinkText}>
-            ← Use a different email or number
-          </Text>
+          <Text style={styles.backLinkText}>← Use a different email</Text>
         </Pressable>
       );
     }
@@ -496,6 +322,7 @@ export default function LoginScreen() {
     if (step === "reset-password") {
       return (
         <Pressable
+          disabled={isBusy}
           onPress={() => setStep("forgot-password")}
           style={styles.backLink}
         >
@@ -521,6 +348,7 @@ export default function LoginScreen() {
           }}
           onBack={handleBackToPassword}
           onNext={handleVerifyAndSignIn}
+          onResend={handleResendCode}
         />
       ) : (
         <KeyboardAvoidingView
@@ -568,7 +396,7 @@ export default function LoginScreen() {
                       style={styles.backLink}
                     >
                       <Text style={styles.backLinkText}>
-                        ← Use a different email or number
+                        ← Use a different email
                       </Text>
                     </Pressable>
                   </Animated.View>
@@ -576,116 +404,118 @@ export default function LoginScreen() {
                   renderBackLink()
                 )}
 
-                <Text style={styles.label}>Mobile number or email</Text>
+                <Text style={styles.label}>Email</Text>
 
-              <View style={[styles.inputWrapper, styles.identifierField]}>
-                <TextInput
-                  value={identifier}
-                  onChangeText={(value) => {
-                    setIdentifier(value);
-                    if (error) setError(null);
-                    if (success) setSuccess(null);
-                  }}
-                  onFocus={() => setFocusedField("identifier")}
-                  onBlur={() =>
-                    setFocusedField((current) =>
-                      current === "identifier" ? null : current,
-                    )
-                  }
-                  placeholder="Mobile number or email"
-                  placeholderTextColor={colors.textMuted}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  keyboardType="email-address"
-                  textContentType="username"
-                  autoComplete="username"
-                  returnKeyType={step === "identifier" ? "go" : "next"}
-                  onSubmitEditing={
-                    step === "identifier" ? handleContinue : undefined
-                  }
-                  style={[
-                    styles.input,
-                    focusedField === "identifier" && styles.inputFocused,
-                    !identifierEditable && styles.inputDisabled,
-                  ]}
-                  editable={!isBusy && identifierEditable}
-                />
-                <View style={styles.inputIcon} pointerEvents="none">
-                  <PersonIcon />
-                </View>
-              </View>
-
-              {showPasswordLogin ? (
-                <Animated.View
-                  pointerEvents={step === "password" ? "auto" : "none"}
-                  style={[
-                    styles.passwordDropdown,
-                    {
-                      opacity: passwordReveal,
-                      maxHeight: passwordReveal.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0, PASSWORD_DROPDOWN_HEIGHT],
-                      }),
-                      marginTop: passwordReveal.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0, spacing.md],
-                      }),
-                      transform: [
-                        {
-                          translateY: passwordReveal.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [-10, 0],
-                          }),
-                        },
-                      ],
-                    },
-                  ]}
-                >
-                  <Text style={styles.label}>Password</Text>
-                  <View style={styles.inputWrapper}>
-                    <TextInput
-                      ref={passwordRef}
-                      value={password}
-                      onChangeText={(value) => {
-                        setPassword(value);
-                        if (error) setError(null);
-                        if (success) setSuccess(null);
-                      }}
-                      onFocus={() => setFocusedField("password")}
-                      onBlur={() =>
-                        setFocusedField((current) =>
-                          current === "password" ? null : current,
-                        )
-                      }
-                      placeholder="Password"
-                      placeholderTextColor={colors.textMuted}
-                      secureTextEntry={!passwordVisible}
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      textContentType="password"
-                      autoComplete="password"
-                      returnKeyType="go"
-                      onSubmitEditing={handleContinue}
-                      style={[
-                        styles.input,
-                        focusedField === "password" && styles.inputFocused,
-                      ]}
-                      editable={!isBusy && step === "password"}
-                    />
-                    <Pressable
-                      onPress={() => setPasswordVisible((current) => !current)}
-                      hitSlop={8}
-                      accessibilityRole="button"
-                      accessibilityLabel={
-                        passwordVisible ? "Hide password" : "Show password"
-                      }
-                      style={styles.inputIcon}
-                    >
-                      <LockIcon unlocked={passwordVisible} />
-                    </Pressable>
+                <View style={[styles.inputWrapper, styles.identifierField]}>
+                  <TextInput
+                    value={identifier}
+                    onChangeText={(value) => {
+                      setIdentifier(value);
+                      if (error) setError(null);
+                      if (success) setSuccess(null);
+                    }}
+                    onFocus={() => setFocusedField("identifier")}
+                    onBlur={() =>
+                      setFocusedField((current) =>
+                        current === "identifier" ? null : current,
+                      )
+                    }
+                    placeholder="Email"
+                    placeholderTextColor={colors.textMuted}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    keyboardType="email-address"
+                    textContentType="username"
+                    autoComplete="username"
+                    returnKeyType={step === "identifier" ? "go" : "next"}
+                    onSubmitEditing={
+                      step === "identifier" ? handleContinue : undefined
+                    }
+                    style={[
+                      styles.input,
+                      focusedField === "identifier" && styles.inputFocused,
+                      !identifierEditable && styles.inputDisabled,
+                    ]}
+                    editable={!isBusy && identifierEditable}
+                  />
+                  <View style={styles.inputIcon} pointerEvents="none">
+                    <PersonIcon />
                   </View>
-                </Animated.View>
-              ) : null}
+                </View>
+
+                {showPasswordLogin ? (
+                  <Animated.View
+                    pointerEvents={step === "password" ? "auto" : "none"}
+                    style={[
+                      styles.passwordDropdown,
+                      {
+                        opacity: passwordReveal,
+                        maxHeight: passwordReveal.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0, PASSWORD_DROPDOWN_HEIGHT],
+                        }),
+                        marginTop: passwordReveal.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0, spacing.md],
+                        }),
+                        transform: [
+                          {
+                            translateY: passwordReveal.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [-10, 0],
+                            }),
+                          },
+                        ],
+                      },
+                    ]}
+                  >
+                    <Text style={styles.label}>Password</Text>
+                    <View style={styles.inputWrapper}>
+                      <TextInput
+                        ref={passwordRef}
+                        value={password}
+                        onChangeText={(value) => {
+                          setPassword(value);
+                          if (error) setError(null);
+                          if (success) setSuccess(null);
+                        }}
+                        onFocus={() => setFocusedField("password")}
+                        onBlur={() =>
+                          setFocusedField((current) =>
+                            current === "password" ? null : current,
+                          )
+                        }
+                        placeholder="Password"
+                        placeholderTextColor={colors.textMuted}
+                        secureTextEntry={!passwordVisible}
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        textContentType="password"
+                        autoComplete="password"
+                        returnKeyType="go"
+                        onSubmitEditing={handleContinue}
+                        style={[
+                          styles.input,
+                          focusedField === "password" && styles.inputFocused,
+                        ]}
+                        editable={!isBusy && step === "password"}
+                      />
+                      <Pressable
+                        onPress={() =>
+                          setPasswordVisible((current) => !current)
+                        }
+                        hitSlop={8}
+                        accessibilityRole="button"
+                        accessibilityLabel={
+                          passwordVisible ? "Hide password" : "Show password"
+                        }
+                        style={styles.inputIcon}
+                      >
+                        <LockIcon unlocked={passwordVisible} />
+                      </Pressable>
+                    </View>
+                  </Animated.View>
+                ) : null}
               </View>
 
               {step === "reset-password" ? (
@@ -899,96 +729,16 @@ export default function LoginScreen() {
             </View>
 
             {showPasswordLogin ? (
-              <Animated.View
-                pointerEvents={step === "identifier" ? "auto" : "none"}
-                style={[
-                  styles.socialDropdown,
-                  {
-                    opacity: socialReveal,
-                    maxHeight: socialReveal.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0, SOCIAL_DROPDOWN_HEIGHT],
-                    }),
-                  },
-                ]}
-              >
-                <View style={styles.divider} pointerEvents="none">
-                  <View style={styles.dividerLine} />
-                  <Text style={styles.dividerText}>or</Text>
-                  <View style={styles.dividerLine} />
-                </View>
-
-                <View style={styles.socialButtons}>
-                  <Pressable
-                    onPress={() => handleOAuth("apple")}
-                    disabled={primaryDisabled}
-                    android_ripple={ANDROID_RIPPLE}
-                    style={({ pressed, hovered }: PressableState) => [
-                      styles.socialButton,
-                      hovered &&
-                        !pressed &&
-                        !primaryDisabled &&
-                        styles.socialButtonHovered,
-                      pressed && styles.buttonPressed,
-                      (oauthLoading === "apple" || !isLoaded) &&
-                        styles.socialButtonLoading,
-                    ]}
-                  >
-                    {oauthLoading === "apple" || !isLoaded ? (
-                      <ActivityIndicator color={colors.text} />
-                    ) : (
-                      <>
-                        <AppleIcon />
-                        <Text style={styles.socialButtonText}>
-                          Continue with Apple
-                        </Text>
-                      </>
-                    )}
-                  </Pressable>
-
-                  <Pressable
-                    onPress={() => handleOAuth("google")}
-                    disabled={primaryDisabled}
-                    android_ripple={ANDROID_RIPPLE}
-                    style={({ pressed, hovered }: PressableState) => [
-                      styles.socialButton,
-                      hovered &&
-                        !pressed &&
-                        !primaryDisabled &&
-                        styles.socialButtonHovered,
-                      pressed && styles.buttonPressed,
-                      (oauthLoading === "google" || !isLoaded) &&
-                        styles.socialButtonLoading,
-                    ]}
-                  >
-                    {oauthLoading === "google" || !isLoaded ? (
-                      <ActivityIndicator color={colors.text} />
-                    ) : (
-                      <>
-                        <GoogleIcon />
-                        <Text style={styles.socialButtonText}>
-                          Continue with Google
-                        </Text>
-                      </>
-                    )}
-                  </Pressable>
-                </View>
-
-                <View style={styles.signUpRow}>
-                  <Text style={styles.signUpText}>Don't have an account? </Text>
-                  <Pressable
-                    onPress={handleSignUpPress}
-                    disabled={isBusy}
-                    hitSlop={8}
-                    style={({ pressed, hovered }: PressableState) => [
-                      styles.signUpPressable,
-                      (pressed || hovered) && styles.textButtonActive,
-                    ]}
-                  >
-                    <Text style={styles.signUpLink}>Sign up</Text>
-                  </Pressable>
-                </View>
-              </Animated.View>
+              <View style={styles.signUpRow}>
+                <Text style={styles.signUpText}>Don't have an account? </Text>
+                <Pressable
+                  onPress={handleSignUpPress}
+                  disabled={isBusy}
+                  hitSlop={8}
+                >
+                  <Text style={styles.signUpLink}>Sign up</Text>
+                </Pressable>
+              </View>
             ) : null}
 
             {!isForgotFlow ? (

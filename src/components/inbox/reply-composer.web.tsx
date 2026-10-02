@@ -1,20 +1,20 @@
 import {
-  useEffect,
+  useImperativeHandle,
   useLayoutEffect,
   useRef,
   type CSSProperties,
-  type MutableRefObject,
   type RefObject,
 } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
+import type { ReplyComposerHandle } from "./reply-composer.types";
 import { colors } from "../../constants/theme";
 
 type ReplyComposerProps = {
   value: string;
   onChangeText: (text: string) => void;
   onSend: () => void;
-  inputRef?: RefObject<unknown>;
+  inputRef?: RefObject<ReplyComposerHandle | null>;
   blurred?: boolean;
 };
 
@@ -33,12 +33,15 @@ export function ReplyComposer({
   const localRef = useRef<HTMLTextAreaElement>(null);
   const canSend = value.trim().length > 0;
 
-  useEffect(() => {
-    if (inputRef) {
-      (inputRef as MutableRefObject<HTMLTextAreaElement | null>).current =
-        localRef.current;
-    }
-  }, [inputRef]);
+  useImperativeHandle(
+    inputRef,
+    () => ({
+      focus: () => {
+        localRef.current?.focus();
+      },
+    }),
+    [],
+  );
 
   useLayoutEffect(() => {
     const el = localRef.current;

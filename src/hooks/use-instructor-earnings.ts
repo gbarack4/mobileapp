@@ -1,4 +1,4 @@
-import { useAuth, useUser } from "@clerk/clerk-expo";
+import { useAuth } from "@/lib/auth/auth-provider";
 import { useQuery } from "@tanstack/react-query";
 
 import { fetchInstructorEarnings } from "@/services/instructor-earnings";
@@ -10,7 +10,7 @@ export const instructorEarningsQueryKey = (
 
 export function useInstructorEarnings(weekOffset: number) {
   const { getToken, isLoaded, isSignedIn } = useAuth();
-  const { user } = useUser();
+  const { user } = useAuth();
 
   return useQuery({
     queryKey: instructorEarningsQueryKey(user?.id, weekOffset),

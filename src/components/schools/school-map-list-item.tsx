@@ -17,14 +17,24 @@ export function SchoolMapListItem({
   selected,
   onPress,
 }: Readonly<SchoolMapListItemProps>) {
+  const initials =
+    (school.name ?? "")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((word) => Array.from(word)[0] ?? "")
+      .join("")
+      .toUpperCase() || "?";
+
   return (
     <Pressable
       onPress={() => onPress(school)}
       android_ripple={ANDROID_RIPPLE}
       style={[styles.item, selected && styles.itemSelected]}
     >
-      <View style={[styles.avatar, { backgroundColor: school.avatarColor }]}>
-        <Text style={styles.avatarText}>{school.initials}</Text>
+      <View style={styles.avatar}>
+        <Text style={styles.avatarText}>{initials}</Text>
       </View>
 
       <View style={styles.text}>
@@ -59,6 +69,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: colors.primary,
   },
   avatarText: {
     fontSize: 14,

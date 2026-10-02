@@ -1,4 +1,4 @@
-import { useAuth, useClerk } from "@clerk/clerk-expo";
+import { useAuth } from "@/lib/auth/auth-provider";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import {
@@ -41,7 +41,7 @@ function formatRecoveryDate(value: string): string {
 
 export default function AccountRecoveryScreen() {
   const { getToken } = useAuth();
-  const { signOut } = useClerk();
+  const { signOut } = useAuth();
 
   const [accountStatus, setAccountStatus] =
     useState<InstructorAccountStatusResult | null>(null);
@@ -105,7 +105,10 @@ export default function AccountRecoveryScreen() {
         throw new Error("Your session has expired. Please sign in again.");
       }
 
-      await Promise.all([restoreInstructorAccount(token), wait(RESTORE_DELAY_MS)]);
+      await Promise.all([
+        restoreInstructorAccount(token),
+        wait(RESTORE_DELAY_MS),
+      ]);
 
       router.replace("/dashboard");
     } catch (error) {

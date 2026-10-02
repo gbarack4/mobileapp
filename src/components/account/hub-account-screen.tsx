@@ -1,4 +1,4 @@
-import { useAuth } from "@clerk/clerk-expo";
+import { useAuth } from "@/lib/auth/auth-provider";
 import * as ImagePicker from "expo-image-picker";
 import { router, type Href } from "expo-router";
 import { useState, type ReactNode } from "react";

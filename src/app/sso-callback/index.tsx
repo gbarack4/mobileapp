@@ -1,9 +1,5 @@
-import { ActivityIndicator, View } from "react-native";
+import { Redirect } from "expo-router";
 
 export default function SSOCallback() {
-  return (
-    <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-      <ActivityIndicator size="large" color="#0000ff" />
-    </View>
-  );
+  return <Redirect href="/login" />;
 }

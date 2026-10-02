@@ -1,4 +1,4 @@
-import { useUser } from "@clerk/clerk-expo";
+import { useAuth } from "@/lib/auth/auth-provider";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -15,7 +15,7 @@ import {
   useUpdatePersonalInfoMutation,
 } from "@/hooks/use-profile";
 import { colors, spacing } from "../../constants/theme";
-import { getSessionEmail, setSessionEmail } from "../../services/session";
+import { getSessionEmail } from "../../services/session";
 import { AuthTextField } from "../auth/auth-text-field";
 import { ChevronLeftIcon } from "../icons/dashboard-icons";
 
@@ -31,13 +31,13 @@ const ANDROID_RIPPLE =
 export function HubPersonalInfoScreen({
   onBack,
 }: Readonly<HubPersonalInfoScreenProps>) {
-  const { user } = useUser();
-  const clerkEmail = user?.primaryEmailAddress?.emailAddress ?? null;
+  const { user } = useAuth();
+  const authEmail = user?.email ?? null;
 
   const { data: profile, isLoading: isProfileLoading } = useProfileQuery();
   const updatePersonalInfo = useUpdatePersonalInfoMutation();
 
-  const [email, setEmail] = useState(clerkEmail || getSessionEmail() || "");
+  const [email, setEmail] = useState(authEmail || getSessionEmail() || "");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
@@ -48,11 +48,10 @@ export function HubPersonalInfoScreen({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (clerkEmail) {
-      setSessionEmail(clerkEmail);
-      if (!email) setEmail(clerkEmail);
+    if (authEmail) {
+      if (!email) setEmail(authEmail);
     }
-  }, [clerkEmail, email]);
+  }, [authEmail, email]);
 
   useEffect(() => {
     if (profile) {
@@ -60,7 +59,7 @@ export function HubPersonalInfoScreen({
       setFirstName(nameParts[0] || "");
       setLastName(nameParts.slice(1).join(" ") || "");
 
-      setEmail(profile.email || clerkEmail || "");
+      setEmail(profile.email || authEmail || "");
       setPhone(profile.phone || "");
 
       if (profile.address) {
@@ -78,7 +77,7 @@ export function HubPersonalInfoScreen({
         setOriginalAddress(fullAddress);
       }
     }
-  }, [profile, clerkEmail]);
+  }, [profile, authEmail]);
 
   function handleSave() {
     setError(null);

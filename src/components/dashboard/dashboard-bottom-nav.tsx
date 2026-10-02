@@ -19,7 +19,7 @@ import {
 } from "../icons/dashboard-icons";
 import { useQuery } from "@tanstack/react-query";
 import { getInstructorInvites } from "@/services/school-invite";
-import { useAuth } from "@clerk/clerk-expo";
+import { useAuth } from "@/lib/auth/auth-provider";
 
 type DashboardBottomNavProps = {
   activeTab: DashboardTab;
@@ -67,10 +67,7 @@ export function DashboardBottomNav({
   const notificationBadgeCount =
     realInvites?.filter((invite: any) => !invite._isRead).length ?? 0;
 
-  const bottomSafeArea =
-    Platform.OS === "web"
-      ? (`max(${insets.bottom}px, env(safe-area-inset-bottom, 0px))` as const)
-      : insets.bottom;
+  const bottomSafeArea = insets.bottom;
 
   return (
     <Animated.View

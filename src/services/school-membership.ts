@@ -1,18 +1,27 @@
-import { Platform } from 'react-native';
+import { getUserStorageKey } from "./session";
+import { Platform } from "react-native";
 
-export type SchoolJoinStatus = 'none' | 'pending' | 'joined' | 'paused';
+export type SchoolJoinStatus = "none" | "pending" | "joined" | "paused";
 
 type MembershipMap = Record<string, SchoolJoinStatus>;
 
-const STORAGE_KEY = 'ih_school_memberships';
+const STORAGE_KEY = "ih_school_memberships";
 
 type Listener = () => void;
 
 let memoryMap: MembershipMap | null = null;
 const listeners = new Set<Listener>();
+let ownerKey: string | null = null;
+function ensureOwner() {
+  const key = getUserStorageKey(STORAGE_KEY);
+  if (key !== ownerKey) {
+    ownerKey = key;
+    memoryMap = null;
+  }
+}
 
 function canUseLocalStorage() {
-  return Platform.OS === 'web' && typeof localStorage !== 'undefined';
+  return Platform.OS === "web" && typeof localStorage !== "undefined";
 }
 
 function notify() {
@@ -20,17 +29,19 @@ function notify() {
 }
 
 function normalizeMap(parsed: unknown): MembershipMap {
-  if (!parsed || typeof parsed !== 'object') {
+  if (!parsed || typeof parsed !== "object") {
     return {};
   }
 
   const next: MembershipMap = {};
-  for (const [schoolId, status] of Object.entries(parsed as Record<string, unknown>)) {
+  for (const [schoolId, status] of Object.entries(
+    parsed as Record<string, unknown>,
+  )) {
     if (
-      status === 'pending' ||
-      status === 'joined' ||
-      status === 'paused' ||
-      status === 'none'
+      status === "pending" ||
+      status === "joined" ||
+      status === "paused" ||
+      status === "none"
     ) {
       next[schoolId] = status;
     }
@@ -39,13 +50,14 @@ function normalizeMap(parsed: unknown): MembershipMap {
 }
 
 function readMap(): MembershipMap {
+  ensureOwner();
   if (memoryMap) {
     return { ...memoryMap };
   }
 
   if (canUseLocalStorage()) {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      const raw = localStorage.getItem(getUserStorageKey(STORAGE_KEY));
       if (raw) {
         memoryMap = normalizeMap(JSON.parse(raw));
         return { ...memoryMap };
@@ -63,14 +75,17 @@ function writeMap(next: MembershipMap) {
   memoryMap = { ...next };
 
   if (canUseLocalStorage()) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(memoryMap));
+    localStorage.setItem(
+      getUserStorageKey(STORAGE_KEY),
+      JSON.stringify(memoryMap),
+    );
   }
 
   notify();
 }
 
 export function getSchoolJoinStatus(schoolId: string): SchoolJoinStatus {
-  return readMap()[schoolId] ?? 'none';
+  return readMap()[schoolId] ?? "none";
 }
 
 export function getSchoolMemberships(): MembershipMap {
@@ -80,21 +95,21 @@ export function getSchoolMemberships(): MembershipMap {
 /** Instructor taps Join — request is sent and waits for school acceptance. */
 export function requestSchoolJoin(schoolId: string) {
   const current = getSchoolJoinStatus(schoolId);
-  if (current === 'pending' || current === 'joined') {
+  if (current === "pending" || current === "joined") {
     return;
   }
 
-  if (current === 'paused') {
+  if (current === "paused") {
     writeMap({
       ...readMap(),
-      [schoolId]: 'joined',
+      [schoolId]: "joined",
     });
     return;
   }
 
   writeMap({
     ...readMap(),
-    [schoolId]: 'pending',
+    [schoolId]: "pending",
   });
 }
 
@@ -102,14 +117,14 @@ export function requestSchoolJoin(schoolId: string) {
 export function acceptSchoolJoin(schoolId: string) {
   writeMap({
     ...readMap(),
-    [schoolId]: 'joined',
+    [schoolId]: "joined",
   });
 }
 
 export function pauseSchoolMembership(schoolId: string) {
   writeMap({
     ...readMap(),
-    [schoolId]: 'paused',
+    [schoolId]: "paused",
   });
 }
 
@@ -119,8 +134,11 @@ export function deactivateSchoolMembership(schoolId: string) {
   writeMap(next);
 }
 
-export function setSchoolJoinStatus(schoolId: string, status: SchoolJoinStatus) {
-  if (status === 'none') {
+export function setSchoolJoinStatus(
+  schoolId: string,
+  status: SchoolJoinStatus,
+) {
+  if (status === "none") {
     deactivateSchoolMembership(schoolId);
     return;
   }
@@ -139,14 +157,14 @@ export function subscribeSchoolMemberships(listener: Listener) {
 }
 
 export function getJoinButtonLabel(status: SchoolJoinStatus) {
-  if (status === 'pending') {
-    return 'Pending';
+  if (status === "pending") {
+    return "Pending";
   }
-  if (status === 'joined') {
-    return 'Joined';
+  if (status === "joined") {
+    return "Joined";
   }
-  if (status === 'paused') {
-    return 'Paused';
+  if (status === "paused") {
+    return "Paused";
   }
-  return 'Join';
+  return "Join";
 }

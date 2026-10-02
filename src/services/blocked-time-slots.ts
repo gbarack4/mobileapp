@@ -1,3 +1,4 @@
+import { getUserStorageKey } from "./session";
 import { Platform } from "react-native";
 
 const STORAGE_KEY = "ih_blocked_time_slots";
@@ -9,6 +10,14 @@ type BlockedSlotsByDate = Record<string, string[]>;
 
 let memoryStore: BlockedSlotsByDate | null = null;
 const listeners = new Set<Listener>();
+let ownerKey: string | null = null;
+function ensureOwner() {
+  const key = getUserStorageKey(STORAGE_KEY);
+  if (key !== ownerKey) {
+    ownerKey = key;
+    memoryStore = null;
+  }
+}
 
 function canUseLocalStorage() {
   return Platform.OS === "web" && typeof localStorage !== "undefined";
@@ -19,13 +28,14 @@ function notify() {
 }
 
 function readStore(): BlockedSlotsByDate {
+  ensureOwner();
   if (memoryStore) {
     return memoryStore;
   }
 
   if (canUseLocalStorage()) {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      const raw = localStorage.getItem(getUserStorageKey(STORAGE_KEY));
       if (raw) {
         const parsed = JSON.parse(raw) as BlockedSlotsByDate;
         memoryStore = parsed && typeof parsed === "object" ? parsed : {};
@@ -43,7 +53,10 @@ function readStore(): BlockedSlotsByDate {
 function writeStore(next: BlockedSlotsByDate) {
   memoryStore = next;
   if (canUseLocalStorage()) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(memoryStore));
+    localStorage.setItem(
+      getUserStorageKey(STORAGE_KEY),
+      JSON.stringify(memoryStore),
+    );
   }
   notify();
 }

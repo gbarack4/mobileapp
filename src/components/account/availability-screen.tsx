@@ -42,7 +42,7 @@ import {
   TrashIcon,
 } from "./availability-icons";
 import { TimePickerSheet } from "./time-picker-sheet";
-import { useAuth } from "@clerk/clerk-expo";
+import { useAuth } from "@/lib/auth/auth-provider";
 import {
   getInstructorAvailability,
   saveInstructorAvailability,
@@ -676,7 +676,9 @@ export function AvailabilityScreen({
             <Pressable
               onPress={handleCopyToAll}
               android_ripple={copied ? undefined : ANDROID_RIPPLE}
-              accessibilityLabel={copied ? "Copied to all days" : "Copy to all days"}
+              accessibilityLabel={
+                copied ? "Copied to all days" : "Copy to all days"
+              }
               style={({ pressed }) => [
                 styles.copyButton,
                 pressed && !copied && styles.pressed,
@@ -685,7 +687,9 @@ export function AvailabilityScreen({
               {copied ? (
                 <>
                   <CheckIcon size={16} color={SAVED_GREEN} />
-                  <Text style={[styles.copyButtonText, styles.copyButtonTextCopied]}>
+                  <Text
+                    style={[styles.copyButtonText, styles.copyButtonTextCopied]}
+                  >
                     Copied
                   </Text>
                 </>

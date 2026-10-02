@@ -1,13 +1,21 @@
-import type { RefObject } from "react";
-import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { useImperativeHandle, useRef, type RefObject } from "react";
+import {
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 
+import type { ReplyComposerHandle } from "./reply-composer.types";
 import { colors } from "../../constants/theme";
 
 type ReplyComposerProps = {
   value: string;
   onChangeText: (text: string) => void;
   onSend: () => void;
-  inputRef?: RefObject<TextInput | null>;
+  inputRef?: RefObject<ReplyComposerHandle | null>;
   blurred?: boolean;
 };
 
@@ -21,13 +29,24 @@ export function ReplyComposer({
   inputRef,
   blurred = false,
 }: Readonly<ReplyComposerProps>) {
+  const localRef = useRef<TextInput>(null);
   const canSend = value.trim().length > 0;
+
+  useImperativeHandle(
+    inputRef,
+    () => ({
+      focus: () => {
+        localRef.current?.focus();
+      },
+    }),
+    [],
+  );
 
   return (
     <View style={[styles.composer, blurred && styles.composerBlurred]}>
       <View style={styles.inputShell}>
         <TextInput
-          ref={inputRef}
+          ref={localRef}
           value={value}
           onChangeText={onChangeText}
           placeholder="Type a reply..."

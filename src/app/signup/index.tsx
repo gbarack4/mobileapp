@@ -1,6 +1,15 @@
-import { useSignUp } from "@clerk/clerk-expo";
+import { useAuth } from "../../lib/auth/auth-provider";
+import {
+  signUpWithPassword,
+  confirmSignUp,
+  resendSignUpCode,
+  signInWithPassword,
+} from "../../lib/auth/cognito.client";
+import { getAuthOperationVersion } from "../../lib/auth/session-manager";
+import { authErrorMessage } from "../../lib/auth/auth-errors";
+import type { RegistrationProfile } from "../../lib/auth/auth-api";
 import { router } from "expo-router";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -14,11 +23,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { AuthTextField } from "../../components/auth/auth-text-field";
-import { ConfirmedPopup } from "../../components/confirmed-popup";
 import { LockIcon } from "../../components/icons/auth-icons";
 import { Logo } from "../../components/logo";
 import { colors, radius, spacing } from "../../constants/theme";
-import { setSessionEmail } from "../../services/session";
 import { isValidPassword } from "../../utils/validation";
 
 type SignUpField =
@@ -39,19 +46,45 @@ const ANDROID_RIPPLE =
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-type SignUpPhase =
-  | "form"
-  | "submitting"
-  | "verifying"
-  | "verifying_submitting"
-  | "confirmed";
-
-function handleSuccessClose() {
-  router.push("/onboarding");
-}
+type SignUpPhase = "form" | "submitting" | "verifying" | "verifying_submitting";
 
 export default function SignUpScreen() {
-  const { isLoaded, signUp, setActive } = useSignUp();
+  const { isLoaded, completeSignIn } = useAuth();
+  const mounted = useRef(true);
+  const busy = useRef(false);
+  const confirmed = useRef(false);
+  const registration = useRef<{
+    email: string;
+    password: string;
+    profile: RegistrationProfile;
+  } | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      registration.current = null;
+    };
+  }, []);
+  function isCurrent(version: number) {
+    return mounted.current && version === getAuthOperationVersion();
+  }
+  async function finishRegistration(version: number) {
+    const pending = registration.current;
+    if (!pending) return;
+    const response = await signInWithPassword(pending.email, pending.password);
+    if (!isCurrent(version)) return;
+    if (!response.AuthenticationResult || response.ChallengeName) {
+      const error = new Error("Additional authentication is required");
+      error.name = "UnsupportedAuthChallenge";
+      throw error;
+    }
+    await completeSignIn(
+      response.AuthenticationResult,
+      pending.profile,
+      version,
+    );
+  }
 
   const lastNameRef = useRef<TextInput>(null);
   const emailRef = useRef<TextInput>(null);
@@ -77,7 +110,7 @@ export default function SignUpScreen() {
   }
 
   async function handleSignUp() {
-    if (phase !== "form") {
+    if (phase !== "form" || busy.current) {
       return;
     }
 
@@ -119,68 +152,87 @@ export default function SignUpScreen() {
     if (!isLoaded) return;
 
     setError(null);
+    setNotice(null);
     setPhase("submitting");
-
-    try {
-      await signUp.create({
-        emailAddress: trimmedEmail,
-        password,
+    busy.current = true;
+    const version = getAuthOperationVersion();
+    registration.current = {
+      email: trimmedEmail,
+      password,
+      profile: {
         firstName: trimmedFirstName,
         lastName: trimmedLastName,
-        unsafeMetadata: {
-          phone_number: trimmedPhone,
-          role: "instructor",
-        },
-      });
-
-      await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
-
+        phoneNumber: trimmedPhone,
+      },
+    };
+    confirmed.current = false;
+    try {
+      const result = await signUpWithPassword(trimmedEmail, password);
+      if (!isCurrent(version)) return;
+      confirmed.current = result.UserConfirmed === true;
       setPhase("verifying");
-    } catch (err: any) {
-      setPhase("form");
-      setError(
-        err.errors?.[0]?.longMessage ||
-          "Unable to create account. Please try again.",
-      );
+      if (confirmed.current) await finishRegistration(version);
+    } catch (err: unknown) {
+      if (mounted.current) {
+        setPhase(confirmed.current ? "verifying" : "form");
+        setError(authErrorMessage(err));
+      }
+    } finally {
+      busy.current = false;
     }
   }
 
   async function handleVerify() {
-    if (!isLoaded) return;
-
+    if (
+      !isLoaded ||
+      busy.current ||
+      phase !== "verifying" ||
+      !registration.current
+    )
+      return;
+    if (!confirmed.current && !/^\d{6}$/.test(code.trim())) {
+      setError("Enter the 6-digit verification code.");
+      return;
+    }
+    busy.current = true;
     setError(null);
+    setNotice(null);
     setPhase("verifying_submitting");
-
+    const version = getAuthOperationVersion();
     try {
-      const completeSignUp = await signUp.attemptEmailAddressVerification({
-        code,
-      });
-
-      if (completeSignUp.status === "complete") {
-        await setActive({ session: completeSignUp.createdSessionId });
-        setSessionEmail(email.trim());
-        setPhase("confirmed");
-      } else {
-        setPhase("verifying");
-        setError("Verification failed. Please try again.");
+      if (!confirmed.current) {
+        await confirmSignUp(registration.current.email, code.trim());
+        if (!isCurrent(version)) return;
+        confirmed.current = true;
       }
-    } catch (err: any) {
-      setPhase("verifying");
-      setError(err.errors?.[0]?.longMessage || "Invalid verification code.");
+      await finishRegistration(version);
+    } catch (err: unknown) {
+      if (mounted.current) setError(authErrorMessage(err));
+    } finally {
+      busy.current = false;
+      if (mounted.current) setPhase("verifying");
+    }
+  }
+
+  async function handleResend() {
+    if (busy.current || !registration.current || confirmed.current) return;
+    busy.current = true;
+    setError(null);
+    setNotice(null);
+    setPhase("verifying_submitting");
+    try {
+      await resendSignUpCode(registration.current.email);
+      if (mounted.current) setNotice("A new code has been sent to your email.");
+    } catch (err: unknown) {
+      if (mounted.current) setError(authErrorMessage(err));
+    } finally {
+      busy.current = false;
+      if (mounted.current) setPhase("verifying");
     }
   }
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
-      {phase === "confirmed" ? (
-        <ConfirmedPopup
-          title="Account created"
-          message="Your InstructorHub account is ready. Let's finish setting up your instructor profile."
-          actionLabel="Set up profile"
-          onClose={handleSuccessClose}
-        />
-      ) : null}
-
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -203,29 +255,50 @@ export default function SignUpScreen() {
           <View style={styles.form}>
             {phase === "verifying" || phase === "verifying_submitting" ? (
               <>
-                <Text style={styles.termsText}>
-                  We sent a verification code to{" "}
-                  <Text style={{ fontWeight: "600" }}>{email}</Text>. Please
-                  enter it below.
-                </Text>
+                {!confirmed.current ? (
+                  <Text style={styles.termsText}>
+                    We sent a verification code to{" "}
+                    <Text style={{ fontWeight: "600" }}>
+                      {registration.current?.email ?? email}
+                    </Text>
+                    . Please enter it below.
+                  </Text>
+                ) : null}
 
-                <AuthTextField
-                  label="Verification Code"
-                  value={code}
-                  onChangeText={(value) => {
-                    setCode(value);
-                    clearError();
-                  }}
-                  onFocus={() => setFocusedField("code")}
-                  onBlur={() => setFocusedField(null)}
-                  placeholder="Enter 6-digit code"
-                  keyboardType="number-pad"
-                  returnKeyType="done"
-                  onSubmitEditing={handleVerify}
-                  focused={focusedField === "code"}
-                />
+                {!confirmed.current ? (
+                  <AuthTextField
+                    label="Verification Code"
+                    value={code}
+                    onChangeText={(value) => {
+                      setCode(value);
+                      clearError();
+                    }}
+                    onFocus={() => setFocusedField("code")}
+                    onBlur={() => setFocusedField(null)}
+                    placeholder="Enter 6-digit code"
+                    keyboardType="number-pad"
+                    returnKeyType="done"
+                    onSubmitEditing={handleVerify}
+                    focused={focusedField === "code"}
+                  />
+                ) : null}
 
+                {confirmed.current ? (
+                  <Text style={styles.termsText}>
+                    Your email is verified. Continue to finish setting up your
+                    account.
+                  </Text>
+                ) : null}
+                {notice ? <Text style={styles.termsText}>{notice}</Text> : null}
                 {error ? <Text style={styles.error}>{error}</Text> : null}
+                {!confirmed.current ? (
+                  <Pressable
+                    onPress={handleResend}
+                    disabled={phase === "verifying_submitting"}
+                  >
+                    <Text style={styles.termsLink}>Resend email code</Text>
+                  </Pressable>
+                ) : null}
 
                 <Pressable
                   onPress={handleVerify}
@@ -245,20 +318,24 @@ export default function SignUpScreen() {
                   <Text style={styles.primaryButtonText}>
                     {phase === "verifying_submitting"
                       ? "Verifying..."
-                      : "Verify Email"}
+                      : confirmed.current
+                        ? "Continue"
+                        : "Verify Email"}
                   </Text>
                 </Pressable>
 
                 <Pressable
-                  onPress={() => setPhase("form")}
+                  disabled={phase === "verifying_submitting"}
+                  onPress={() => router.replace("/login")}
                   style={{ alignItems: "center", marginTop: spacing.md }}
                 >
-                  <Text style={styles.termsLink}>Back to Sign Up</Text>
+                  <Text style={styles.termsLink}>Back to Sign In</Text>
                 </Pressable>
               </>
             ) : (
               <>
                 <AuthTextField
+                  editable={phase === "form"}
                   label="First name"
                   value={firstName}
                   onChangeText={(value) => {
@@ -282,6 +359,7 @@ export default function SignUpScreen() {
                 />
 
                 <AuthTextField
+                  editable={phase === "form"}
                   label="Last name"
                   value={lastName}
                   onChangeText={(value) => {
@@ -306,6 +384,7 @@ export default function SignUpScreen() {
                 />
 
                 <AuthTextField
+                  editable={phase === "form"}
                   label="Email"
                   value={email}
                   onChangeText={(value) => {
@@ -331,6 +410,7 @@ export default function SignUpScreen() {
                 />
 
                 <AuthTextField
+                  editable={phase === "form"}
                   label="Phone number"
                   value={phone}
                   onChangeText={(value) => {
@@ -354,6 +434,7 @@ export default function SignUpScreen() {
                 />
 
                 <AuthTextField
+                  editable={phase === "form"}
                   label="Password"
                   value={password}
                   onChangeText={(value) => {
@@ -404,7 +485,6 @@ export default function SignUpScreen() {
                 </Pressable>
 
                 {error ? <Text style={styles.error}>{error}</Text> : null}
-                <View id="clerk-captcha" />
                 <Pressable
                   onPress={handleSignUp}
                   disabled={phase === "submitting"}

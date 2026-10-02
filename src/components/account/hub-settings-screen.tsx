@@ -23,7 +23,7 @@ import {
 import { colors, spacing } from "../../constants/theme";
 import { DeleteAccountDialog } from "./delete-account-dialog";
 import { HubSettingsRow } from "./hub-settings-row";
-import { useAuth, useClerk } from "@clerk/clerk-expo";
+import { useAuth } from "@/lib/auth/auth-provider";
 import {
   deleteInstructorAccount,
   getInstructorDeletionEligibility,
@@ -125,7 +125,7 @@ function HubQuickLinkSettingsScreen({
   onBack,
 }: Readonly<HubQuickLinkScreenProps>) {
   const { getToken } = useAuth();
-  const { signOut } = useClerk();
+  const { signOut } = useAuth();
   const copy = SCREEN_COPY[screen];
   const title = HUB_QUICK_LINKS_LABELS[screen];
   const [toggleState, setToggleState] = useState<Record<string, boolean>>(

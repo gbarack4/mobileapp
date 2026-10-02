@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import type { NativeScrollEvent, NativeSyntheticEvent } from "react-native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useAuth } from "@clerk/clerk-expo";
+import { useAuth } from "@/lib/auth/auth-provider";
 
 import { getInstructorInvites } from "@/services/school-invite";
 import { colors, spacing } from "../../constants/theme";
@@ -24,10 +24,7 @@ import {
   MoreVerticalIcon,
   SearchIcon,
 } from "../icons/dashboard-icons";
-import {
-  getSchoolAvatarColor,
-  getSchoolInitials,
-} from "../../utils/school-ui";
+import { getSchoolAvatarColor, getSchoolInitials } from "../../utils/school-ui";
 
 type InboxScreenProps = {
   onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
@@ -62,10 +59,11 @@ function formatRelativeTime(iso?: string | null) {
   return `${Math.round(hours / 24)}d`;
 }
 
-function mapInviteToNotification(invite: Record<string, any>): InboxNotification {
+function mapInviteToNotification(
+  invite: Record<string, any>,
+): InboxNotification {
   const school = invite.school ?? {};
-  const schoolName =
-    invite.schoolName || school.name || "A school";
+  const schoolName = invite.schoolName || school.name || "A school";
   const schoolId = school.id || invite.id || schoolName;
   const avatarUrl = invite.schoolLogoUrl || school.logoUrl || null;
 
@@ -88,10 +86,7 @@ function NotificationAvatar({
   return (
     <View style={styles.avatarWrap}>
       {notification.avatarUrl ? (
-        <Image
-          source={{ uri: notification.avatarUrl }}
-          style={styles.avatar}
-        />
+        <Image source={{ uri: notification.avatarUrl }} style={styles.avatar} />
       ) : (
         <View
           style={[
@@ -147,7 +142,11 @@ export function InboxScreen({ onScroll }: Readonly<InboxScreenProps>) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const { data: realInvites, isLoading, isError } = useQuery({
+  const {
+    data: realInvites,
+    isLoading,
+    isError,
+  } = useQuery({
     queryKey: ["instructor-invites"],
     queryFn: async () => {
       const token = await getToken();
@@ -176,7 +175,9 @@ export function InboxScreen({ onScroll }: Readonly<InboxScreenProps>) {
     }
 
     return notifications.filter((notification) =>
-      `${notification.title} ${notification.body}`.toLowerCase().includes(query),
+      `${notification.title} ${notification.body}`
+        .toLowerCase()
+        .includes(query),
     );
   }, [notifications, searchQuery]);
 
@@ -210,10 +211,7 @@ export function InboxScreen({ onScroll }: Readonly<InboxScreenProps>) {
     );
   }
 
-  function renderSection(
-    title: string,
-    items: InboxNotification[],
-  ) {
+  function renderSection(title: string, items: InboxNotification[]) {
     if (items.length === 0) {
       return null;
     }

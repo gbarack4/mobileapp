@@ -1,10 +1,10 @@
 import { View, Text, StyleSheet, Pressable } from "react-native";
 import { useRouter } from "expo-router";
-import { useClerk } from "@clerk/clerk-expo";
+import { useAuth } from "@/lib/auth/auth-provider";
 
 export function InstructorAccessDenied() {
   const router = useRouter();
-  const { signOut } = useClerk();
+  const { signOut } = useAuth();
 
   return (
     <View style={styles.centered}>

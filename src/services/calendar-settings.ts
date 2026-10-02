@@ -1,3 +1,5 @@
+import { getAuthOperationVersion } from "../lib/auth/session-manager";
+import { getUserStorageKey } from "./session";
 import {
   getInstructorAvailability,
   saveInstructorAvailability,
@@ -28,6 +30,7 @@ type Listener = () => void;
 type GetToken = () => Promise<string | null>;
 
 let memorySettings: CalendarSettings | null = null;
+let ownerKey: string | null = null;
 const listeners = new Set<Listener>();
 
 function notify() {
@@ -174,6 +177,11 @@ function applySettingsToDays(
 }
 
 export function getCalendarSettings(): CalendarSettings {
+  const key = getUserStorageKey("calendar-settings");
+  if (key !== ownerKey) {
+    memorySettings = null;
+    ownerKey = key;
+  }
   if (memorySettings) {
     return { ...memorySettings };
   }
@@ -192,7 +200,9 @@ export function setCalendarSettings(next: Partial<CalendarSettings>) {
 }
 
 export async function loadCalendarSettingsFromApi(getToken: GetToken) {
+  const version = getAuthOperationVersion();
   const days = await getInstructorAvailability(getToken);
+  if (version !== getAuthOperationVersion()) return getCalendarSettings();
   const next = calendarSettingsFromAvailability(days, getCalendarSettings());
   memorySettings = next;
   notify();
@@ -203,6 +213,7 @@ export async function saveCalendarSettingsToApi(
   getToken: GetToken,
   next: Partial<CalendarSettings>,
 ) {
+  const version = getAuthOperationVersion();
   const merged = normalizeSettings({
     ...getCalendarSettings(),
     ...next,
@@ -212,6 +223,8 @@ export async function saveCalendarSettingsToApi(
   notify();
 
   const days = await getInstructorAvailability(getToken);
+  if (version !== getAuthOperationVersion())
+    throw new Error("Your session changed. Please retry.");
   const payload = applySettingsToDays(days, merged);
   await saveInstructorAvailability(getToken, payload);
 

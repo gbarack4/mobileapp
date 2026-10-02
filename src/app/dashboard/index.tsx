@@ -1,4 +1,4 @@
-import { useUser } from "@clerk/clerk-expo";
+import { useAuth } from "@/lib/auth/auth-provider";
 import { useQueryClient } from "@tanstack/react-query";
 import { router, usePathname } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -27,7 +27,10 @@ import { SchoolsScreen } from "../../components/schools/schools-screen";
 import { colors, spacing } from "../../constants/theme";
 import { useBottomNavScroll } from "../../hooks/use-bottom-nav-scroll";
 import { useInstructorBookings } from "../../hooks/use-instructor-bookings";
-import { getSuprSendClient } from "../../services/suprsend";
+import {
+  getSuprSendClient,
+  identifySuprSendUser,
+} from "../../services/suprsend";
 import type { DashboardTab, Lesson, LessonTab } from "../../types/dashboard";
 import type { InstructorBooking } from "../../types/instructor-bookings";
 import { formatAddressWithoutCountry } from "@/utils/address";
@@ -245,15 +248,16 @@ export default function DashboardScreen() {
   const showBottomNav =
     isDashboardRoot && activeTab !== "profile" && displayedTab !== "profile";
 
-  const { user } = useUser();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
-  const email = user?.primaryEmailAddress?.emailAddress;
+  const email = user?.email;
 
   useEffect(() => {
     if (!email || Platform.OS !== "web") {
       return;
     }
 
+    let cancelled = false;
     let feedClient: ReturnType<
       ReturnType<typeof getSuprSendClient>["feeds"]["initialize"]
     > | null = null;
@@ -266,9 +270,8 @@ export default function DashboardScreen() {
 
     const setup = async () => {
       try {
-        const suprSend = getSuprSendClient();
-
-        await suprSend.identify(email);
+        const suprSend = await identifySuprSendUser(email);
+        if (cancelled) return;
 
         feedClient = suprSend.feeds.initialize();
 
@@ -283,6 +286,7 @@ export default function DashboardScreen() {
     void setup();
 
     return () => {
+      cancelled = true;
       feedClient?.emitter.off("feed.store_update", handleStoreUpdate);
 
       feedClient?.remove();

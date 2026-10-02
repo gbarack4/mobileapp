@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
 import {
   Modal,
   Platform,
@@ -6,22 +6,22 @@ import {
   StyleSheet,
   Text,
   View,
-} from 'react-native';
+} from "react-native";
 
-import { colors, spacing } from '../../constants/theme';
+import { colors, spacing } from "../../constants/theme";
 
 type TimePickerSheetProps = {
   visible: boolean;
   value: string;
   title?: string;
   /** `24h` returns "HH:mm". `12h` returns "h:mm am/pm". */
-  outputFormat?: '24h' | '12h';
+  outputFormat?: "24h" | "12h";
   onClose: () => void;
   onConfirm: (time: string) => void;
 };
 
 const ANDROID_RIPPLE =
-  Platform.OS === 'android' ? { color: 'rgba(0, 0, 0, 0.06)' } : undefined;
+  Platform.OS === "android" ? { color: "rgba(0, 0, 0, 0.06)" } : undefined;
 
 const MINUTES = [0, 15, 30, 45] as const;
 
@@ -31,12 +31,16 @@ function snapMinute(minute: number) {
   );
 }
 
-function parseTime(value: string): { hour12: number; minute: number; period: 'am' | 'pm' } {
+function parseTime(value: string): {
+  hour12: number;
+  minute: number;
+  period: "am" | "pm";
+} {
   const trimmed = value.trim().toLowerCase();
 
   if (/^\d{2}:\d{2}$/.test(trimmed)) {
-    const [hours24, minute] = trimmed.split(':').map(Number);
-    const period: 'am' | 'pm' = hours24 >= 12 ? 'pm' : 'am';
+    const [hours24, minute] = trimmed.split(":").map(Number);
+    const period: "am" | "pm" = hours24 >= 12 ? "pm" : "am";
     const hour12 = hours24 % 12 === 0 ? 12 : hours24 % 12;
     return { hour12, minute: snapMinute(minute), period };
   }
@@ -45,25 +49,25 @@ function parseTime(value: string): { hour12: number; minute: number; period: 'am
   if (twelveHourMatch) {
     const hour12Raw = Number(twelveHourMatch[1]);
     const minute = Number(twelveHourMatch[2]);
-    const period = twelveHourMatch[3] as 'am' | 'pm';
+    const period = twelveHourMatch[3] as "am" | "pm";
     const hour12 = hour12Raw === 0 ? 12 : Math.min(Math.max(hour12Raw, 1), 12);
     return { hour12, minute: snapMinute(minute), period };
   }
 
-  return { hour12: 12, minute: 0, period: 'pm' };
+  return { hour12: 12, minute: 0, period: "pm" };
 }
 
-function toTwentyFourHour(hour12: number, minute: number, period: 'am' | 'pm') {
+function toTwentyFourHour(hour12: number, minute: number, period: "am" | "pm") {
   let hours24 = hour12 % 12;
-  if (period === 'pm') {
+  if (period === "pm") {
     hours24 += 12;
   }
 
-  return `${String(hours24).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+  return `${String(hours24).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 }
 
-function toTwelveHour(hour12: number, minute: number, period: 'am' | 'pm') {
-  return `${hour12}:${String(minute).padStart(2, '0')} ${period}`;
+function toTwelveHour(hour12: number, minute: number, period: "am" | "pm") {
+  return `${hour12}:${String(minute).padStart(2, "0")} ${period}`;
 }
 
 type StepperProps = {
@@ -82,7 +86,11 @@ function Stepper({ label, display, onMinus, onPlus }: StepperProps) {
           onPress={onMinus}
           android_ripple={ANDROID_RIPPLE}
           accessibilityLabel={`Decrease ${label}`}
-          style={({ pressed }) => [styles.stepButton, pressed && styles.pressed]}>
+          style={({ pressed }) => [
+            styles.stepButton,
+            pressed && styles.pressed,
+          ]}
+        >
           <Text style={styles.stepButtonText}>−</Text>
         </Pressable>
         <Text style={styles.stepperValue}>{display}</Text>
@@ -90,7 +98,11 @@ function Stepper({ label, display, onMinus, onPlus }: StepperProps) {
           onPress={onPlus}
           android_ripple={ANDROID_RIPPLE}
           accessibilityLabel={`Increase ${label}`}
-          style={({ pressed }) => [styles.stepButton, pressed && styles.pressed]}>
+          style={({ pressed }) => [
+            styles.stepButton,
+            pressed && styles.pressed,
+          ]}
+        >
           <Text style={styles.stepButtonText}>+</Text>
         </Pressable>
       </View>
@@ -101,14 +113,14 @@ function Stepper({ label, display, onMinus, onPlus }: StepperProps) {
 export function TimePickerSheet({
   visible,
   value,
-  title = 'Set break time',
-  outputFormat = '24h',
+  title = "Set break time",
+  outputFormat = "24h",
   onClose,
   onConfirm,
 }: TimePickerSheetProps) {
   const [hour12, setHour12] = useState(12);
   const [minute, setMinute] = useState(0);
-  const [period, setPeriod] = useState<'am' | 'pm'>('pm');
+  const [period, setPeriod] = useState<"am" | "pm">("pm");
 
   useEffect(() => {
     if (!visible) {
@@ -145,16 +157,25 @@ export function TimePickerSheet({
 
   function handleConfirm() {
     const next =
-      outputFormat === '12h'
+      outputFormat === "12h"
         ? toTwelveHour(hour12, minute, period)
         : toTwentyFourHour(hour12, minute, period);
     onConfirm(next);
   }
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
       <View style={styles.overlay}>
-        <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Close" />
+        <Pressable
+          style={styles.backdrop}
+          onPress={onClose}
+          accessibilityLabel="Close"
+        />
 
         <View style={styles.dialog}>
           <Text style={styles.title}>{title}</Text>
@@ -169,14 +190,14 @@ export function TimePickerSheet({
             <Text style={styles.colon}>:</Text>
             <Stepper
               label="Min"
-              display={String(minute).padStart(2, '0')}
+              display={String(minute).padStart(2, "0")}
               onMinus={() => stepMinute(-1)}
               onPlus={() => stepMinute(1)}
             />
           </View>
 
           <View style={styles.periodRow}>
-            {(['am', 'pm'] as const).map((option) => {
+            {(["am", "pm"] as const).map((option) => {
               const selected = period === option;
 
               return (
@@ -188,12 +209,14 @@ export function TimePickerSheet({
                     styles.periodButton,
                     selected && styles.periodButtonSelected,
                     pressed && styles.pressed,
-                  ]}>
+                  ]}
+                >
                   <Text
                     style={[
                       styles.periodButtonText,
                       selected && styles.periodButtonTextSelected,
-                    ]}>
+                    ]}
+                  >
                     {option.toUpperCase()}
                   </Text>
                 </Pressable>
@@ -205,13 +228,21 @@ export function TimePickerSheet({
             <Pressable
               onPress={onClose}
               android_ripple={ANDROID_RIPPLE}
-              style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}>
+              style={({ pressed }) => [
+                styles.secondaryButton,
+                pressed && styles.pressed,
+              ]}
+            >
               <Text style={styles.secondaryButtonText}>Cancel</Text>
             </Pressable>
             <Pressable
               onPress={handleConfirm}
               android_ripple={ANDROID_RIPPLE}
-              style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}>
+              style={({ pressed }) => [
+                styles.primaryButton,
+                pressed && styles.pressed,
+              ]}
+            >
               <Text style={styles.primaryButtonText}>Done</Text>
             </Pressable>
           </View>
@@ -224,16 +255,16 @@ export function TimePickerSheet({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     paddingHorizontal: spacing.xl,
-    backgroundColor: 'rgba(15, 23, 42, 0.4)',
+    backgroundColor: "rgba(15, 23, 42, 0.4)",
   },
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   dialog: {
-    width: '100%',
+    width: "100%",
     maxWidth: 340,
     backgroundColor: colors.white,
     borderRadius: 18,
@@ -244,34 +275,34 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
-    textAlign: 'center',
+    textAlign: "center",
   },
   pickers: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: spacing.sm,
   },
   colon: {
     fontSize: 28,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
     marginTop: 18,
   },
   stepper: {
-    alignItems: 'center',
+    alignItems: "center",
     gap: 8,
   },
   stepperLabel: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.textSecondary,
   },
   stepperControls: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
   },
   stepButton: {
@@ -279,26 +310,26 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     backgroundColor: colors.inputBackground,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   stepButtonText: {
     fontSize: 22,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text,
     lineHeight: 24,
   },
   stepperValue: {
     minWidth: 36,
-    textAlign: 'center',
+    textAlign: "center",
     fontSize: 28,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
   },
   periodRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: spacing.sm,
-    alignSelf: 'center',
+    alignSelf: "center",
   },
   periodButton: {
     minWidth: 72,
@@ -306,21 +337,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 999,
     backgroundColor: colors.inputBackground,
-    alignItems: 'center',
+    alignItems: "center",
   },
   periodButtonSelected: {
     backgroundColor: colors.primary,
   },
   periodButtonText: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
   },
   periodButtonTextSelected: {
     color: colors.white,
   },
   actions: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: spacing.sm,
   },
   secondaryButton: {
@@ -328,12 +359,12 @@ const styles = StyleSheet.create({
     minHeight: 48,
     borderRadius: 12,
     backgroundColor: colors.inputBackground,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   secondaryButtonText: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text,
   },
   primaryButton: {
@@ -341,12 +372,12 @@ const styles = StyleSheet.create({
     minHeight: 48,
     borderRadius: 12,
     backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   primaryButtonText: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.white,
   },
   pressed: {

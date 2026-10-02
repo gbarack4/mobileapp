@@ -1,4 +1,4 @@
-import { useAuth } from "@clerk/clerk-expo";
+import { useAuth } from "@/lib/auth/auth-provider";
 import * as DocumentPicker from "expo-document-picker";
 import type { DocumentPickerAsset } from "expo-document-picker";
 import { router, useLocalSearchParams } from "expo-router";
@@ -177,7 +177,7 @@ export default function OnboardingScreen() {
   useEffect(() => {
     async function loadDraft() {
       try {
-       const token = await getTokenRef.current();
+        const token = await getTokenRef.current();
         if (!token) return;
 
         const draft = await getOnboardingDraft(token);

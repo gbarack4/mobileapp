@@ -1,4 +1,5 @@
-import { Platform } from 'react-native';
+import { getUserStorageKey } from "./session";
+import { Platform } from "react-native";
 
 export type InsuranceDeclaration = {
   hasInsurance: boolean;
@@ -14,50 +15,61 @@ export const DEFAULT_INSURANCE_DECLARATION: InsuranceDeclaration = {
   confirmedAt: null,
 };
 
-const STORAGE_KEY = 'ih_insurance_declaration';
+const STORAGE_KEY = "ih_insurance_declaration";
 
 type Listener = () => void;
 
 let memoryDeclaration: InsuranceDeclaration | null = null;
 const listeners = new Set<Listener>();
+let ownerKey: string | null = null;
+function ensureOwner() {
+  const key = getUserStorageKey(STORAGE_KEY);
+  if (key !== ownerKey) {
+    ownerKey = key;
+    memoryDeclaration = null;
+  }
+}
 
 function canUseLocalStorage() {
-  return Platform.OS === 'web' && typeof localStorage !== 'undefined';
+  return Platform.OS === "web" && typeof localStorage !== "undefined";
 }
 
 function notify() {
   listeners.forEach((listener) => listener());
 }
 
-function normalizeDeclaration(parsed: Partial<InsuranceDeclaration>): InsuranceDeclaration {
+function normalizeDeclaration(
+  parsed: Partial<InsuranceDeclaration>,
+): InsuranceDeclaration {
   return {
     hasInsurance:
-      typeof parsed.hasInsurance === 'boolean'
+      typeof parsed.hasInsurance === "boolean"
         ? parsed.hasInsurance
         : DEFAULT_INSURANCE_DECLARATION.hasInsurance,
     hasDualControls:
-      typeof parsed.hasDualControls === 'boolean'
+      typeof parsed.hasDualControls === "boolean"
         ? parsed.hasDualControls
         : DEFAULT_INSURANCE_DECLARATION.hasDualControls,
     isQualifiedToTeach:
-      typeof parsed.isQualifiedToTeach === 'boolean'
+      typeof parsed.isQualifiedToTeach === "boolean"
         ? parsed.isQualifiedToTeach
         : DEFAULT_INSURANCE_DECLARATION.isQualifiedToTeach,
     confirmedAt:
-      typeof parsed.confirmedAt === 'string' || parsed.confirmedAt === null
+      typeof parsed.confirmedAt === "string" || parsed.confirmedAt === null
         ? parsed.confirmedAt
         : DEFAULT_INSURANCE_DECLARATION.confirmedAt,
   };
 }
 
 export function getInsuranceDeclaration(): InsuranceDeclaration {
+  ensureOwner();
   if (memoryDeclaration) {
     return { ...memoryDeclaration };
   }
 
   if (canUseLocalStorage()) {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      const raw = localStorage.getItem(getUserStorageKey(STORAGE_KEY));
       if (raw) {
         memoryDeclaration = normalizeDeclaration(
           JSON.parse(raw) as Partial<InsuranceDeclaration>,
@@ -81,13 +93,18 @@ export function setInsuranceDeclaration(next: Partial<InsuranceDeclaration>) {
   });
 
   if (canUseLocalStorage()) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(memoryDeclaration));
+    localStorage.setItem(
+      getUserStorageKey(STORAGE_KEY),
+      JSON.stringify(memoryDeclaration),
+    );
   }
 
   notify();
 }
 
-export function isInsuranceDeclarationComplete(declaration: InsuranceDeclaration) {
+export function isInsuranceDeclarationComplete(
+  declaration: InsuranceDeclaration,
+) {
   return (
     declaration.hasInsurance &&
     declaration.hasDualControls &&

@@ -1,4 +1,4 @@
-import { useAuth } from "@clerk/clerk-expo";
+import { useAuth } from "@/lib/auth/auth-provider";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -238,12 +238,12 @@ export default function CalendarScreen() {
 
   const isCurrentRangeBlocked = Boolean(
     selectedStartDate &&
-    selectedEndDate &&
-    availabilityBlocks.some(
-      (block) =>
-        block.startDate <= selectedStartDate &&
-        block.endDate >= selectedEndDate,
-    ),
+      selectedEndDate &&
+      availabilityBlocks.some(
+        (block) =>
+          block.startDate <= selectedStartDate &&
+          block.endDate >= selectedEndDate,
+      ),
   );
   const isBlocked =
     rangeAction === "unblocking" ||

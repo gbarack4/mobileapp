@@ -1,4 +1,4 @@
-import { useAuth } from "@clerk/clerk-expo";
+import { useAuth } from "@/lib/auth/auth-provider";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { fetchInstructorBookings } from "@/services/instructor-bookings";

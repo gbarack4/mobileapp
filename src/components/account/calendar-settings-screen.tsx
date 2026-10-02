@@ -1,4 +1,4 @@
-import { useAuth } from "@clerk/clerk-expo";
+import { useAuth } from "@/lib/auth/auth-provider";
 import { router } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -11,7 +11,11 @@ import {
   View,
 } from "react-native";
 
-import { CalendarIcon, ChevronLeftIcon, ChevronRightIcon } from "../icons/dashboard-icons";
+import {
+  CalendarIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+} from "../icons/dashboard-icons";
 import { colors, spacing } from "../../constants/theme";
 import {
   formatBreakTimeLabel,
@@ -82,7 +86,7 @@ function PillOption({ label, selected, onPress }: Readonly<PillOptionProps>) {
 export function CalendarSettingsScreen({
   onClose,
 }: Readonly<CalendarSettingsScreenProps>) {
-  const { getToken, isLoaded, isSignedIn, userId, sessionId } = useAuth();
+  const { getToken, isLoaded, isSignedIn, userId } = useAuth();
   const getTokenRef = useRef(getToken);
 
   useEffect(() => {
@@ -111,7 +115,7 @@ export function CalendarSettingsScreen({
   }, []);
 
   useEffect(() => {
-    if (!isLoaded || !isSignedIn || !userId || !sessionId) {
+    if (!isLoaded || !isSignedIn || !userId) {
       setIsLoading(!isLoaded);
       return;
     }
@@ -147,7 +151,7 @@ export function CalendarSettingsScreen({
         clearTimeout(saveTimerRef.current);
       }
     };
-  }, [getLatestToken, isLoaded, isSignedIn, userId, sessionId]);
+  }, [getLatestToken, isLoaded, isSignedIn, userId]);
 
   function queueSave(patch: Partial<CalendarSettings>) {
     pendingPatchRef.current = {

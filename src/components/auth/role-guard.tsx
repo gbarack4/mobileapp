@@ -1,85 +1,59 @@
 import { DEV_BYPASS_AUTH } from "@/constants/dev";
-import { useAuth } from "@clerk/clerk-expo";
-import { useRouter, useSegments } from "expo-router";
-import { useEffect, useState } from "react";
-import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { useAuth } from "@/lib/auth/auth-provider";
+import { useEffect, useState, type ReactNode } from "react";
+import { AuthStatus } from "./auth-status";
 import { InstructorAccessDenied } from "./instructor-access-denied";
 
-export function RoleGuard({
-  children,
-}: Readonly<{ children: React.ReactNode }>) {
-  const { isLoaded, isSignedIn, getToken } = useAuth();
-  const router = useRouter();
-  const segments = useSegments();
-
-  const [accessDenied, setAccessDenied] = useState(false);
-  const [isFetching, setIsFetching] = useState(!DEV_BYPASS_AUTH);
-
+type Access = { userId: string; status: "allowed" | "denied" | "error" } | null;
+export function RoleGuard({ children }: Readonly<{ children: ReactNode }>) {
+  const { isLoaded, isSignedIn, userId, getToken, signOut } = useAuth();
+  const [access, setAccess] = useState<Access>(null);
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
-    if (DEV_BYPASS_AUTH) {
-      setAccessDenied(false);
-      setIsFetching(false);
-      return;
-    }
-
-    if (!isLoaded) return;
-    if (segments[0] !== "dashboard") return;
-
-    if (!isSignedIn) {
-      router.replace("/login");
-      return;
-    }
-
-    const verifyAccess = async () => {
+    if (DEV_BYPASS_AUTH || !isLoaded || !isSignedIn || !userId) return;
+    const controller = new AbortController();
+    setAccess(null);
+    void (async () => {
       try {
         const token = await getToken();
-        const apiUrl = process.env.EXPO_PUBLIC_API_URL;
-
-        const res = await fetch(
+        if (!token || controller.signal.aborted) return;
+        const apiUrl = process.env.EXPO_PUBLIC_API_URL?.replace(/\/+$/, "");
+        if (!apiUrl) throw new Error("API URL is not configured");
+        const response = await fetch(
           `${apiUrl}/auth/verify-access?app=instructor_app`,
           {
             headers: { Authorization: `Bearer ${token}` },
+            signal: controller.signal,
           },
         );
-
-        if (!res.ok) {
-          setAccessDenied(true);
-        }
-      } catch (error) {
-        console.error("RoleGuard fetch error:", error);
-        setAccessDenied(true);
-      } finally {
-        setIsFetching(false);
+        if (controller.signal.aborted) return;
+        setAccess({
+          userId,
+          status: response.ok
+            ? "allowed"
+            : response.status === 403
+              ? "denied"
+              : "error",
+        });
+      } catch {
+        if (!controller.signal.aborted) setAccess({ userId, status: "error" });
       }
-    };
-
-    verifyAccess();
-  }, [isLoaded, isSignedIn, getToken, segments, router]);
-
-  if (DEV_BYPASS_AUTH) {
-    return <>{children}</>;
-  }
-
-  if (!isLoaded || isFetching) {
+    })();
+    return () => controller.abort();
+  }, [isLoaded, isSignedIn, userId, getToken, attempt]);
+  if (DEV_BYPASS_AUTH) return <>{children}</>;
+  if (!isLoaded || !isSignedIn || !access || access.userId !== userId)
+    return <AuthStatus />;
+  if (access.status === "denied") return <InstructorAccessDenied />;
+  if (access.status === "error")
     return (
-      <View style={styles.loaderContainer}>
-        <ActivityIndicator size="large" color="#2563EB" />
-      </View>
+      <AuthStatus
+        message="Unable to check instructor access."
+        onRetry={() => setAttempt((value) => value + 1)}
+        onSignOut={() => {
+          void signOut();
+        }}
+      />
     );
-  }
-
-  if (accessDenied) {
-    return <InstructorAccessDenied />;
-  }
-
   return <>{children}</>;
 }
-
-const styles = StyleSheet.create({
-  loaderContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#FFFFFF",
-  },
-});

@@ -1,4 +1,4 @@
-import { useAuth } from "@clerk/clerk-expo";
+import { useAuth } from "@/lib/auth/auth-provider";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   getMyProfile,
@@ -9,10 +9,11 @@ import {
 } from "../services/profile";
 
 export function useProfileQuery() {
-  const { getToken } = useAuth();
+  const { getToken, isLoaded, isSignedIn } = useAuth();
 
   return useQuery({
     queryKey: ["profile"],
+    enabled: isLoaded && isSignedIn,
     queryFn: async () => {
       const token = await getToken();
       if (!token) {

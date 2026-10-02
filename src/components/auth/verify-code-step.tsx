@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -9,10 +8,6 @@ import {
 } from "react-native";
 
 import { OtpInput } from "./otp-input";
-import {
-  VerificationMethod,
-  VerificationOptionsSheet,
-} from "./verification-options-sheet";
 import { colors, spacing } from "../../constants/theme";
 
 type PressableState = {
@@ -32,7 +27,7 @@ type VerifyCodeStepProps = {
   onChangeCode: (code: string) => void;
   onBack: () => void;
   onNext: () => void;
-  onSelectVerificationMethod?: (method: VerificationMethod) => void;
+  onResend: () => void;
 };
 
 function getDisplayName(identifier: string): string {
@@ -62,9 +57,8 @@ export function VerifyCodeStep({
   onChangeCode,
   onBack,
   onNext,
-  onSelectVerificationMethod,
+  onResend,
 }: Readonly<VerifyCodeStepProps>) {
-  const [showOptionsSheet, setShowOptionsSheet] = useState(false);
   const displayName = getDisplayName(identifier);
 
   const canContinue = code.length === 6 && !isSubmitting;
@@ -96,7 +90,7 @@ export function VerifyCodeStep({
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
         <Pressable
-          onPress={() => setShowOptionsSheet(true)}
+          onPress={onResend}
           disabled={isSubmitting}
           android_ripple={ANDROID_RIPPLE}
           style={({ pressed }: PressableState) => [
@@ -104,18 +98,9 @@ export function VerifyCodeStep({
             pressed && styles.buttonPressed,
           ]}
         >
-          <Text style={styles.tryDifferentWayText}>Try a different way</Text>
+          <Text style={styles.tryDifferentWayText}>Resend email code</Text>
         </Pressable>
       </View>
-
-      <VerificationOptionsSheet
-        visible={showOptionsSheet}
-        identifier={identifier}
-        onClose={() => setShowOptionsSheet(false)}
-        onSelectMethod={(method) => {
-          onSelectVerificationMethod?.(method);
-        }}
-      />
 
       <View style={styles.footer}>
         <Pressable

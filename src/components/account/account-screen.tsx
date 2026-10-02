@@ -1,6 +1,6 @@
-import { useClerk, useUser } from "@clerk/clerk-expo";
+import { useAuth } from "@/lib/auth/auth-provider";
 import { router } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import type { NativeScrollEvent, NativeSyntheticEvent } from "react-native";
 import {
   Image,
@@ -18,11 +18,7 @@ import {
   ACCOUNT_MENU_SECTION_2,
   ACCOUNT_MENU_SECTION_3,
 } from "../../data/mock-account";
-import {
-  clearSession,
-  getSessionEmail,
-  setSessionEmail,
-} from "../../services/session";
+import { getSessionEmail } from "../../services/session";
 import { CloseIcon } from "../icons/lesson-detail-icons";
 import {
   AboutIcon,
@@ -126,50 +122,29 @@ const AVAILABILITY_OPTIONS = [
   },
 ];
 
-function goToLogin() {
-  if (Platform.OS === "web" && typeof window !== "undefined") {
-    window.location.assign("/login");
-    return;
-  }
-
-  try {
-    router.dismissAll();
-  } catch {}
-  router.replace("/login");
-}
-
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
 export function AccountScreen({
   onClose,
   onScroll,
 }: Readonly<AccountScreenProps>) {
-  const { user } = useUser();
-  const { signOut } = useClerk();
-  const userEmail = user?.primaryEmailAddress?.emailAddress ?? null;
+  const { user } = useAuth();
+  const { signOut } = useAuth();
+  const userEmail = user?.email ?? null;
 
   const { data: profile } = useProfileQuery();
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [availabilityExpanded, setAvailabilityExpanded] = useState(false);
   const isSigningOutRef = useRef(false);
 
-  useEffect(() => {
-    if (userEmail) {
-      setSessionEmail(userEmail);
-    }
-  }, [userEmail]);
-
   async function handleSignOut() {
     if (isSigningOutRef.current) return;
     isSigningOutRef.current = true;
     setIsSigningOut(true);
-    clearSession();
-    await delay(2000);
     try {
-      await Promise.race([signOut().catch(() => undefined), delay(1000)]);
-    } catch {
+      await signOut();
     } finally {
-      goToLogin();
+      isSigningOutRef.current = false;
+      setIsSigningOut(false);
+      router.replace("/login");
     }
   }
 
