@@ -103,7 +103,7 @@ export async function getMyProfile(
         name: data.name,
         initials: initials.toUpperCase() || "I",
         subtitle: data.bio || "Driving Instructor",
-        phone: data.phone || "No phone provided",
+        phone: data.phone || "",
         email: getSessionEmail() || "",
         rating: 0,
         vehicleSummary: data.car

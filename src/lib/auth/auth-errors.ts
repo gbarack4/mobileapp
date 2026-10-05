@@ -3,6 +3,29 @@ export function authErrorName(error: unknown): string {
 }
 export function authErrorMessage(error: unknown): string {
   switch (authErrorName(error)) {
+    case "UserLambdaValidationException":
+    if (
+    error instanceof Error &&
+    error.message.includes("ACCOUNT_ALREADY_EXISTS:")
+    ) {
+    return "An account with this email already exists. Please sign in using the method you used to register.";
+    }    
+    return "Registration could not be completed. Please try again or contact support.";
+    case "OAuthAccountAlreadyExists":
+  return "An account with this email already exists. Please sign in using the method you used to register.";
+    case "OAuthConfigurationError":
+      return "Social sign-in is not configured. Please contact support.";
+    case "OAuthExpoGoError":
+      return "Social sign-in requires an installed app build. It is not available in Expo Go.";
+    case "OAuthCancelledError":
+      return "Sign-in was cancelled. You can try again.";
+    case "OAuthStateError":
+    case "OAuthInvalidGrant":
+      return "This sign-in attempt has expired or was already used. Please start again.";
+    case "OAuthProviderError":
+    case "OAuthTokenError":
+    case "OAuthResponseError":
+      return "Unable to complete social sign-in. Please try again or contact support.";
     case "NotAuthorizedException":
     case "UserNotFoundException":
       return "Incorrect email or password.";

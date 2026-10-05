@@ -1,4 +1,12 @@
 import type { AuthenticationResultType } from "@aws-sdk/client-cognito-identity-provider";
+import { refreshOAuthSession } from "./oauth-client";
+import { logoutOAuthBrowserSession } from "./oauth-logout";
+import { clearOAuthTransaction } from "./oauth-transaction";
+import {
+  decodeRefreshCredential,
+  encodeRefreshCredential,
+  type RefreshMethod,
+} from "./refresh-credential";
 
 import {
   refreshCognitoSession,
@@ -22,6 +30,7 @@ export type CognitoSession = Readonly<{
   accessToken: string;
   idToken: string;
   refreshToken: string;
+  refreshMethod: RefreshMethod;
   expiresAt: number;
 }>;
 
@@ -42,14 +51,11 @@ let storageQueue: Promise<void> = Promise.resolve();
 
 const listeners = new Set<SessionListener>();
 const pendingRevocations = new Set<string>();
+let browserLogoutPending = false;
 
-// Serialize storage operations so an old write cannot overwrite
-// a later logout or a new sign-in.
 function withStorage<T>(operation: () => Promise<T>): Promise<T> {
   const pending = storageQueue.then(operation);
 
-  // Keep the queue usable after failure.
-  // The caller still receives the original rejected promise.
   storageQueue = pending.then(
     () => undefined,
     () => undefined,
@@ -80,6 +86,7 @@ export function subscribeToSession(listener: SessionListener): () => void {
 
 function createSession(
   result: AuthenticationResultType,
+  refreshMethod: RefreshMethod,
 ): Omit<CognitoSession, "user"> {
   const { AccessToken, IdToken, RefreshToken, ExpiresIn } = result;
 
@@ -98,19 +105,19 @@ function createSession(
     accessToken: AccessToken,
     idToken: IdToken,
     refreshToken: RefreshToken,
+    refreshMethod,
     expiresAt: Date.now() + ExpiresIn * 1000,
   };
 }
 
-// Call only after Cognito returns a successful AuthenticationResult.
-// MFA and other challenges must be completed before this step.
 export async function setCognitoSession(
   result: AuthenticationResultType,
   profile?: RegistrationProfile,
   expectedVersion = sessionVersion,
+  refreshMethod: RefreshMethod = "password",
 ): Promise<CognitoSession | null> {
   if (expectedVersion !== sessionVersion) return null;
-  const tokens = createSession(result);
+  const tokens = createSession(result, refreshMethod);
   const version = ++sessionVersion;
 
   canRestoreFromStorage = false;
@@ -131,8 +138,6 @@ export async function setCognitoSession(
     return null;
   }
 
-  // Registration supplies profile details.
-  // Normal sign-in leaves the existing profile unchanged.
   if (profile) {
     await updateRegistrationProfile(nextSession.accessToken, profile);
 
@@ -146,7 +151,7 @@ export async function setCognitoSession(
       return;
     }
 
-    await writeRefreshToken(nextSession.refreshToken);
+    await writeRefreshToken(encodeRefreshCredential(nextSession));
   });
 
   if (version !== sessionVersion) {
@@ -166,7 +171,8 @@ function isInvalidRefreshToken(error: unknown): boolean {
 
   return (
     error.name === "NotAuthorizedException" ||
-    error.name === "UserNotFoundException"
+    error.name === "UserNotFoundException" ||
+    error.name === "OAuthInvalidGrant"
   );
 }
 
@@ -187,24 +193,27 @@ async function invalidateSession(version: number): Promise<void> {
 }
 
 async function refreshSession(version: number): Promise<CognitoSession | null> {
-  const refreshToken =
-    session?.refreshToken ?? (await withStorage(readRefreshToken));
+  const credential =
+    session ?? decodeRefreshCredential(await withStorage(readRefreshToken));
 
   if (version !== sessionVersion) {
     return null;
   }
 
-  if (!refreshToken) {
+  if (!credential) {
     canRestoreFromStorage = false;
     publishSession(null);
     return null;
   }
 
-  // Use the request start time for a conservative expiration estimate.
   const requestedAt = Date.now();
+  const { refreshToken, refreshMethod } = credential;
 
   try {
-    const result = await refreshCognitoSession(refreshToken);
+    const result =
+      refreshMethod === "oauth"
+        ? await refreshOAuthSession(refreshToken)
+        : { ...(await refreshCognitoSession(refreshToken)), refreshToken };
 
     if (version !== sessionVersion) {
       return null;
@@ -217,6 +226,18 @@ async function refreshSession(version: number): Promise<CognitoSession | null> {
       result.expiresIn <= 0
     ) {
       throw new Error("Cognito returned an invalid refreshed session");
+    }
+
+    const nextRefreshToken = result.refreshToken ?? refreshToken;
+    if (nextRefreshToken !== refreshToken) {     
+      await withStorage(async () => {
+        if (version === sessionVersion) {
+          await writeRefreshToken(encodeRefreshCredential({
+            refreshToken: nextRefreshToken, refreshMethod,
+          }));
+        }
+      });
+      if (version !== sessionVersion) return null;
     }
 
     let user = session?.user;
@@ -233,15 +254,16 @@ async function refreshSession(version: number): Promise<CognitoSession | null> {
       user,
       accessToken: result.accessToken,
       idToken: result.idToken,
-      refreshToken,
+      refreshToken: nextRefreshToken,
+      refreshMethod,
       expiresAt: requestedAt + result.expiresIn * 1000,
     };
 
+    if (version !== sessionVersion) return null;
     publishSession(nextSession);
 
     return nextSession;
-  } catch (error: unknown) {
-    // A response from a previous session must not affect the current one.
+  } catch (error: unknown) {    
     if (version !== sessionVersion) {
       return null;
     }
@@ -250,9 +272,6 @@ async function refreshSession(version: number): Promise<CognitoSession | null> {
       await invalidateSession(version);
       return null;
     }
-
-    // Network errors, throttling and server failures do not remove
-    // the saved refresh token. The caller can retry.
     throw error;
   }
 }
@@ -297,6 +316,7 @@ export async function getCognitoIdToken(): Promise<string | null> {
 
 export async function signOutCognitoSession(): Promise<void> {
   const memoryRefreshToken = session?.refreshToken ?? null;
+  if (session?.refreshMethod === "oauth") browserLogoutPending = true;
   if (memoryRefreshToken) pendingRevocations.add(memoryRefreshToken);
 
   sessionVersion += 1;
@@ -307,28 +327,33 @@ export async function signOutCognitoSession(): Promise<void> {
     let refreshToken = memoryRefreshToken;
 
     try {
-      refreshToken ??= await readRefreshToken();
-    } finally {
-      // Attempt removal even if reading storage fails.
+      const stored = decodeRefreshCredential(await readRefreshToken());
+      refreshToken ??= stored?.refreshToken ?? null;
+      if (stored?.refreshMethod === "oauth") browserLogoutPending = true;
+      if (refreshToken) pendingRevocations.add(refreshToken);
+    } finally {      
       await removeRefreshToken();
     }
 
     return refreshToken;
   });
-
-  // Local access ends immediately, before storage or network operations.
+ 
   publishSession(null);
 
-  const refreshToken = await removal;
-
-  if (refreshToken) pendingRevocations.add(refreshToken);
+  const cleanup = await Promise.allSettled([removal, clearOAuthTransaction()]);
   for (const token of pendingRevocations) {
     await revokeCognitoRefreshToken(token);
     pendingRevocations.delete(token);
   }
+  for (const result of cleanup) {
+    if (result.status === "rejected") throw result.reason;
+  }
+  if (browserLogoutPending) {
+    await logoutOAuthBrowserSession();
+    browserLogoutPending = false;
+  }
 }
 
-// Capture before an asynchronous login request. Logout/new login invalidates it.
 export function getAuthOperationVersion(): number {
   return sessionVersion;
 }

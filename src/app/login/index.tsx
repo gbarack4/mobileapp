@@ -8,6 +8,8 @@ import {
 } from "../../lib/auth/cognito.client";
 import { authErrorMessage, authErrorName } from "../../lib/auth/auth-errors";
 import { getAuthOperationVersion } from "../../lib/auth/session-manager";
+import { startSocialSignIn } from "../../lib/auth/social-sign-in";
+import type { SocialProvider } from "../../lib/auth/oauth-config";
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -27,7 +29,12 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { VerifyCodeStep } from "../../components/auth/verify-code-step";
-import { LockIcon, PersonIcon } from "../../components/icons/auth-icons";
+import {
+  AppleIcon,
+  GoogleIcon,
+  LockIcon,
+  PersonIcon,
+} from "../../components/icons/auth-icons";
 import { Logo } from "../../components/logo";
 import { colors, radius, spacing } from "../../constants/theme";
 import { isValidPassword, normalizeIdentifier } from "../../utils/validation";
@@ -186,6 +193,9 @@ export default function LoginScreen() {
       if (mounted.current)
         setSuccess("A new verification code has been sent to your email.");
     });
+  }
+  function handleSocialSignIn(provider: SocialProvider) {
+    void runAction((version) => startSocialSignIn(provider, version));
   }
   function handleVerifyAndSignIn() {
     if (!verified.current && !/^\d{6}$/.test(verificationCode)) {
@@ -725,6 +735,47 @@ export default function LoginScreen() {
                 >
                   <Text style={styles.textButtonLabel}>Back to sign in</Text>
                 </Pressable>
+              ) : null}
+              {showPasswordLogin ? (
+                <>
+                  <View style={styles.divider}>
+                    <View style={styles.dividerLine} />
+                    <Text style={styles.dividerText}>or</Text>
+                    <View style={styles.dividerLine} />
+                  </View>
+                  <View style={styles.socialButtons}>
+                    <Pressable
+                      accessibilityRole="button"
+                      disabled={primaryDisabled}
+                      onPress={() => handleSocialSignIn("Google")}
+                      style={({ pressed }) => [
+                        styles.socialButton,
+                        primaryDisabled && styles.socialButtonLoading,
+                        pressed && styles.buttonPressed,
+                      ]}
+                    >
+                      <GoogleIcon />
+                      <Text style={styles.socialButtonText}>
+                        Continue with Google
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      accessibilityRole="button"
+                      disabled={primaryDisabled}
+                      onPress={() => handleSocialSignIn("SignInWithApple")}
+                      style={({ pressed }) => [
+                        styles.socialButton,
+                        primaryDisabled && styles.socialButtonLoading,
+                        pressed && styles.buttonPressed,
+                      ]}
+                    >
+                      <AppleIcon />
+                      <Text style={styles.socialButtonText}>
+                        Sign in with Apple
+                      </Text>
+                    </Pressable>
+                  </View>
+                </>
               ) : null}
             </View>
 
