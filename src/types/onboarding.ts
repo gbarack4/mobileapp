@@ -25,6 +25,8 @@ export const EMPTY_ONBOARDING_ADDRESS: OnboardingAddress = {
 };
 
 export type OnboardingForm = {
+  firstName: string;
+  lastName: string;
   profilePhotoUri: string | null;
   profilePhotoName: string | null;
   dateOfBirth: string;
@@ -47,6 +49,8 @@ export type OnboardingForm = {
 };
 
 export const INITIAL_ONBOARDING_FORM: OnboardingForm = {
+  firstName: "",
+  lastName: "",
   profilePhotoUri: null,
   profilePhotoName: null,
   dateOfBirth: "",

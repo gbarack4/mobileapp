@@ -77,6 +77,34 @@ export function PersonalInfoStep({
         subtitle="This is shown to schools when you join their instructor network."
       />
 
+      <AuthTextField
+  label="First name"
+  value={form.firstName}
+  onChangeText={(value) => onUpdateField("firstName", value)}
+  onFocus={() => onFocusField("firstName")}
+  onBlur={() => onBlurField("firstName")}
+  placeholder="First name"
+  autoCapitalize="words"
+  autoCorrect={false}
+  maxLength={100}
+  returnKeyType="next"
+  focused={focusedField === "firstName"}
+/>
+
+<AuthTextField
+  label="Last name"
+  value={form.lastName}
+  onChangeText={(value) => onUpdateField("lastName", value)}
+  onFocus={() => onFocusField("lastName")}
+  onBlur={() => onBlurField("lastName")}
+  placeholder="Last name"
+  autoCapitalize="words"
+  autoCorrect={false}
+  maxLength={100}
+  returnKeyType="next"
+  focused={focusedField === "lastName"}
+/>
+
       <ProfilePhotoPicker
         photoUri={form.profilePhotoUri}
         photoName={form.profilePhotoName}

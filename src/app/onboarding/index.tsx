@@ -182,31 +182,40 @@ export default function OnboardingScreen() {
 
         const draft = await getOnboardingDraft(token);
 
-        if (draft && Object.keys(draft.formData).length > 0) {
-          setForm((prev) => {
-            const draftForm = draft.formData as Partial<OnboardingForm>;
+      if (draft && Object.keys(draft.formData).length > 0) {
+  const draftForm = draft.formData as Partial<OnboardingForm>;
 
-            return {
-              ...prev,
-              ...draftForm,
-              address: {
-                ...prev.address,
-                ...draftForm.address,
-              },
-              documents: {
-                driverLicence: draftForm.documents?.driverLicence ?? null,
-                instructorAccreditation:
-                  draftForm.documents?.instructorAccreditation ?? null,
-                vehicleRegistration:
-                  draftForm.documents?.vehicleRegistration ?? null,
-                workingWithChildrenCheck:
-                  draftForm.documents?.workingWithChildrenCheck ?? null,
-              },
-            };
-          });
+  const names = {
+    firstName:
+      typeof draftForm.firstName === "string" ? draftForm.firstName : "",
+    lastName:
+      typeof draftForm.lastName === "string" ? draftForm.lastName : "",
+  };
 
-          setStepIndex(draft.currentStepIndex);
-        }
+  setForm((prev) => ({
+    ...prev,
+    ...draftForm,
+    ...names,
+    address: {
+      ...prev.address,
+      ...draftForm.address,
+    },
+    documents: {
+      driverLicence: draftForm.documents?.driverLicence ?? null,
+      instructorAccreditation:
+        draftForm.documents?.instructorAccreditation ?? null,
+      vehicleRegistration: draftForm.documents?.vehicleRegistration ?? null,
+      workingWithChildrenCheck:
+        draftForm.documents?.workingWithChildrenCheck ?? null,
+    },
+  }));
+
+  const savedStep = Number.isInteger(draft.currentStepIndex)
+    ? Math.min(Math.max(draft.currentStepIndex, 0), STEPS.length - 1)
+    : 0;
+
+  setStepIndex(getNameError(names) ? 0 : savedStep);
+}
       } catch (err) {
         console.error("Failed to load onboarding draft:", err);
       } finally {
@@ -238,6 +247,22 @@ export default function OnboardingScreen() {
       />
     );
   }
+
+  function getNameError(
+  form: Pick<OnboardingForm, "firstName" | "lastName">,
+): string | null {
+  if (!form.firstName.trim()) return "Enter your first name.";
+  if (!form.lastName.trim()) return "Enter your last name.";
+
+  if (
+    form.firstName.trim().length > 100 ||
+    form.lastName.trim().length > 100
+  ) {
+    return "First and last names must each be 100 characters or fewer.";
+  }
+
+  return null;
+}
 
   function updateForm<K extends keyof OnboardingForm>(
     key: K,
@@ -392,49 +417,70 @@ export default function OnboardingScreen() {
     setStepIndex((current) => current - 1);
   }
 
-  async function handleNext() {
-    if (isContinuing) return;
-    if (!validateStep()) return;
+async function handleNext() {
+  if (isContinuing) return;
 
-    setIsContinuing(true);
-    clearError();
+  const nameError = getNameError(form);
 
-    try {
-      if (isLastStep) {
-        if (DEV_BYPASS_AUTH) {
-          await wait(COMPLETE_SETUP_MS);
-        } else {
-          const token = await getToken();
-          if (!token) throw new Error("No authentication token found.");
+  if (nameError) {
+    setStepIndex(0);
+    setError(nameError);
+    return;
+  }
 
-          await Promise.all([
-            submitFinalOnboarding(form, token),
-            wait(COMPLETE_SETUP_MS),
-          ]);
-        }
+  if (!validateStep()) return;
 
-        router.replace("/onboarding/welcome");
-        return;
+  setIsContinuing(true);
+  clearError();
+
+  const normalizedForm = {
+    ...form,
+    firstName: form.firstName.trim(),
+    lastName: form.lastName.trim(),
+  };
+
+  try {
+    if (isLastStep) {
+      if (DEV_BYPASS_AUTH) {
+        await wait(COMPLETE_SETUP_MS);
+      } else {
+        const token = await getToken();
+        if (!token) throw new Error("No authentication token found.");
+
+        await Promise.all([
+          submitFinalOnboarding(normalizedForm, token),
+          wait(COMPLETE_SETUP_MS),
+        ]);
       }
 
-      const token = await getToken();
-      if (!token) throw new Error("No authentication token found.");
-
-      const nextStepIndex = stepIndex + 1;
-      await saveOnboardingDraft(
-        {
-          currentStepIndex: nextStepIndex,
-          formData: form,
-        },
-        token,
-      );
-      setStepIndex(nextStepIndex);
-    } catch (err: any) {
-      setError(err.message || "Failed to save progress. Please try again.");
-    } finally {
-      setIsContinuing(false);
+      router.replace("/onboarding/welcome");
+      return;
     }
+
+    const token = await getToken();
+    if (!token) throw new Error("No authentication token found.");
+
+    const nextStepIndex = stepIndex + 1;
+
+    await saveOnboardingDraft(
+      {
+        currentStepIndex: nextStepIndex,
+        formData: normalizedForm,
+      },
+      token,
+    );
+
+    setStepIndex(nextStepIndex);
+  } catch (err: unknown) {
+    setError(
+      err instanceof Error
+        ? err.message
+        : "Failed to save progress. Please try again.",
+    );
+  } finally {
+    setIsContinuing(false);
   }
+}
 
   async function handlePhotoSelect(
     uri: string,
