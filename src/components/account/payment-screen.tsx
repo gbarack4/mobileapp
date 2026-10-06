@@ -78,7 +78,7 @@ function getActionButtonLabel(
   }
 
   if (status === "pending") {
-    return "Continue Stripe setup";
+    return "Open Stripe Dashboard";
   }
 
   return "Connect Stripe";
@@ -87,6 +87,9 @@ function getActionButtonLabel(
 type SchoolPaymentCardProps = {
   connection: SchoolStripeConnection;
   isProcessing: boolean;
+  disabled: boolean;
+  onDashboard: (schoolId: string) => void;
+  onRefresh: (schoolId: string) => void;
   onConnect: (schoolId: string) => void;
   onReconnect: (schoolId: string) => void;
   onManage: (connection: SchoolStripeConnection) => void;
@@ -95,6 +98,9 @@ type SchoolPaymentCardProps = {
 function SchoolPaymentCard({
   connection,
   isProcessing,
+  disabled,
+  onDashboard,
+  onRefresh,
   onConnect,
   onReconnect,
   onManage,
@@ -104,6 +110,10 @@ function SchoolPaymentCard({
   const isDisconnected = connection.stripeStatus === "disconnected";
 
   function handleAction() {
+    if (connection.stripeStatus === "pending") {
+      onDashboard(connection.schoolId);
+      return;
+    }
     if (isDisconnected) {
       onReconnect(connection.schoolId);
       return;
@@ -145,17 +155,26 @@ function SchoolPaymentCard({
       {!isConnected ? (
         <Pressable
           onPress={handleAction}
-          disabled={isProcessing}
+          disabled={disabled}
           android_ripple={ANDROID_RIPPLE}
           style={({ pressed }) => [
             styles.connectButton,
-            isProcessing && styles.connectButtonDisabled,
-            pressed && !isProcessing && styles.pressed,
+            disabled && styles.connectButtonDisabled,
+            pressed && !disabled && styles.pressed,
           ]}
         >
           <Text style={styles.connectButtonText}>
             {getActionButtonLabel(connection.stripeStatus, isProcessing)}
           </Text>
+        </Pressable>
+      ) : null}
+      {connection.stripeStatus === "pending" ? (
+        <Pressable
+          onPress={() => onRefresh(connection.schoolId)}
+          disabled={disabled}
+          style={styles.retryButton}
+        >
+          <Text style={styles.retryButtonText}>Refresh status</Text>
         </Pressable>
       ) : null}
     </>
@@ -164,6 +183,7 @@ function SchoolPaymentCard({
   if (isConnected) {
     return (
       <Pressable
+        disabled={disabled}
         onPress={() => onManage(connection)}
         android_ripple={ANDROID_RIPPLE}
         style={({ pressed }) => [styles.schoolCard, pressed && styles.pressed]}
@@ -181,11 +201,12 @@ export function PaymentScreen({ onClose }: Readonly<PaymentScreenProps>) {
     connections,
     connectedCount,
     totalCount,
-    connectingSchoolId,
-    disconnectingSchoolId,
-    reconnectingSchoolId,
+    busySchoolId,
     isLoading,
     error,
+    notice,
+    openDashboard,
+    refreshStatus,
     connect,
     disconnect,
     reconnect,
@@ -216,6 +237,14 @@ export function PaymentScreen({ onClose }: Readonly<PaymentScreenProps>) {
         connection={managedConnection}
         onClose={() => setManagedConnection(null)}
         onDisconnect={handleDisconnectStripe}
+        onDashboard={(schoolId) => {
+          setManagedConnection(null);
+          void openDashboard(schoolId);
+        }}
+        onRefresh={(schoolId) => {
+          setManagedConnection(null);
+          void refreshStatus(schoolId);
+        }}
       />
 
       <View style={styles.header}>
@@ -243,9 +272,15 @@ export function PaymentScreen({ onClose }: Readonly<PaymentScreenProps>) {
       >
         <Text style={styles.introTitle}>Stripe payouts</Text>
         <Text style={styles.introText}>
-          Connect Stripe to receive payouts from each school you work with.
+          Sign in to your Stripe account or create one to receive payouts.
+          Connect separately for each school you work with.
         </Text>
 
+        {notice ? (
+          <Text accessibilityLiveRegion="polite" style={styles.introText}>
+            {notice}
+          </Text>
+        ) : null}
         {error ? (
           <View style={styles.errorCard}>
             <Text style={styles.errorText}>{error}</Text>
@@ -258,7 +293,7 @@ export function PaymentScreen({ onClose }: Readonly<PaymentScreenProps>) {
                 pressed && styles.pressed,
               ]}
             >
-              <Text style={styles.retryButtonText}>Try again</Text>
+              <Text style={styles.retryButtonText}>Refresh list</Text>
             </Pressable>
           </View>
         ) : null}
@@ -289,11 +324,10 @@ export function PaymentScreen({ onClose }: Readonly<PaymentScreenProps>) {
                   <SchoolPaymentCard
                     key={connection.schoolId}
                     connection={connection}
-                    isProcessing={
-                      connectingSchoolId === connection.schoolId ||
-                      reconnectingSchoolId === connection.schoolId ||
-                      disconnectingSchoolId === connection.schoolId
-                    }
+                    isProcessing={busySchoolId === connection.schoolId}
+                    disabled={busySchoolId !== null}
+                    onDashboard={(schoolId) => void openDashboard(schoolId)}
+                    onRefresh={(schoolId) => void refreshStatus(schoolId)}
                     onConnect={handleConnectStripe}
                     onReconnect={handleReconnectStripe}
                     onManage={setManagedConnection}

@@ -1,8 +1,5 @@
 export type PayoutConnectionStatus =
-  | "not_connected"
-  | "pending"
-  | "connected"
-  | "disconnected";
+  "not_connected" | "pending" | "connected" | "disconnected";
 
 export type SchoolStripeConnection = {
   schoolId: string;
@@ -24,6 +21,9 @@ export type StripeConnectionStatusResponse = {
   payoutConnectionStatus: PayoutConnectionStatus;
 };
 
-export type StripeConnectionResponse = StripeConnectionStatusResponse & {
-  url: string | null;
+export type StripeOAuthStartResponse = {
+  url: string;
+  state: string;
+  expiresIn: number;
+  returnUrl: string;
 };

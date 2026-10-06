@@ -1,10 +1,14 @@
 import type {
   InstructorStripeSchool,
-  StripeConnectionResponse,
+  StripeOAuthStartResponse,
   StripeConnectionStatusResponse,
 } from "@/types/payment";
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL?.replace(/\/+$/, "");
+const configuredApiUrl: unknown = process.env.EXPO_PUBLIC_API_URL;
+const API_URL =
+  typeof configuredApiUrl === "string"
+    ? configuredApiUrl.replace(/\/+$/, "")
+    : undefined;
 
 function getApiUrl(): string {
   if (!API_URL) {
@@ -72,16 +76,18 @@ export function getInstructorStripeSchools(
   );
 }
 
-export function createInstructorStripeConnection(
+export function startInstructorStripeOAuth(
   schoolId: string,
   token: string,
-): Promise<StripeConnectionResponse> {
-  return request<StripeConnectionResponse>(
-    "/stripe/instructor-connect",
+  returnTarget: "web" | "native",
+): Promise<StripeOAuthStartResponse> {
+  return request<StripeOAuthStartResponse>(
+    "/stripe/instructor-connect/oauth",
     token,
     schoolId,
     {
       method: "POST",
+      body: JSON.stringify({ returnTarget }),
     },
   );
 }
@@ -111,16 +117,23 @@ export function disconnectInstructorStripeSchool(
   );
 }
 
-export function reconnectInstructorStripeSchool(
+export function completeInstructorStripeOAuth(
   schoolId: string,
   token: string,
-): Promise<StripeConnectionResponse> {
-  return request<StripeConnectionResponse>(
-    "/stripe/instructor-connect/reconnect",
-    token,
-    schoolId,
-    {
-      method: "POST",
-    },
-  );
+  state: string,
+  code: string,
+): Promise<StripeConnectionStatusResponse> {
+  return request("/stripe/instructor-connect/oauth/complete", token, schoolId, {
+    method: "POST",
+    body: JSON.stringify({ state, code }),
+  });
+}
+
+export function getInstructorStripeDashboard(
+  schoolId: string,
+  token: string,
+): Promise<{ url: string }> {
+  return request("/stripe/instructor-connect/dashboard", token, schoolId, {
+    method: "POST",
+  });
 }

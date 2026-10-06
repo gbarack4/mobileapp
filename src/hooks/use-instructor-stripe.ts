@@ -1,14 +1,19 @@
 import { useAuth } from "@/lib/auth/auth-provider";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Linking } from "react-native";
+import { AppState, Platform } from "react-native";
+import * as WebBrowser from "expo-web-browser";
 
 import {
-  createInstructorStripeConnection,
+  completeStripeConnect,
+  startStripeConnect,
+  type StripeConnectResult,
+} from "@/lib/stripe/connect-flow";
+import {
   disconnectInstructorStripeSchool,
   getInstructorStripeSchools,
   getInstructorStripeStatus,
-  reconnectInstructorStripeSchool,
+  getInstructorStripeDashboard,
 } from "@/services/instructor-stripe";
 import type {
   InstructorStripeSchool,
@@ -51,281 +56,251 @@ function mapSchoolConnection(
   };
 }
 
-function firstParam(value: string | string[] | undefined): string | undefined {
-  return Array.isArray(value) ? value[0] : value;
+function singleParam(value: string | string[] | undefined): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+function resultMessage(result: StripeConnectResult): string {
+  if (result === "cancelled")
+    return "Stripe connection was cancelled. You can try again.";
+  return result.payoutConnectionStatus === "connected"
+    ? "Stripe connected successfully."
+    : "Stripe account linked. Complete any outstanding requirements in your Stripe Dashboard, then refresh the status.";
 }
 
 export function useInstructorStripe() {
-  const { getToken, isLoaded, isSignedIn } = useAuth();
-
-  const getTokenRef = useRef(getToken);
-
-  useEffect(() => {
-    getTokenRef.current = getToken;
-  }, [getToken]);
-
+  const { getToken, userId, isLoaded, isSignedIn } = useAuth();
+  const router = useRouter();
   const params = useLocalSearchParams<{
-    stripe?: string | string[];
     schoolId?: string | string[];
+    stripeOAuthState?: string | string[];
+    stripeOAuthCode?: string | string[];
+    stripeOAuthError?: string | string[];
   }>();
-
   const [connections, setConnections] = useState<SchoolStripeConnection[]>([]);
-
-  const [connectingSchoolId, setConnectingSchoolId] = useState<string | null>(
-    null,
-  );
-
-  const [disconnectingSchoolId, setDisconnectingSchoolId] = useState<
-    string | null
-  >(null);
-
-  const [reconnectingSchoolId, setReconnectingSchoolId] = useState<
-    string | null
-  >(null);
-
+  const [busySchoolId, setBusySchoolId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const handledRedirectRef = useRef<string | null>(null);
-
+  const [notice, setNotice] = useState<string | null>(null);
+  const busy = useRef(false);
+  const identity = useRef(userId);
+  identity.current = userId;
+  const handledCallback = useRef<string | null>(null);
+  const loadVersion = useRef(0);
   const connectedCount = useMemo(
-    () =>
-      connections.filter(
-        (connection) => connection.stripeStatus === "connected",
-      ).length,
+    () => connections.filter((c) => c.stripeStatus === "connected").length,
     [connections],
   );
 
   const loadSchools = useCallback(async () => {
-    if (!isLoaded) {
-      return;
-    }
-
-    if (!isSignedIn) {
+    if (!isLoaded) return;
+    const version = ++loadVersion.current;
+    if (!isSignedIn || !userId) {
       setConnections([]);
-      setError("Please sign in to manage Stripe payouts.");
       setIsLoading(false);
       return;
     }
-
     setIsLoading(true);
-    setError(null);
-
     try {
-      const token = await getTokenRef.current();
-
-      if (!token) {
-        throw new Error("Authentication required.");
-      }
-
+      const token = await getToken();
+      if (!token) throw new Error("Please sign in to manage Stripe payouts.");
       const schools = await getInstructorStripeSchools(token);
-
-      setConnections(schools.map(mapSchoolConnection));
-    } catch (requestError) {
-      setConnections([]);
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "Failed to load Stripe connections.",
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }, [isLoaded, isSignedIn]);
-
-  const connect = useCallback(
-    async (schoolId: string) => {
-      if (connectingSchoolId) {
-        return;
-      }
-
-      setConnectingSchoolId(schoolId);
-      setError(null);
-
-      try {
-        const token = await getTokenRef.current();
-
-        if (!token) {
-          throw new Error("Authentication required.");
-        }
-
-        const result = await createInstructorStripeConnection(schoolId, token);
-
-        if (result.url) {
-          await Linking.openURL(result.url);
-          return;
-        }
-
-        await loadSchools();
-      } catch (requestError) {
-        await loadSchools();
-
+      if (identity.current === userId && version === loadVersion.current)
+        setConnections(schools.map(mapSchoolConnection));
+    } catch (e) {
+      if (identity.current === userId && version === loadVersion.current) {
         setError(
-          requestError instanceof Error
-            ? requestError.message
-            : "Failed to start Stripe onboarding.",
+          e instanceof Error ? e.message : "Failed to load Stripe connections.",
         );
+      }
+    } finally {
+      if (version === loadVersion.current) setIsLoading(false);
+    }
+  }, [getToken, isLoaded, isSignedIn, userId]);
+
+  const runAction = useCallback(
+    async (schoolId: string, action: () => Promise<void>) => {
+      if (busy.current || !userId) return;
+      busy.current = true;
+      setBusySchoolId(schoolId);
+      setError(null);
+      setNotice(null);
+      try {
+        await action();
+      } catch (e) {
+        if (identity.current === userId)
+          setError(
+            e instanceof Error
+              ? e.message
+              : "Stripe request failed. Please try again.",
+          );
       } finally {
-        setConnectingSchoolId(null);
+        busy.current = false;
+        setBusySchoolId(null);
       }
     },
-    [connectingSchoolId, loadSchools],
+    [userId],
+  );
+
+  const requireToken = useCallback(async () => {
+    const token = await getToken();
+    if (!token || identity.current !== userId)
+      throw new Error("Please sign in to manage Stripe payouts.");
+    return token;
+  }, [getToken, userId]);
+
+  const connect = useCallback(
+    (schoolId: string) =>
+      runAction(schoolId, async () => {
+        const result = await startStripeConnect(schoolId);
+        if (result !== undefined && identity.current === userId) {
+          setNotice(resultMessage(result));
+          await loadSchools();
+        }
+      }),
+    [loadSchools, runAction, userId],
   );
 
   const disconnect = useCallback(
-    async (schoolId: string) => {
-      if (disconnectingSchoolId) {
-        return;
-      }
-
-      setDisconnectingSchoolId(schoolId);
-      setError(null);
-
-      try {
-        const token = await getTokenRef.current();
-
-        if (!token) {
-          throw new Error("Authentication required.");
-        }
-
-        await disconnectInstructorStripeSchool(schoolId, token);
+    (schoolId: string) =>
+      runAction(schoolId, async () => {
+        await disconnectInstructorStripeSchool(schoolId, await requireToken());
+        if (identity.current !== userId) return;
+        setNotice("Stripe payouts disconnected for this school.");
         await loadSchools();
-      } catch (requestError) {
-        setError(
-          requestError instanceof Error
-            ? requestError.message
-            : "Failed to disconnect Stripe from this school.",
-        );
-      } finally {
-        setDisconnectingSchoolId(null);
-      }
-    },
-    [disconnectingSchoolId, loadSchools],
+      }),
+    [loadSchools, requireToken, runAction, userId],
   );
 
-  const reconnect = useCallback(
-    async (schoolId: string) => {
-      if (reconnectingSchoolId) {
-        return;
-      }
-
-      setReconnectingSchoolId(schoolId);
-      setError(null);
-
-      try {
-        const token = await getTokenRef.current();
-
-        if (!token) {
-          throw new Error("Authentication required.");
-        }
-
-        const result = await reconnectInstructorStripeSchool(schoolId, token);
-
-        if (result.url) {
-          await Linking.openURL(result.url);
-          return;
-        }
-
+  const refreshStatus = useCallback(
+    (schoolId: string) =>
+      runAction(schoolId, async () => {
+        await getInstructorStripeStatus(schoolId, await requireToken());
         await loadSchools();
-      } catch (requestError) {
-        setError(
-          requestError instanceof Error
-            ? requestError.message
-            : "Failed to reconnect Stripe to this school.",
-        );
-      } finally {
-        setReconnectingSchoolId(null);
-      }
-    },
-    [loadSchools, reconnectingSchoolId],
+      }),
+    [loadSchools, requireToken, runAction],
   );
 
-  const syncStatus = useCallback(
-    async (schoolId: string) => {
-      const token = await getTokenRef.current();
-
-      if (!token) {
-        throw new Error("Authentication required.");
-      }
-
-      await getInstructorStripeStatus(schoolId, token);
-      await loadSchools();
-    },
-    [loadSchools],
+  const openDashboard = useCallback(
+    (schoolId: string) =>
+      runAction(schoolId, async () => {
+        const result = await getInstructorStripeDashboard(
+          schoolId,
+          await requireToken(),
+        );
+        const url = new URL(result.url);
+        if (url.origin !== "https://dashboard.stripe.com")
+          throw new Error("Invalid Stripe Dashboard link.");
+        if (identity.current !== userId) return;
+        if (Platform.OS === "web") {
+          window.location.assign(result.url);
+        } else {
+          await WebBrowser.openBrowserAsync(result.url);
+          await getInstructorStripeStatus(schoolId, await requireToken());
+          await loadSchools();
+        }
+      }),
+    [loadSchools, requireToken, runAction, userId],
   );
 
   useEffect(() => {
     void loadSchools();
   }, [loadSchools]);
+  
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active" && !busy.current) void loadSchools();
+    });
+    return () => subscription.remove();
+  }, [loadSchools]);
 
   useEffect(() => {
-    if (!isLoaded || !isSignedIn) {
+    if (!isLoaded || !isSignedIn || !userId) return;
+    if (
+      !params.stripeOAuthState &&
+      !params.stripeOAuthCode &&
+      !params.stripeOAuthError
+    )
       return;
-    }
-
-    const stripeAction = firstParam(params.stripe);
-    const schoolId = firstParam(params.schoolId);
-
-    if (!stripeAction || !schoolId) {
-      return;
-    }
-
-    if (stripeAction !== "return" && stripeAction !== "refresh") {
-      return;
-    }
-
-    const redirectKey = `${stripeAction}:${schoolId}`;
-
-    if (handledRedirectRef.current === redirectKey) {
-      return;
-    }
-
-    handledRedirectRef.current = redirectKey;
-
-    if (stripeAction === "refresh") {
-      void connect(schoolId);
-      return;
-    }
-
+    const callback = {
+      schoolId: singleParam(params.schoolId),
+      state: singleParam(params.stripeOAuthState),
+      code: singleParam(params.stripeOAuthCode),
+      error: singleParam(params.stripeOAuthError),
+    };
+    const key = JSON.stringify([
+      userId,
+      params.schoolId,
+      params.stripeOAuthState,
+      params.stripeOAuthCode,
+      params.stripeOAuthError,
+    ]);
+    if (handledCallback.current === key) return;
+    handledCallback.current = key;
+    setBusySchoolId(callback.schoolId ?? null);
+    busy.current = true;
+    setError(null);
+    setNotice(null);   
+    if (Platform.OS === "web")
+      window.history.replaceState(
+        window.history.state,
+        "",
+        window.location.pathname,
+      );
     void (async () => {
-      setError(null);
-
       try {
-        await syncStatus(schoolId);
-      } catch (requestError) {
-        setError(
-          requestError instanceof Error
-            ? requestError.message
-            : "Failed to refresh Stripe connection status.",
-        );
+        if (
+          [
+            params.schoolId,
+            params.stripeOAuthState,
+            params.stripeOAuthCode,
+            params.stripeOAuthError,
+          ].some(Array.isArray)
+        ) {
+          throw new Error("Invalid Stripe callback. Please connect again.");
+        }
+        const result = await completeStripeConnect(callback);
+        if (identity.current !== userId) return;
+        setNotice(resultMessage(result));
+        await loadSchools();
+      } catch (e) {
+        if (identity.current === userId)
+          setError(
+            e instanceof Error
+              ? e.message
+              : "Could not complete Stripe connection. Please connect again.",
+          );
+      } finally {
+        busy.current = false;
+        setBusySchoolId(null);
+        if (identity.current === userId)
+          router.replace("/dashboard/account/payment");
       }
     })();
   }, [
-    connect,
     isLoaded,
     isSignedIn,
+    userId,
     params.schoolId,
-    params.stripe,
-    syncStatus,
+    params.stripeOAuthState,
+    params.stripeOAuthCode,
+    params.stripeOAuthError,
+    loadSchools,
+    router,
   ]);
 
   return {
     connections,
     connectedCount,
     totalCount: connections.length,
-
-    connectingSchoolId,
-    disconnectingSchoolId,
-    reconnectingSchoolId,
-
+    busySchoolId,
     isLoading,
     error,
-
+    notice,
     connect,
+    reconnect: connect,
     disconnect,
-    reconnect,
-
+    openDashboard,
+    refreshStatus,
     refetch: loadSchools,
-    clearError: () => setError(null),
   };
 }

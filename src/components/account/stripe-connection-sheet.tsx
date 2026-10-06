@@ -17,6 +17,8 @@ type StripeConnectionSheetProps = {
   connection: SchoolStripeConnection | null;
   onClose: () => void;
   onDisconnect: (schoolId: string) => void;
+  onDashboard: (schoolId: string) => void;
+  onRefresh: (schoolId: string) => void;
 };
 
 const ANDROID_RIPPLE =
@@ -27,6 +29,8 @@ export function StripeConnectionSheet({
   connection,
   onClose,
   onDisconnect,
+  onDashboard,
+  onRefresh,
 }: Readonly<StripeConnectionSheetProps>) {
   const insets = useSafeAreaInsets();
 
@@ -102,9 +106,24 @@ export function StripeConnectionSheet({
 
           <Text style={styles.sheetDescription}>
             Your Stripe account is connected for payouts from this school.
-            Disconnect to stop receiving payouts from this school.
+            Disconnect to stop receiving payouts from this school. Your Stripe
+            account stays open.
           </Text>
 
+          <Pressable
+            onPress={() => onDashboard(connection.schoolId)}
+            style={styles.dashboardButton}
+          >
+            <Text style={styles.dashboardButtonText}>
+              Open Stripe Dashboard
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => onRefresh(connection.schoolId)}
+            style={styles.dashboardButton}
+          >
+            <Text style={styles.dashboardButtonText}>Refresh status</Text>
+          </Pressable>
           <Pressable
             onPress={() => onDisconnect(connection.schoolId)}
             android_ripple={ANDROID_RIPPLE}
@@ -192,6 +211,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 21,
     color: colors.textSecondary,
+  },
+  dashboardButton: {
+    minHeight: 48,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.inputBackground,
+  },
+  dashboardButtonText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: colors.primary,
   },
   disconnectButton: {
     minHeight: 48,

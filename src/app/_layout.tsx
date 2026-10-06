@@ -45,7 +45,7 @@ function RootLayoutNav() {
     if (DEV_BYPASS_AUTH || !isLoaded || !navigation?.key) return;
     let cancelled = false;
     setRouteError(null);
-    const isPublic = ["login", "signup", "sso-callback", "invite"].includes(
+    const isPublic = ["login", "signup", "sso-callback",].includes(
       rootSegment ?? "",
     );
     if (!isSignedIn) {
@@ -108,8 +108,7 @@ function RootLayoutNav() {
       : () => setAttempt((value) => value + 1);
   return (
     <View style={styles.root}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
-      {/* Keep the navigator mounted before route resolution calls replace(). */}
+      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />      
       <Stack
         screenOptions={{
           headerShown: false,
