@@ -1,5 +1,44 @@
 export function authErrorName(error: unknown): string {
-  return error instanceof Error ? error.name : "";
+  if (!(error instanceof Error)) {
+    return "";
+  }
+
+  const extra = error as Error & {
+    underlyingError?: { name?: string };
+    underlyingException?: { name?: string };
+    cause?: { name?: string };
+  };
+
+  const raw =
+    extra.underlyingException?.name ||
+    extra.underlyingError?.name ||
+    extra.cause?.name ||
+    extra.name;
+
+  switch (raw) {
+    case "UsernameExistsError":
+      return "UsernameExistsException";
+    case "CodeMismatchError":
+      return "CodeMismatchException";
+    case "ExpiredCodeError":
+      return "ExpiredCodeException";
+    case "InvalidPasswordError":
+      return "InvalidPasswordException";
+    case "UserNotConfirmedError":
+      return "UserNotConfirmedException";
+    case "NotAuthorizedError":
+      return "NotAuthorizedException";
+    case "UserNotFoundError":
+      return "UserNotFoundException";
+    case "LimitExceededError":
+      return "LimitExceededException";
+    case "TooManyRequestsError":
+      return "TooManyRequestsException";
+    case "PasswordResetRequiredError":
+      return "PasswordResetRequiredException";
+    default:
+      return raw;
+  }
 }
 export function authErrorMessage(error: unknown): string {
   switch (authErrorName(error)) {

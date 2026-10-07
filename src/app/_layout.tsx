@@ -1,3 +1,5 @@
+import "react-native-get-random-values";
+
 import { AuthStatus } from "@/components/auth/auth-status";
 import { SiteLoaderGate } from "@/components/site-loader/site-loader-gate";
 import { DEV_BYPASS_AUTH } from "@/constants/dev";

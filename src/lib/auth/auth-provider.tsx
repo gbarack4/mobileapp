@@ -13,6 +13,7 @@ import {
   type ReactNode,
 } from "react";
 
+import { InactivityGuard } from "./inactivity-guard";
 import {
   type AuthUser,
   getCognitoAccessToken,
@@ -195,7 +196,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     ],
   );
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      <InactivityGuard enabled={session !== null} onExpire={signOut}>
+        {children}
+      </InactivityGuard>
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth(): AuthContextValue {
