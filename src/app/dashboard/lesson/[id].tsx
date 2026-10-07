@@ -2,11 +2,7 @@ import { useAuth } from "@/lib/auth/auth-provider";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Location from "expo-location";
 
-import {
-  useGlobalSearchParams,
-  useLocalSearchParams,
-  usePathname,
-} from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import {
   ActivityIndicator,
@@ -36,7 +32,7 @@ import { colors, spacing } from "../../../constants/theme";
 import { fetchInstructorBookingById } from "../../../services/instructor-bookings";
 import type { Lesson, LessonStatus } from "../../../types/dashboard";
 import type { InstructorBookingDetails } from "../../../types/instructor-bookings";
-import { goBackOr, routeParamId } from "../../../utils/navigation";
+import { goBackOr } from "../../../utils/navigation";
 import { rescheduleLesson } from "@/services/lessons";
 import { formatAddressWithoutCountry } from "@/utils/address";
 
@@ -206,15 +202,13 @@ function mapBookingToLesson(booking: InstructorBookingDetails): Lesson {
 }
 
 export default function LessonDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string | string[] }>();
-  const globalParams = useGlobalSearchParams<{ id: string | string[] }>();
-  const pathname = usePathname();
+  const { id } = useLocalSearchParams<{ id: string }>();
   const { getToken, isLoaded, isSignedIn, userId } = useAuth();
   const queryClient = useQueryClient();
 
   const [rescheduleSheetVisible, setRescheduleSheetVisible] = useState(false);
 
-  const bookingId = routeParamId(id, globalParams.id, pathname, "lesson");
+  const bookingId = typeof id === "string" ? id : "";
 
   const enabled = Boolean(isLoaded && isSignedIn && userId && bookingId);
 
@@ -235,7 +229,7 @@ export default function LessonDetailScreen() {
 
   const booking = bookingQuery.data;
 
-  if (!isLoaded || !bookingId || (enabled && bookingQuery.isPending)) {
+  if (!isLoaded || (enabled && bookingQuery.isPending)) {
     return (
       <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
         <View style={styles.missingState}>
@@ -448,21 +442,18 @@ export default function LessonDetailScreen() {
           </View>
         </View>
 
-        <View style={styles.mapSlot}>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          removeClippedSubviews={false}
+        >
           <LessonMap
             latitude={activeLesson.latitude}
             longitude={activeLesson.longitude}
             locationName={activeLesson.locationName}
           />
-        </View>
 
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          nestedScrollEnabled
-          removeClippedSubviews={false}
-        >
           <View style={styles.profileCard}>
             <View style={styles.avatar}>
               {activeLesson.studentAvatarUrl ? (
@@ -646,10 +637,6 @@ const styles = StyleSheet.create({
   },
   statusTextCancelled: {
     color: colors.error,
-  },
-  mapSlot: {
-    paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.lg,
   },
   scroll: {
     flex: 1,

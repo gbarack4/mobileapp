@@ -1,3 +1,4 @@
+import type { AuthenticationResultType } from "@aws-sdk/client-cognito-identity-provider";
 import { refreshOAuthSession } from "./oauth-client";
 import { logoutOAuthBrowserSession } from "./oauth-logout";
 import { clearOAuthTransaction } from "./oauth-transaction";
@@ -6,10 +7,10 @@ import {
   encodeRefreshCredential,
   type RefreshMethod,
 } from "./refresh-credential";
+
 import {
-  type CognitoAuthenticationResult,
-  getAuthenticationResult,
-  signOutAmplifySession,
+  refreshCognitoSession,
+  revokeCognitoRefreshToken,
 } from "./cognito.client";
 import {
   readRefreshToken,
@@ -21,13 +22,6 @@ import {
   syncCognitoUser,
   updateRegistrationProfile,
 } from "./auth-api";
-import {
-  clearLastActivity,
-  getLastActivityAt,
-  hasInactivityExpired,
-  hydrateLastActivity,
-  recordUserActivity,
-} from "./inactivity";
 
 export type AuthUser = Readonly<{ id: string; email: string }>;
 
@@ -56,6 +50,7 @@ let refreshInFlight: {
 let storageQueue: Promise<void> = Promise.resolve();
 
 const listeners = new Set<SessionListener>();
+const pendingRevocations = new Set<string>();
 let browserLogoutPending = false;
 
 function withStorage<T>(operation: () => Promise<T>): Promise<T> {
@@ -90,7 +85,7 @@ export function subscribeToSession(listener: SessionListener): () => void {
 }
 
 function createSession(
-  result: CognitoAuthenticationResult,
+  result: AuthenticationResultType,
   refreshMethod: RefreshMethod,
 ): Omit<CognitoSession, "user"> {
   const { AccessToken, IdToken, RefreshToken, ExpiresIn } = result;
@@ -98,6 +93,7 @@ function createSession(
   if (
     !AccessToken ||
     !IdToken ||
+    !RefreshToken ||
     typeof ExpiresIn !== "number" ||
     !Number.isFinite(ExpiresIn) ||
     ExpiresIn <= 0
@@ -105,21 +101,17 @@ function createSession(
     throw new Error("Cognito did not return a complete session");
   }
 
-  if (refreshMethod === "oauth" && !RefreshToken) {
-    throw new Error("Cognito did not return a complete session");
-  }
-
   return {
     accessToken: AccessToken,
     idToken: IdToken,
-    refreshToken: RefreshToken ?? "",
+    refreshToken: RefreshToken,
     refreshMethod,
     expiresAt: Date.now() + ExpiresIn * 1000,
   };
 }
 
 export async function setCognitoSession(
-  result: CognitoAuthenticationResult,
+  result: AuthenticationResultType,
   profile?: RegistrationProfile,
   expectedVersion = sessionVersion,
   refreshMethod: RefreshMethod = "password",
@@ -154,15 +146,13 @@ export async function setCognitoSession(
     }
   }
 
-  if (nextSession.refreshToken) {
-    await withStorage(async () => {
-      if (version !== sessionVersion) {
-        return;
-      }
+  await withStorage(async () => {
+    if (version !== sessionVersion) {
+      return;
+    }
 
-      await writeRefreshToken(encodeRefreshCredential(nextSession));
-    });
-  }
+    await writeRefreshToken(encodeRefreshCredential(nextSession));
+  });
 
   if (version !== sessionVersion) {
     return null;
@@ -170,7 +160,6 @@ export async function setCognitoSession(
 
   canRestoreFromStorage = true;
   publishSession(nextSession);
-  await recordUserActivity();
 
   return nextSession;
 }
@@ -183,8 +172,7 @@ function isInvalidRefreshToken(error: unknown): boolean {
   return (
     error.name === "NotAuthorizedException" ||
     error.name === "UserNotFoundException" ||
-    error.name === "OAuthInvalidGrant" ||
-    error.name === "UserUnAuthenticatedException"
+    error.name === "OAuthInvalidGrant"
   );
 }
 
@@ -197,65 +185,11 @@ async function invalidateSession(version: number): Promise<void> {
   canRestoreFromStorage = false;
   refreshInFlight = null;
 
-  const removal = withStorage(async () => {
-    await Promise.all([removeRefreshToken(), clearLastActivity()]);
-  });
+  const removal = withStorage(removeRefreshToken);
 
   publishSession(null);
 
   await removal;
-}
-
-async function refreshPasswordSession(
-  version: number,
-  requestedAt: number,
-  storedRefreshToken: string,
-  forceRefresh: boolean,
-): Promise<CognitoSession | null> {
-  const result = await getAuthenticationResult(forceRefresh);
-
-  if (version !== sessionVersion) {
-    return null;
-  }
-
-  if (!result) {
-    canRestoreFromStorage = false;
-    publishSession(null);
-    return null;
-  }
-
-  if (
-    !result.AccessToken ||
-    !result.IdToken ||
-    !Number.isFinite(result.ExpiresIn) ||
-    result.ExpiresIn <= 0
-  ) {
-    throw new Error("Cognito returned an invalid refreshed session");
-  }
-
-  let user = session?.user;
-  if (!user) {
-    const identity = await syncCognitoUser({
-      accessToken: result.AccessToken,
-      idToken: result.IdToken,
-    });
-    if (version !== sessionVersion) return null;
-    user = { id: identity.userId, email: identity.email };
-  }
-
-  const nextSession: CognitoSession = {
-    user,
-    accessToken: result.AccessToken,
-    idToken: result.IdToken,
-    refreshToken: result.RefreshToken ?? storedRefreshToken,
-    refreshMethod: "password",
-    expiresAt: requestedAt + result.ExpiresIn * 1000,
-  };
-
-  if (version !== sessionVersion) return null;
-  publishSession(nextSession);
-
-  return nextSession;
 }
 
 async function refreshSession(version: number): Promise<CognitoSession | null> {
@@ -266,34 +200,20 @@ async function refreshSession(version: number): Promise<CognitoSession | null> {
     return null;
   }
 
-  const requestedAt = Date.now();
-
-  if (!credential || credential.refreshMethod === "password") {
-    try {
-      return await refreshPasswordSession(
-        version,
-        requestedAt,
-        credential?.refreshToken ?? "",
-        Boolean(session),
-      );
-    } catch (error: unknown) {
-      if (version !== sessionVersion) {
-        return null;
-      }
-
-      if (isInvalidRefreshToken(error)) {
-        await invalidateSession(version);
-        return null;
-      }
-
-      throw error;
-    }
+  if (!credential) {
+    canRestoreFromStorage = false;
+    publishSession(null);
+    return null;
   }
 
+  const requestedAt = Date.now();
   const { refreshToken, refreshMethod } = credential;
 
   try {
-    const result = await refreshOAuthSession(refreshToken);
+    const result =
+      refreshMethod === "oauth"
+        ? await refreshOAuthSession(refreshToken)
+        : { ...(await refreshCognitoSession(refreshToken)), refreshToken };
 
     if (version !== sessionVersion) {
       return null;
@@ -309,15 +229,12 @@ async function refreshSession(version: number): Promise<CognitoSession | null> {
     }
 
     const nextRefreshToken = result.refreshToken ?? refreshToken;
-    if (nextRefreshToken !== refreshToken) {
+    if (nextRefreshToken !== refreshToken) {     
       await withStorage(async () => {
         if (version === sessionVersion) {
-          await writeRefreshToken(
-            encodeRefreshCredential({
-              refreshToken: nextRefreshToken,
-              refreshMethod,
-            }),
-          );
+          await writeRefreshToken(encodeRefreshCredential({
+            refreshToken: nextRefreshToken, refreshMethod,
+          }));
         }
       });
       if (version !== sessionVersion) return null;
@@ -346,7 +263,7 @@ async function refreshSession(version: number): Promise<CognitoSession | null> {
     publishSession(nextSession);
 
     return nextSession;
-  } catch (error: unknown) {
+  } catch (error: unknown) {    
     if (version !== sessionVersion) {
       return null;
     }
@@ -355,12 +272,11 @@ async function refreshSession(version: number): Promise<CognitoSession | null> {
       await invalidateSession(version);
       return null;
     }
-
     throw error;
   }
 }
 
-function getOrRefreshCognitoSession(): Promise<CognitoSession | null> {
+export function getValidCognitoSession(): Promise<CognitoSession | null> {
   if (session && session.expiresAt > Date.now() + REFRESH_MARGIN_MS) {
     return Promise.resolve(session);
   }
@@ -386,23 +302,6 @@ function getOrRefreshCognitoSession(): Promise<CognitoSession | null> {
   return promise;
 }
 
-export async function getValidCognitoSession(): Promise<CognitoSession | null> {
-  await hydrateLastActivity();
-
-  if (hasInactivityExpired()) {
-    await signOutCognitoSession();
-    return null;
-  }
-
-  const currentSession = await getOrRefreshCognitoSession();
-
-  if (currentSession && getLastActivityAt() == null) {
-    await recordUserActivity();
-  }
-
-  return currentSession;
-}
-
 export async function getCognitoAccessToken(): Promise<string | null> {
   const currentSession = await getValidCognitoSession();
 
@@ -416,34 +315,39 @@ export async function getCognitoIdToken(): Promise<string | null> {
 }
 
 export async function signOutCognitoSession(): Promise<void> {
-  const wasOAuth = session?.refreshMethod === "oauth";
-  if (wasOAuth) browserLogoutPending = true;
+  const memoryRefreshToken = session?.refreshToken ?? null;
+  if (session?.refreshMethod === "oauth") browserLogoutPending = true;
+  if (memoryRefreshToken) pendingRevocations.add(memoryRefreshToken);
 
   sessionVersion += 1;
   canRestoreFromStorage = false;
   refreshInFlight = null;
 
   const removal = withStorage(async () => {
+    let refreshToken = memoryRefreshToken;
+
     try {
       const stored = decodeRefreshCredential(await readRefreshToken());
+      refreshToken ??= stored?.refreshToken ?? null;
       if (stored?.refreshMethod === "oauth") browserLogoutPending = true;
-    } finally {
-      await Promise.all([removeRefreshToken(), clearLastActivity()]);
+      if (refreshToken) pendingRevocations.add(refreshToken);
+    } finally {      
+      await removeRefreshToken();
     }
-  });
 
+    return refreshToken;
+  });
+ 
   publishSession(null);
 
-  const cleanup = await Promise.allSettled([
-    removal,
-    clearOAuthTransaction(),
-    wasOAuth ? Promise.resolve() : signOutAmplifySession(),
-  ]);
-
+  const cleanup = await Promise.allSettled([removal, clearOAuthTransaction()]);
+  for (const token of pendingRevocations) {
+    await revokeCognitoRefreshToken(token);
+    pendingRevocations.delete(token);
+  }
   for (const result of cleanup) {
     if (result.status === "rejected") throw result.reason;
   }
-
   if (browserLogoutPending) {
     await logoutOAuthBrowserSession();
     browserLogoutPending = false;

@@ -25,13 +25,6 @@ type PaymentScreenProps = {
 
 const ANDROID_RIPPLE =
   Platform.OS === "android" ? { color: "rgba(0, 0, 0, 0.06)" } : undefined;
-const CONNECT_STRIPE_LOAD_MS = 3000;
-
-function wait(ms: number) {
-  return new Promise<void>((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
 
 const STATUS_LABELS: Record<PayoutConnectionStatus, string> = {
   connected: "Connected",
@@ -81,7 +74,7 @@ function getActionButtonLabel(
   }
 
   if (isProcessing) {
-    return status === "pending" ? "Opening Stripe..." : "Connecting...";
+    return "Opening Stripe...";
   }
 
   if (status === "pending") {
@@ -170,18 +163,9 @@ function SchoolPaymentCard({
             pressed && !disabled && styles.pressed,
           ]}
         >
-          {isProcessing ? (
-            <View style={styles.connectButtonLoading}>
-              <ActivityIndicator size="small" color={colors.white} />
-              <Text style={styles.connectButtonText}>
-                {getActionButtonLabel(connection.stripeStatus, true)}
-              </Text>
-            </View>
-          ) : (
-            <Text style={styles.connectButtonText}>
-              {getActionButtonLabel(connection.stripeStatus, false)}
-            </Text>
-          )}
+          <Text style={styles.connectButtonText}>
+            {getActionButtonLabel(connection.stripeStatus, isProcessing)}
+          </Text>
         </Pressable>
       ) : null}
       {connection.stripeStatus === "pending" ? (
@@ -231,23 +215,9 @@ export function PaymentScreen({ onClose }: Readonly<PaymentScreenProps>) {
 
   const [managedConnection, setManagedConnection] =
     useState<SchoolStripeConnection | null>(null);
-  const [connectingSchoolId, setConnectingSchoolId] = useState<string | null>(
-    null,
-  );
 
-  async function handleConnectStripe(schoolId: string) {
-    if (connectingSchoolId || busySchoolId) {
-      return;
-    }
-
-    setConnectingSchoolId(schoolId);
-
-    try {
-      await wait(CONNECT_STRIPE_LOAD_MS);
-      await connect(schoolId);
-    } finally {
-      setConnectingSchoolId(null);
-    }
+  function handleConnectStripe(schoolId: string) {
+    void connect(schoolId);
   }
 
   function handleReconnectStripe(schoolId: string) {
@@ -354,11 +324,8 @@ export function PaymentScreen({ onClose }: Readonly<PaymentScreenProps>) {
                   <SchoolPaymentCard
                     key={connection.schoolId}
                     connection={connection}
-                    isProcessing={
-                      busySchoolId === connection.schoolId ||
-                      connectingSchoolId === connection.schoolId
-                    }
-                    disabled={busySchoolId !== null || connectingSchoolId !== null}
+                    isProcessing={busySchoolId === connection.schoolId}
+                    disabled={busySchoolId !== null}
                     onDashboard={(schoolId) => void openDashboard(schoolId)}
                     onRefresh={(schoolId) => void refreshStatus(schoolId)}
                     onConnect={handleConnectStripe}
@@ -550,12 +517,6 @@ const styles = StyleSheet.create({
     ...(Platform.OS === "web"
       ? ({ outlineStyle: "none", transition: "opacity 0.15s ease" } as object)
       : {}),
-  },
-  connectButtonLoading: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
   },
   connectButtonDisabled: {
     opacity: 0.7,

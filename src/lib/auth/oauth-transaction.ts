@@ -1,4 +1,4 @@
-import { oauthCallbackMatches, oauthError } from "./oauth-config";
+import { oauthError } from "./oauth-config";
 import {
   readOAuthTransaction,
   removeOAuthTransaction,
@@ -69,9 +69,12 @@ export function consumeOAuthTransaction(
   return serialized(async () => {
     const transaction = parseTransaction(await readOAuthTransaction());
     const url = new URL(callbackUrl);
+    const expected = new URL(transaction.redirectUri);
     const age = Date.now() - transaction.createdAt;
     if (
-      !oauthCallbackMatches(callbackUrl, transaction.redirectUri) ||
+      url.protocol !== expected.protocol ||
+      url.host !== expected.host ||
+      url.pathname !== expected.pathname ||
       url.username ||
       url.password ||
       url.hash ||

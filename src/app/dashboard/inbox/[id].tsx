@@ -1,20 +1,14 @@
-import {
-  useGlobalSearchParams,
-  useLocalSearchParams,
-  usePathname,
-} from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 
 import { MessageThreadScreen } from "../../../components/inbox/message-thread-screen";
-import { goBackOr, routeParamId } from "../../../utils/navigation";
+import { goBackOr } from "../../../utils/navigation";
 
 export default function InboxMessageRoute() {
-  const { id } = useLocalSearchParams<{ id: string | string[] }>();
-  const globalParams = useGlobalSearchParams<{ id: string | string[] }>();
-  const pathname = usePathname();
+  const { id } = useLocalSearchParams<{ id: string }>();
 
   return (
     <MessageThreadScreen
-      messageId={routeParamId(id, globalParams.id, pathname, "inbox")}
+      messageId={id ?? ""}
       onClose={() => goBackOr("/dashboard")}
     />
   );

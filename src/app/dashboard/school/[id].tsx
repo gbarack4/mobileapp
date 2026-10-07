@@ -1,9 +1,5 @@
 import { useAuth } from "@/lib/auth/auth-provider";
-import {
-  useGlobalSearchParams,
-  useLocalSearchParams,
-  usePathname,
-} from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -24,13 +20,10 @@ import {
   toggleSchoolPause,
 } from "../../../services/schools";
 import type { SchoolDetail } from "../../../types/school";
-import { goBackOr, routeParamId } from "../../../utils/navigation";
+import { goBackOr } from "../../../utils/navigation";
 
 export default function SchoolDetailScreen() {
-  const { id: rawId } = useLocalSearchParams<{ id: string | string[] }>();
-  const globalParams = useGlobalSearchParams<{ id: string | string[] }>();
-  const pathname = usePathname();
-  const id = routeParamId(rawId, globalParams.id, pathname, "school");
+  const { id } = useLocalSearchParams<{ id: string }>();
   const { getToken } = useAuth();
 
   const [school, setSchool] = useState<SchoolDetail | null>(null);
@@ -42,9 +35,8 @@ export default function SchoolDetailScreen() {
 
   const loadSchool = useCallback(async () => {
     if (!id) {
-      setSchool(null);
-      setError(null);
-      setIsLoading(true);
+      setError("School not found");
+      setIsLoading(false);
       return;
     }
 

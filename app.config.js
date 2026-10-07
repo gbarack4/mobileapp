@@ -89,12 +89,6 @@ export default {
       eas: {
         projectId: "598440c1-e7be-4572-b192-a7ffcb4ed2b1",
       },
-      cognito: {
-        region: process.env.EXPO_PUBLIC_COGNITO_REGION ?? "",
-        userPoolId: process.env.EXPO_PUBLIC_COGNITO_USER_POOL_ID ?? "",
-        clientId: process.env.EXPO_PUBLIC_COGNITO_INSTRUCTOR_CLIENT_ID ?? "",
-        domain: process.env.EXPO_PUBLIC_COGNITO_DOMAIN ?? "",
-      },
     },
     owner: "driver-apps",
   },

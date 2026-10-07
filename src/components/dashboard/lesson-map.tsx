@@ -1,4 +1,4 @@
-import { Component, useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 
@@ -21,38 +21,7 @@ function hasValidCoordinates(latitude: number, longitude: number) {
   );
 }
 
-type MapBoundaryState = {
-  hasError: boolean;
-};
-
-class LessonMapBoundary extends Component<
-  { children: ReactNode },
-  MapBoundaryState
-> {
-  state: MapBoundaryState = { hasError: false };
-
-  static getDerivedStateFromError(): MapBoundaryState {
-    return { hasError: true };
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <View style={styles.nativeMapContainer}>
-          <View style={styles.placeholder}>
-            <Text style={styles.placeholderText}>
-              Map unavailable for this pickup
-            </Text>
-          </View>
-        </View>
-      );
-    }
-
-    return this.props.children;
-  }
-}
-
-function LessonMapInner({
+export function LessonMap({
   latitude,
   longitude,
   locationName,
@@ -115,19 +84,11 @@ function LessonMapInner({
   );
 }
 
-export function LessonMap(props: Readonly<LessonMapProps>) {
-  return (
-    <LessonMapBoundary>
-      <LessonMapInner {...props} />
-    </LessonMapBoundary>
-  );
-}
-
 const styles = StyleSheet.create({
   nativeMapContainer: {
     height: MAP_HEIGHT,
     borderRadius: 16,
-    overflow: Platform.OS === "ios" ? "visible" : "hidden",
+    overflow: "hidden",
     backgroundColor: "#f3f4f6",
   },
   nativeMap: {
