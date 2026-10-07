@@ -1,3 +1,6 @@
+import { useRouter } from "expo-router";
+import { SessionExpiredDialog } from "@/components/auth/session-expired-dialog";
+import { SessionActivityGuard } from "./session-activity-guard";
 import { resetSuprSendUser } from "../../services/suprsend";
 import { useQueryClient } from "@tanstack/react-query";
 import { clearLegacySession } from "../../services/session";
@@ -18,6 +21,7 @@ import {
   getCognitoAccessToken,
   getCognitoIdToken,
   getSessionSnapshot,
+  getSessionExpiredSnapshot,
   getValidCognitoSession,
   setCognitoSession,
   signOutCognitoSession,
@@ -40,7 +44,7 @@ type AuthContextValue = Readonly<{
   getToken: typeof getCognitoAccessToken;
   getIdToken: typeof getCognitoIdToken;
   completeSignIn: typeof setCognitoSession;
-  signOut: typeof signOutCognitoSession;
+  signOut: () => Promise<void>;
 }>;
 
 type AuthProviderProps = Readonly<{
@@ -48,6 +52,10 @@ type AuthProviderProps = Readonly<{
 }>;
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+
+function getServerExpirySnapshot(): boolean {
+  return false;
+}
 
 function getServerSessionSnapshot(): null {
   return null;
@@ -63,6 +71,7 @@ function normalizeError(error: unknown): Error {
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const queryClient = useQueryClient();
+  const router = useRouter();
   const signOutInFlight = useRef(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState<Error | null>(null);
@@ -71,6 +80,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
     getSessionSnapshot,
     getServerSessionSnapshot,
   );
+
+  const sessionExpired = useSyncExternalStore(
+    subscribeToSession,
+    getSessionExpiredSnapshot,
+    getServerExpirySnapshot,
+  );
+  const reportSessionError = useCallback(() => {
+    setSignOutError(
+      new Error("Session cleanup could not finish. Please retry signing in."),
+    );
+  }, []);
 
   const [initialization, setInitialization] = useState<InitializationState>({
     status: "loading",
@@ -167,6 +187,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, []);
 
+  const returnToSignIn = useCallback(async () => {
+    await signOut();
+    if (!getSessionExpiredSnapshot()) router.replace("/login");
+  }, [router, signOut]);
+
   const isLoaded = initialization.status === "ready" && !isSigningOut;
   const isSignedIn = isLoaded && session !== null;
 
@@ -195,7 +220,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
     ],
   );
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      <SessionActivityGuard enabled={isSignedIn} onError={reportSessionError}>
+        {children}
+      </SessionActivityGuard>
+      <SessionExpiredDialog
+        visible={sessionExpired}
+        busy={isSigningOut}
+        error={signOutError?.message ?? null}
+        onSignIn={() => {
+          void returnToSignIn();
+        }}
+      />
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth(): AuthContextValue {
