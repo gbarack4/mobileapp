@@ -1,5 +1,13 @@
 import { Platform } from "react-native";
 
+function nativeFilePart(uri: string, fileName: string, mimeType: string) {
+  return {
+    uri,
+    name: fileName,
+    type: mimeType || "image/jpeg",
+  } as unknown as Blob;
+}
+
 export async function uploadAvatarToBackend(
   localUri: string,
   fileName: string,
@@ -14,11 +22,7 @@ export async function uploadAvatarToBackend(
     const blob = await fileResponse.blob();
     formData.append("file", blob, fileName);
   } else {
-    formData.append("file", {
-      uri: localUri,
-      name: fileName,
-      type: mimeType,
-    } as any);
+    formData.append("file", nativeFilePart(localUri, fileName, mimeType));
   }
 
   if (oldFileUrl) {
@@ -69,11 +73,7 @@ export async function uploadDocumentToBackend(
     const blob = await fileResponse.blob();
     formData.append("file", blob, fileName);
   } else {
-    formData.append("file", {
-      uri: localUri,
-      name: fileName,
-      type: mimeType,
-    } as any);
+    formData.append("file", nativeFilePart(localUri, fileName, mimeType));
   }
 
   formData.append("documentType", documentType);

@@ -20,6 +20,8 @@ export default {
       icon: "./assets/icon.png",
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
+        NSPhotoLibraryUsageDescription:
+          "Instructor Hub uses your photo library so you can upload a profile photo.",
         NSLocationWhenInUseUsageDescription:
           "Instructor Hub uses your location to show nearby schools and your position on the map.",
         NSLocationAlwaysAndWhenInUseUsageDescription:
@@ -69,6 +71,13 @@ export default {
       ],
       "expo-secure-store",
       "expo-web-browser",
+      [
+        "expo-image-picker",
+        {
+          photosPermission:
+            "Instructor Hub uses your photo library so you can upload a profile photo.",
+        },
+      ],
       [
         "expo-location",
         {

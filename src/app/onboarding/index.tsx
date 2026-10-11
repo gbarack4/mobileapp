@@ -492,10 +492,24 @@ async function handleNext() {
     setPhotoError(null);
 
     try {
-      const token = await getToken();
-      if (!token) throw new Error("No token");
+      if (DEV_BYPASS_AUTH) {
+        setForm((current) => ({
+          ...current,
+          profilePhotoUri: uri,
+          profilePhotoName: fileName,
+        }));
+        return;
+      }
 
-      const oldFileUrl = form.profilePhotoUri;
+      const token = await getToken();
+      if (!token) {
+        setPhotoError("Please sign in to upload a profile photo.");
+        return;
+      }
+
+      const oldFileUrl = form.profilePhotoUri?.startsWith("http")
+        ? form.profilePhotoUri
+        : null;
 
       const s3Url = await uploadAvatarToBackend(
         uri,
@@ -512,7 +526,11 @@ async function handleNext() {
       }));
     } catch (err) {
       console.error("Profile photo upload failed:", err);
-      setPhotoError("Upload failed. Max 10 MB.");
+      setPhotoError(
+        err instanceof Error && err.message === "No authentication token found."
+          ? "Please sign in to upload a profile photo."
+          : "Upload failed. Max 10 MB.",
+      );
     } finally {
       setIsContinuing(false);
     }

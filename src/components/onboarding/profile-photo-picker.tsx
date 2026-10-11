@@ -25,6 +25,21 @@ const ANDROID_RIPPLE =
 const MAX_PROFILE_PHOTO_BYTES = 10 * 1024 * 1024;
 const UPLOAD_FAILED_MESSAGE = "Upload failed. Max 10 MB.";
 
+function normalizePhotoFileName(fileName: string, mimeType: string): string {
+  const base = fileName.replace(/[^a-zA-Z0-9._-]/g, "_") || "profile-photo";
+  if (/\.(jpe?g|png|webp|heic|heif)$/i.test(base)) {
+    return base;
+  }
+
+  const extension = mimeType.includes("png")
+    ? "png"
+    : mimeType.includes("webp")
+      ? "webp"
+      : "jpg";
+
+  return `${base}.${extension}`;
+}
+
 export function ProfilePhotoPicker({
   photoUri,
   photoName,
@@ -62,7 +77,9 @@ export function ProfilePhotoPicker({
           await ImagePicker.requestMediaLibraryPermissionsAsync();
 
         if (status !== "granted") {
-          setLocalError(UPLOAD_FAILED_MESSAGE);
+          setLocalError(
+            "Allow photo library access to upload a profile photo.",
+          );
           return;
         }
       }
@@ -87,9 +104,10 @@ export function ProfilePhotoPicker({
       }
 
       const uri = asset.uri;
-      const fileName =
-        asset.fileName || uri.split("/").pop() || "profile-photo.jpg";
+      const rawName =
+        asset.fileName || uri.split("/").pop()?.split("?")[0] || "";
       const mimeType = asset.mimeType || "image/jpeg";
+      const fileName = normalizePhotoFileName(rawName, mimeType);
 
       onSelect(uri, fileName, mimeType);
     } catch {

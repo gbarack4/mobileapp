@@ -1,4 +1,3 @@
-import type { AuthenticationResultType } from "@aws-sdk/client-cognito-identity-provider";
 import { idleTimeRemaining } from "./session-idle";
 import { refreshOAuthSession } from "./oauth-client";
 import { logoutOAuthBrowserSession } from "./oauth-logout";
@@ -11,6 +10,7 @@ import {
 } from "./refresh-credential";
 
 import {
+  type AuthenticationResultType,
   refreshCognitoSession,
   revokeCognitoRefreshToken,
 } from "./cognito.client";
