@@ -28,7 +28,7 @@ export default {
           "Instructor Hub uses your location to show nearby schools and your position on the map.",
       },
       config: {
-        googleMapsApiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY,
+        googleMapsApiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_IOS_API_KEY,
       },
     },
     android: {
@@ -44,7 +44,7 @@ export default {
       ],
       config: {
         googleMaps: {
-          apiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY,
+          apiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_ANDROID_API_KEY,
         },
       },
     },
@@ -65,8 +65,10 @@ export default {
           // Required for PROVIDER_GOOGLE on iOS: enables Google Maps pods +
           // GMSServices.provideAPIKey in AppDelegate. ios.config.googleMapsApiKey
           // alone is not enough for this plugin.
-          iosGoogleMapsApiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY,
-          androidGoogleMapsApiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY,
+          iosGoogleMapsApiKey:
+            process.env.EXPO_PUBLIC_GOOGLE_MAPS_IOS_API_KEY,
+          androidGoogleMapsApiKey:
+            process.env.EXPO_PUBLIC_GOOGLE_MAPS_ANDROID_API_KEY,
         },
       ],
       "expo-secure-store",
