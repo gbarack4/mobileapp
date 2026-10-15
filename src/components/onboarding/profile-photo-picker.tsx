@@ -72,7 +72,7 @@ export function ProfilePhotoPicker({
     setLocalError(null);
 
     try {
-      if (Platform.OS !== "web") {
+      if (Platform.OS === "android") {
         const { status } =
           await ImagePicker.requestMediaLibraryPermissionsAsync();
 
@@ -89,6 +89,8 @@ export function ProfilePhotoPicker({
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,
+        preferredAssetRepresentationMode:
+          ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
       });
 
       if (result.canceled || !result.assets?.length) {

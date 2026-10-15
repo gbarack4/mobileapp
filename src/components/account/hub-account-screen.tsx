@@ -294,7 +294,7 @@ export function HubAccountScreen({ onClose }: Readonly<HubAccountScreenProps>) {
   async function handlePickPhoto() {
     if (isUploadingPhoto) return;
 
-    if (Platform.OS !== "web") {
+    if (Platform.OS === "android") {
       const { status } =
         await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== "granted") {
@@ -311,6 +311,8 @@ export function HubAccountScreen({ onClose }: Readonly<HubAccountScreenProps>) {
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
+      preferredAssetRepresentationMode:
+        ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
     });
 
     if (result.canceled || !result.assets?.length) return;
