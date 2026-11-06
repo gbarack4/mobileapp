@@ -3,8 +3,11 @@ import * as DocumentPicker from "expo-document-picker";
 import type { DocumentPickerAsset } from "expo-document-picker";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   ActivityIndicator,
+  AppState,
+  type AppStateStatus,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -59,6 +62,9 @@ const LOCAL_DOCUMENT_TEST_MS = 1800;
 const COMPLETE_SETUP_MS = 3000;
 const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
 const DOCUMENT_UPLOAD_FAILED_MESSAGE = "Upload failed. Max 10 MB file.";
+const ONBOARDING_START_TIME_KEY = "@onboarding_start_time";
+const TIMEOUT_MS = 20 * 60 * 1000;
+let hasEnteredOnboardingSession = false;
 
 function wait(ms: number) {
   return new Promise((resolve) => {
@@ -67,10 +73,7 @@ function wait(ms: number) {
 }
 
 async function getDocumentSize(file: DocumentPickerAsset) {
-  if (typeof file.size === "number") {
-    return file.size;
-  }
-
+  if (typeof file.size === "number") return file.size;
   if (Platform.OS === "web" && file.uri) {
     try {
       const response = await fetch(file.uri);
@@ -80,7 +83,6 @@ async function getDocumentSize(file: DocumentPickerAsset) {
       return null;
     }
   }
-
   return null;
 }
 
@@ -131,23 +133,20 @@ const YES_NO_OPTIONS: { value: YesNo; label: string }[] = [
   { value: "no", label: "No" },
 ];
 
-const DOCUMENT_FIELDS: {
-  type: DocumentType;
-  label: string;
-  hint?: string;
-}[] = [
-  { type: "driverLicence", label: "Driver licence" },
-  {
-    type: "instructorAccreditation",
-    label: "Instructor accreditation certificate",
-  },
-  { type: "vehicleRegistration", label: "Vehicle registration" },
-  {
-    type: "workingWithChildrenCheck",
-    label: "Working with children check",
-    hint: "If required",
-  },
-];
+const DOCUMENT_FIELDS: { type: DocumentType; label: string; hint?: string }[] =
+  [
+    { type: "driverLicence", label: "Driver licence" },
+    {
+      type: "instructorAccreditation",
+      label: "Instructor accreditation certificate",
+    },
+    { type: "vehicleRegistration", label: "Vehicle registration" },
+    {
+      type: "workingWithChildrenCheck",
+      label: "Working with children check",
+      hint: "If required",
+    },
+  ];
 
 export default function OnboardingScreen() {
   const { getToken } = useAuth();
@@ -156,6 +155,8 @@ export default function OnboardingScreen() {
   const { step: stepParam } = useLocalSearchParams<{
     step?: string | string[];
   }>();
+
+  const appState = useRef(AppState.currentState);
   const [stepIndex, setStepIndex] = useState(0);
   const [form, setForm] = useState<OnboardingForm>(INITIAL_ONBOARDING_FORM);
   const [focusedField, setFocusedField] = useState<FocusedField>(null);
@@ -163,6 +164,7 @@ export default function OnboardingScreen() {
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [isContinuing, setIsContinuing] = useState(false);
   const [isLoadingDraft, setIsLoadingDraft] = useState(true);
+  const [hideNameFields, setHideNameFields] = useState(false);
   const [uploadingDocType, setUploadingDocType] = useState<DocumentType | null>(
     null,
   );
@@ -175,63 +177,142 @@ export default function OnboardingScreen() {
   const progress = ((stepIndex + 1) / STEPS.length) * 100;
 
   useEffect(() => {
+    async function enforceSecurity() {
+      try {
+        const startTimeStr = await AsyncStorage.getItem(
+          ONBOARDING_START_TIME_KEY,
+        );
+        const now = Date.now();
+
+        if (!hasEnteredOnboardingSession) {
+          hasEnteredOnboardingSession = true;
+
+          if (startTimeStr) {
+            await AsyncStorage.removeItem(ONBOARDING_START_TIME_KEY);
+            router.replace("/login");
+            return;
+          } else {
+            await AsyncStorage.setItem(
+              ONBOARDING_START_TIME_KEY,
+              now.toString(),
+            );
+          }
+        } else if (startTimeStr) {
+          const startTime = Number.parseInt(startTimeStr, 10);
+          if (now - startTime > TIMEOUT_MS) {
+            await AsyncStorage.removeItem(ONBOARDING_START_TIME_KEY);
+            router.replace("/login");
+            return;
+          }
+        }
+      } catch (e) {
+        console.error("Security check failed:", e);
+      }
+    }
+
+    void enforceSecurity();
+
+    const subscription = AppState.addEventListener(
+      "change",
+      async (nextAppState: AppStateStatus) => {
+        if (
+          appState.current.match(/inactive|background/) &&
+          nextAppState === "active"
+        ) {
+          try {
+            const startTimeStr = await AsyncStorage.getItem(
+              ONBOARDING_START_TIME_KEY,
+            );
+            if (startTimeStr) {
+              const timePassed = Date.now() - Number.parseInt(startTimeStr, 10);
+              if (timePassed > TIMEOUT_MS) {
+                await AsyncStorage.removeItem(ONBOARDING_START_TIME_KEY);
+                router.replace("/login");
+              }
+            }
+          } catch (error) {
+            console.error(
+              "Failed to check onboarding timeout on app resume:",
+              error,
+            );
+          }
+        }
+        appState.current = nextAppState;
+      },
+    );
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    function applyDraftData(draft: any) {
+      const draftForm = draft.formData as Partial<OnboardingForm>;
+      const names = {
+        firstName:
+          typeof draftForm.firstName === "string" ? draftForm.firstName : "",
+        lastName:
+          typeof draftForm.lastName === "string" ? draftForm.lastName : "",
+      };
+
+      if (names.firstName && names.lastName) {
+        setHideNameFields(true);
+      }
+
+      setForm((prev) => ({
+        ...prev,
+        ...draftForm,
+        ...names,
+        address: {
+          ...prev.address,
+          ...draftForm.address,
+        },
+        documents: {
+          driverLicence: draftForm.documents?.driverLicence ?? null,
+          instructorAccreditation:
+            draftForm.documents?.instructorAccreditation ?? null,
+          vehicleRegistration:
+            draftForm.documents?.vehicleRegistration ?? null,
+          workingWithChildrenCheck:
+            draftForm.documents?.workingWithChildrenCheck ?? null,
+        },
+      }));
+
+      const savedStep = Number.isInteger(draft.currentStepIndex)
+        ? Math.min(Math.max(draft.currentStepIndex, 0), STEPS.length - 1)
+        : 0;
+
+      setStepIndex(getNameError(names) ? 0 : savedStep);
+    }
+
+    function applyDevStepOverride() {
+      if (!__DEV__) return;
+      const raw = Array.isArray(stepParam) ? stepParam[0] : stepParam;
+      const requested = Number(raw);
+
+      if (
+        Number.isInteger(requested) &&
+        requested >= 1 &&
+        requested <= STEPS.length
+      ) {
+        setStepIndex(requested - 1);
+      }
+    }
+
     async function loadDraft() {
       try {
         const token = await getTokenRef.current();
         if (!token) return;
 
         const draft = await getOnboardingDraft(token);
-
-      if (draft && Object.keys(draft.formData).length > 0) {
-  const draftForm = draft.formData as Partial<OnboardingForm>;
-
-  const names = {
-    firstName:
-      typeof draftForm.firstName === "string" ? draftForm.firstName : "",
-    lastName:
-      typeof draftForm.lastName === "string" ? draftForm.lastName : "",
-  };
-
-  setForm((prev) => ({
-    ...prev,
-    ...draftForm,
-    ...names,
-    address: {
-      ...prev.address,
-      ...draftForm.address,
-    },
-    documents: {
-      driverLicence: draftForm.documents?.driverLicence ?? null,
-      instructorAccreditation:
-        draftForm.documents?.instructorAccreditation ?? null,
-      vehicleRegistration: draftForm.documents?.vehicleRegistration ?? null,
-      workingWithChildrenCheck:
-        draftForm.documents?.workingWithChildrenCheck ?? null,
-    },
-  }));
-
-  const savedStep = Number.isInteger(draft.currentStepIndex)
-    ? Math.min(Math.max(draft.currentStepIndex, 0), STEPS.length - 1)
-    : 0;
-
-  setStepIndex(getNameError(names) ? 0 : savedStep);
-}
+        if (draft && Object.keys(draft.formData).length > 0) {
+          applyDraftData(draft);
+        }
       } catch (err) {
         console.error("Failed to load onboarding draft:", err);
       } finally {
-        if (__DEV__) {
-          const raw = Array.isArray(stepParam) ? stepParam[0] : stepParam;
-          const requested = Number(raw);
-
-          if (
-            Number.isInteger(requested) &&
-            requested >= 1 &&
-            requested <= STEPS.length
-          ) {
-            setStepIndex(requested - 1);
-          }
-        }
-
+        applyDevStepOverride();
         setIsLoadingDraft(false);
       }
     }
@@ -249,20 +330,19 @@ export default function OnboardingScreen() {
   }
 
   function getNameError(
-  form: Pick<OnboardingForm, "firstName" | "lastName">,
-): string | null {
-  if (!form.firstName.trim()) return "Enter your first name.";
-  if (!form.lastName.trim()) return "Enter your last name.";
+    formObj: Pick<OnboardingForm, "firstName" | "lastName">,
+  ): string | null {
+    if (!formObj.firstName.trim()) return "Enter your first name.";
+    if (!formObj.lastName.trim()) return "Enter your last name.";
 
-  if (
-    form.firstName.trim().length > 100 ||
-    form.lastName.trim().length > 100
-  ) {
-    return "First and last names must each be 100 characters or fewer.";
+    if (
+      formObj.firstName.trim().length > 100 ||
+      formObj.lastName.trim().length > 100
+    ) {
+      return "First and last names must each be 100 characters or fewer.";
+    }
+    return null;
   }
-
-  return null;
-}
 
   function updateForm<K extends keyof OnboardingForm>(
     key: K,
@@ -286,201 +366,221 @@ export default function OnboardingScreen() {
   function handleFocusField(field: string) {
     setFocusedField(field);
   }
-
   function handleBlurField(field: string) {
     setFocusedField((current) => (current === field ? null : current));
   }
-
   function clearError() {
-    if (error) {
-      setError(null);
-    }
+    if (error) setError(null);
   }
 
-  function validateStep(): boolean {
-    switch (currentStep.id) {
-      case "personal":
-        if (!form.profilePhotoUri) {
-          setError("Add a profile photo.");
-          return false;
-        }
-        if (!form.address.line1.trim()) {
-          setError("Enter your street address.");
-          return false;
-        }
-        if (!form.address.suburb.trim()) {
-          setError("Enter your suburb.");
-          return false;
-        }
-        if (!form.address.state.trim()) {
-          setError("Enter your state.");
-          return false;
-        }
-        if (!/^\d{4}$/.test(form.address.postcode.trim())) {
-          setError("Enter a valid 4-digit postcode.");
-          return false;
-        }
-        if (
-          form.dateOfBirth.trim() &&
-          !/^\d{2}\/\d{2}\/\d{4}$/.test(form.dateOfBirth.trim())
-        ) {
-          setError("Enter date of birth as DD/MM/YYYY.");
-          return false;
-        }
-        break;
-      case "licence":
-        if (!form.driverLicenceNumber.trim()) {
-          setError("Enter your driver licence number.");
-          return false;
-        }
-        if (!form.driverLicenceExpiry.trim()) {
-          setError("Enter your driver licence expiry date.");
-          return false;
-        }
-        break;
-      case "professional":
-        if (!form.instructorAccreditationNumber.trim()) {
-          setError("Enter your instructor accreditation number.");
-          return false;
-        }
-        if (!form.accreditationExpiry.trim()) {
-          setError("Enter your accreditation expiry date.");
-          return false;
-        }
-        if (!form.yearsOfExperience.trim()) {
-          setError("Enter your years of experience.");
-          return false;
-        }
-        if (!form.transmissionType) {
-          setError("Select a transmission type.");
-          return false;
-        }
-        if (!form.languagesSpoken.trim()) {
-          setError("Enter the languages you speak.");
-          return false;
-        }
-        break;
-      case "vehicle":
-        if (!form.vehicleMake.trim()) {
-          setError("Enter your vehicle make.");
-          return false;
-        }
-        if (!form.vehicleModel.trim()) {
-          setError("Enter your vehicle model.");
-          return false;
-        }
-        if (!form.vehicleYear.trim()) {
-          setError("Enter your vehicle year.");
-          return false;
-        }
-        if (!form.registrationNumber.trim()) {
-          setError("Enter your registration number.");
-          return false;
-        }
-        if (!form.vehicleTransmission) {
-          setError("Select your vehicle transmission.");
-          return false;
-        }
-        if (!form.dualControlVehicle) {
-          setError("Indicate if your vehicle is dual-control.");
-          return false;
-        }
-        break;
-      case "documents":
-        if (!form.documents.driverLicence) {
-          setError("Upload your driver licence.");
-          return false;
-        }
-        if (!form.documents.instructorAccreditation) {
-          setError("Upload your instructor accreditation certificate.");
-          return false;
-        }
-        if (!form.documents.vehicleRegistration) {
-          setError("Upload your vehicle registration.");
-          return false;
-        }
-        break;
-      default:
-        break;
+  function validatePersonalStep(): boolean {
+    if (!form.profilePhotoUri) {
+      setError("Add a profile photo.");
+      return false;
     }
-
-    setError(null);
+    if (!form.address.line1.trim()) {
+      setError("Enter your street address.");
+      return false;
+    }
+    if (!form.address.suburb.trim()) {
+      setError("Enter your suburb.");
+      return false;
+    }
+    if (!form.address.state.trim()) {
+      setError("Enter your state.");
+      return false;
+    }
+    if (!/^\d{4}$/.test(form.address.postcode.trim())) {
+      setError("Enter a valid 4-digit postcode.");
+      return false;
+    }
+    if (
+      form.dateOfBirth.trim() &&
+      !/^\d{2}\/\d{2}\/\d{4}$/.test(form.dateOfBirth.trim())
+    ) {
+      setError("Enter date of birth as DD/MM/YYYY.");
+      return false;
+    }
     return true;
   }
 
-  function handleBack() {
-    if (stepIndex === 0) {
-      return;
+  function validateLicenceStep(): boolean {
+    if (!form.driverLicenceNumber.trim()) {
+      setError("Enter your driver licence number.");
+      return false;
+    }
+    if (!form.driverLicenceExpiry.trim()) {
+      setError("Enter your driver licence expiry date.");
+      return false;
+    }
+    return true;
+  }
+
+  function validateProfessionalStep(): boolean {
+    if (!form.instructorAccreditationNumber.trim()) {
+      setError("Enter your instructor accreditation number.");
+      return false;
+    }
+    if (!form.accreditationExpiry.trim()) {
+      setError("Enter your accreditation expiry date.");
+      return false;
+    }
+    if (!form.yearsOfExperience.trim()) {
+      setError("Enter your years of experience.");
+      return false;
+    }
+    if (!form.transmissionType) {
+      setError("Select a transmission type.");
+      return false;
+    }
+    if (!form.languagesSpoken.trim()) {
+      setError("Enter the languages you speak.");
+      return false;
+    }
+    return true;
+  }
+
+  function validateVehicleStep(): boolean {
+    if (!form.vehicleMake.trim()) {
+      setError("Enter your vehicle make.");
+      return false;
+    }
+    if (!form.vehicleModel.trim()) {
+      setError("Enter your vehicle model.");
+      return false;
+    }
+    if (!form.vehicleYear.trim()) {
+      setError("Enter your vehicle year.");
+      return false;
+    }
+    if (!form.registrationNumber.trim()) {
+      setError("Enter your registration number.");
+      return false;
+    }
+    if (!form.vehicleTransmission) {
+      setError("Select your vehicle transmission.");
+      return false;
+    }
+    if (!form.dualControlVehicle) {
+      setError("Indicate if your vehicle is dual-control.");
+      return false;
+    }
+    return true;
+  }
+
+  function validateDocumentsStep(): boolean {
+    if (!form.documents.driverLicence) {
+      setError("Upload your driver licence.");
+      return false;
+    }
+    if (!form.documents.instructorAccreditation) {
+      setError("Upload your instructor accreditation certificate.");
+      return false;
+    }
+    if (!form.documents.vehicleRegistration) {
+      setError("Upload your vehicle registration.");
+      return false;
+    }
+    return true;
+  }
+
+  function validateStep(): boolean {
+    let isValid = false;
+    switch (currentStep.id) {
+      case "personal":
+        isValid = validatePersonalStep();
+        break;
+      case "licence":
+        isValid = validateLicenceStep();
+        break;
+      case "professional":
+        isValid = validateProfessionalStep();
+        break;
+      case "vehicle":
+        isValid = validateVehicleStep();
+        break;
+      case "documents":
+        isValid = validateDocumentsStep();
+        break;
+      default:
+        isValid = true;
+        break;
     }
 
+    if (isValid) {
+      setError(null);
+    }
+    return isValid;
+  }
+
+  function handleBack() {
+    if (stepIndex === 0) return;
     setError(null);
     setStepIndex((current) => current - 1);
   }
 
-async function handleNext() {
-  if (isContinuing) return;
+  async function handleNext() {
+    if (isContinuing) return;
 
-  const nameError = getNameError(form);
-
-  if (nameError) {
-    setStepIndex(0);
-    setError(nameError);
-    return;
-  }
-
-  if (!validateStep()) return;
-
-  setIsContinuing(true);
-  clearError();
-
-  const normalizedForm = {
-    ...form,
-    firstName: form.firstName.trim(),
-    lastName: form.lastName.trim(),
-  };
-
-  try {
-    if (isLastStep) {
-      if (DEV_BYPASS_AUTH) {
-        await wait(COMPLETE_SETUP_MS);
-      } else {
-        const token = await getToken();
-        if (!token) throw new Error("No authentication token found.");
-
-        await Promise.all([
-          submitFinalOnboarding(normalizedForm, token),
-          wait(COMPLETE_SETUP_MS),
-        ]);
-      }
-
-      router.replace("/onboarding/welcome");
+    const nameError = getNameError(form);
+    if (nameError) {
+      setStepIndex(0);
+      setError(nameError);
       return;
     }
 
-    const token = await getToken();
-    if (!token) throw new Error("No authentication token found.");
+    if (!validateStep()) return;
 
-    const nextStepIndex = stepIndex + 1;
+    setIsContinuing(true);
+    clearError();
 
-    await saveOnboardingDraft(
-      {
-        currentStepIndex: nextStepIndex,
-        formData: normalizedForm,
-      },
-      token,
-    );
+    const normalizedForm = {
+      ...form,
+      firstName: form.firstName.trim(),
+      lastName: form.lastName.trim(),
+    };
 
-    setStepIndex(nextStepIndex);
-  } catch (err: unknown) {
-    setError(
-      err instanceof Error
-        ? err.message
-        : "Failed to save progress. Please try again.",
-    );
-  } finally {
-    setIsContinuing(false);
+    try {
+      if (isLastStep) {
+        if (DEV_BYPASS_AUTH) {
+          await wait(COMPLETE_SETUP_MS);
+        } else {
+          const token = await getToken();
+          if (!token) throw new Error("No authentication token found.");
+
+          await Promise.all([
+            submitFinalOnboarding(normalizedForm, token),
+            wait(COMPLETE_SETUP_MS),
+          ]);
+        }
+
+        await AsyncStorage.removeItem(ONBOARDING_START_TIME_KEY);
+
+        router.replace("/onboarding/welcome");
+        return;
+      }
+
+      const token = await getToken();
+      if (!token) throw new Error("No authentication token found.");
+
+      const nextStepIndex = stepIndex + 1;
+
+      await saveOnboardingDraft(
+        { currentStepIndex: nextStepIndex, formData: normalizedForm },
+        token,
+      );
+
+      setStepIndex(nextStepIndex);
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to save progress. Please try again.",
+      );
+    } finally {
+      setIsContinuing(false);
+    }
   }
-}
 
   async function handlePhotoSelect(
     uri: string,
@@ -510,7 +610,6 @@ async function handleNext() {
       const oldFileUrl = form.profilePhotoUri?.startsWith("http")
         ? form.profilePhotoUri
         : null;
-
       const s3Url = await uploadAvatarToBackend(
         uri,
         fileName,
@@ -518,7 +617,6 @@ async function handleNext() {
         token,
         oldFileUrl,
       );
-
       setForm((current) => ({
         ...current,
         profilePhotoUri: s3Url,
@@ -579,10 +677,7 @@ async function handleNext() {
         await wait(LOCAL_DOCUMENT_TEST_MS);
         setForm((current) => ({
           ...current,
-          documents: {
-            ...current.documents,
-            [type]: file.uri,
-          },
+          documents: { ...current.documents, [type]: file.uri },
         }));
         return;
       }
@@ -591,7 +686,6 @@ async function handleNext() {
       if (!token) throw new Error("No token");
 
       const oldFileUrl = form.documents[type];
-
       const s3Url = await uploadDocumentToBackend(
         file.uri,
         file.name,
@@ -603,10 +697,7 @@ async function handleNext() {
 
       setForm((current) => ({
         ...current,
-        documents: {
-          ...current.documents,
-          [type]: s3Url,
-        },
+        documents: { ...current.documents, [type]: s3Url },
       }));
     } catch (err) {
       console.error(`Upload error for ${type}:`, err);
@@ -624,6 +715,7 @@ async function handleNext() {
       <PersonalInfoStep
         form={form}
         focusedField={focusedField}
+        hideNameFields={hideNameFields}
         onFocusField={handleFocusField}
         onBlurField={handleBlurField}
         onUpdateField={updateForm}
@@ -653,7 +745,6 @@ async function handleNext() {
           returnKeyType="next"
           focused={focusedField === "driverLicenceNumber"}
         />
-
         <AuthTextField
           label="Driver licence expiry date"
           value={form.driverLicenceExpiry}
@@ -693,7 +784,6 @@ async function handleNext() {
           returnKeyType="next"
           focused={focusedField === "instructorAccreditationNumber"}
         />
-
         <AuthTextField
           label="Accreditation expiry date"
           value={form.accreditationExpiry}
@@ -709,7 +799,6 @@ async function handleNext() {
           returnKeyType="next"
           focused={focusedField === "accreditationExpiry"}
         />
-
         <AuthTextField
           label="Years of experience"
           value={form.yearsOfExperience}
@@ -725,14 +814,12 @@ async function handleNext() {
           returnKeyType="next"
           focused={focusedField === "yearsOfExperience"}
         />
-
         <SelectionPills
           label="Transmission type"
           options={TRANSMISSION_OPTIONS}
           value={form.transmissionType}
           onChange={(value) => updateForm("transmissionType", value)}
         />
-
         <AuthTextField
           label="Languages spoken"
           value={form.languagesSpoken}
@@ -748,7 +835,6 @@ async function handleNext() {
           returnKeyType="next"
           focused={focusedField === "languagesSpoken"}
         />
-
         <AuthTextField
           label="Bio / About me"
           value={form.bio}
@@ -787,7 +873,6 @@ async function handleNext() {
           returnKeyType="next"
           focused={focusedField === "vehicleMake"}
         />
-
         <AuthTextField
           label="Vehicle model"
           value={form.vehicleModel}
@@ -803,7 +888,6 @@ async function handleNext() {
           returnKeyType="next"
           focused={focusedField === "vehicleModel"}
         />
-
         <AuthTextField
           label="Vehicle year"
           value={form.vehicleYear}
@@ -819,7 +903,6 @@ async function handleNext() {
           returnKeyType="next"
           focused={focusedField === "vehicleYear"}
         />
-
         <AuthTextField
           label="Registration number"
           value={form.registrationNumber}
@@ -835,14 +918,12 @@ async function handleNext() {
           returnKeyType="next"
           focused={focusedField === "registrationNumber"}
         />
-
         <SelectionPills
           label="Vehicle transmission"
           options={VEHICLE_TRANSMISSION_OPTIONS}
           value={form.vehicleTransmission}
           onChange={(value) => updateForm("vehicleTransmission", value)}
         />
-
         <SelectionPills
           label="Dual-control vehicle"
           options={YES_NO_OPTIONS}
@@ -859,13 +940,13 @@ async function handleNext() {
         {DOCUMENT_FIELDS.map((document) => {
           const rawUrl = form.documents[document.type];
           let displayFileName = null;
-
           if (rawUrl) {
             const extension = rawUrl.split(".").pop()?.toLowerCase() || "pdf";
-            const cleanName = document.label.replace(/\s+/g, "_").toLowerCase();
+            const cleanName = document.label
+              .replace(/\s+/g, "_")
+              .toLowerCase();
             displayFileName = `${cleanName}.${extension}`;
           }
-
           return (
             <DocumentUploadField
               key={document.type}
@@ -899,6 +980,13 @@ async function handleNext() {
     }
   }
 
+  let primaryButtonLabel = "Continue";
+  if (isContinuing) {
+    primaryButtonLabel = "Continuing....";
+  } else if (isLastStep) {
+    primaryButtonLabel = "Complete setup";
+  }
+
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
       <KeyboardAvoidingView
@@ -914,7 +1002,9 @@ async function handleNext() {
           <View style={styles.header}>
             <Logo size={48} />
             <View style={styles.progressTrack}>
-              <View style={[styles.progressFill, { width: `${progress}%` }]} />
+              <View
+                style={[styles.progressFill, { width: `${progress}%` }]}
+              />
             </View>
             <Text style={styles.stepCounter}>
               Step {stepIndex + 1} of {STEPS.length}
@@ -970,11 +1060,7 @@ async function handleNext() {
                 </View>
               ) : (
                 <Text style={styles.primaryButtonText}>
-                  {isContinuing
-                    ? "Continuing...."
-                    : isLastStep
-                      ? "Complete setup"
-                      : "Continue"}
+                  {primaryButtonLabel}
                 </Text>
               )}
             </Pressable>
@@ -986,13 +1072,8 @@ async function handleNext() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  flex: {
-    flex: 1,
-  },
+  safeArea: { flex: 1, backgroundColor: colors.background },
+  flex: { flex: 1 },
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: spacing.xl,
@@ -1000,11 +1081,7 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xl,
     gap: spacing.lg,
   },
-  header: {
-    alignItems: "center",
-    gap: spacing.md,
-    marginBottom: spacing.sm,
-  },
+  header: { alignItems: "center", gap: spacing.md, marginBottom: spacing.sm },
   progressTrack: {
     width: "100%",
     height: 6,
@@ -1039,26 +1116,11 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: "center",
   },
-  form: {
-    gap: spacing.lg,
-  },
-  bioInput: {
-    minHeight: 112,
-    paddingTop: spacing.md,
-  },
-  error: {
-    color: colors.error,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  footer: {
-    flexDirection: "row",
-    gap: spacing.md,
-    marginTop: spacing.sm,
-  },
-  footerSpacer: {
-    flex: 1,
-  },
+  form: { gap: spacing.lg },
+  bioInput: { minHeight: 112, paddingTop: spacing.md },
+  error: { color: colors.error, fontSize: 14, lineHeight: 20 },
+  footer: { flexDirection: "row", gap: spacing.md, marginTop: spacing.sm },
+  footerSpacer: { flex: 1 },
   primaryButton: {
     flex: 1,
     backgroundColor: colors.primary,
@@ -1073,17 +1135,9 @@ const styles = StyleSheet.create({
         } as object)
       : {}),
   },
-  primaryButtonHovered: {
-    backgroundColor: colors.primaryHover,
-  },
-  primaryButtonDisabled: {
-    opacity: 0.85,
-  },
-  primaryButtonText: {
-    color: colors.white,
-    fontSize: 17,
-    fontWeight: "600",
-  },
+  primaryButtonHovered: { backgroundColor: colors.primaryHover },
+  primaryButtonDisabled: { opacity: 0.85 },
+  primaryButtonText: { color: colors.white, fontSize: 17, fontWeight: "600" },
   primaryButtonLoading: {
     flexDirection: "row",
     alignItems: "center",
@@ -1103,15 +1157,7 @@ const styles = StyleSheet.create({
         } as object)
       : {}),
   },
-  secondaryButtonHovered: {
-    backgroundColor: colors.inputBackgroundHover,
-  },
-  secondaryButtonText: {
-    color: colors.text,
-    fontSize: 17,
-    fontWeight: "600",
-  },
-  buttonPressed: {
-    opacity: 0.85,
-  },
+  secondaryButtonHovered: { backgroundColor: colors.inputBackgroundHover },
+  secondaryButtonText: { color: colors.text, fontSize: 17, fontWeight: "600" },
+  buttonPressed: { opacity: 0.85 },
 });

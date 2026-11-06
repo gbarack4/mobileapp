@@ -9,6 +9,7 @@ import { ProfilePhotoPicker } from "./profile-photo-picker";
 type PersonalInfoStepProps = {
   form: OnboardingForm;
   focusedField: string | null;
+  hideNameFields?: boolean;
   onFocusField: (field: string) => void;
   onBlurField: (field: string) => void;
   onUpdateField: <K extends keyof OnboardingForm>(
@@ -56,6 +57,7 @@ function SectionHeader({
 export function PersonalInfoStep({
   form,
   focusedField,
+  hideNameFields,
   onFocusField,
   onBlurField,
   onUpdateField,
@@ -76,34 +78,38 @@ export function PersonalInfoStep({
         title="Your profile"
         subtitle="This is shown to schools when you join their instructor network."
       />
+      
+      {!hideNameFields && (
+        <>
+          <AuthTextField
+            label="First name"
+            value={form.firstName}
+            onChangeText={(value) => onUpdateField("firstName", value)}
+            onFocus={() => onFocusField("firstName")}
+            onBlur={() => onBlurField("firstName")}
+            placeholder="First name"
+            autoCapitalize="words"
+            autoCorrect={false}
+            maxLength={100}
+            returnKeyType="next"
+            focused={focusedField === "firstName"}
+          />
 
-      <AuthTextField
-  label="First name"
-  value={form.firstName}
-  onChangeText={(value) => onUpdateField("firstName", value)}
-  onFocus={() => onFocusField("firstName")}
-  onBlur={() => onBlurField("firstName")}
-  placeholder="First name"
-  autoCapitalize="words"
-  autoCorrect={false}
-  maxLength={100}
-  returnKeyType="next"
-  focused={focusedField === "firstName"}
-/>
-
-<AuthTextField
-  label="Last name"
-  value={form.lastName}
-  onChangeText={(value) => onUpdateField("lastName", value)}
-  onFocus={() => onFocusField("lastName")}
-  onBlur={() => onBlurField("lastName")}
-  placeholder="Last name"
-  autoCapitalize="words"
-  autoCorrect={false}
-  maxLength={100}
-  returnKeyType="next"
-  focused={focusedField === "lastName"}
-/>
+          <AuthTextField
+            label="Last name"
+            value={form.lastName}
+            onChangeText={(value) => onUpdateField("lastName", value)}
+            onFocus={() => onFocusField("lastName")}
+            onBlur={() => onBlurField("lastName")}
+            placeholder="Last name"
+            autoCapitalize="words"
+            autoCorrect={false}
+            maxLength={100}
+            returnKeyType="next"
+            focused={focusedField === "lastName"}
+          />
+        </>
+      )}
 
       <ProfilePhotoPicker
         photoUri={form.profilePhotoUri}
@@ -220,32 +226,32 @@ export function PersonalInfoStep({
 
 const styles = StyleSheet.create({
   container: {
-    gap: spacing.lg,
+    gap: spacing.lg
   },
   sectionHeader: {
     gap: 4,
-    marginTop: spacing.xs,
+    marginTop: spacing.xs
   },
   sectionTitle: {
     fontSize: 13,
-    fontWeight: "700",
+    fontWeight: "700", 
     color: colors.textMuted,
     letterSpacing: 0.6,
-    textTransform: "uppercase",
+    textTransform: "uppercase"
   },
-  sectionSubtitle: {
+    sectionSubtitle: {
     fontSize: 13,
     lineHeight: 18,
-    color: colors.textSecondary,
+    color: colors.textSecondary
   },
   addressRow: {
     flexDirection: "row",
-    gap: spacing.md,
+    gap: spacing.md
   },
   addressSuburb: {
-    flex: 2,
+    flex: 2
   },
   addressState: {
-    flex: 1,
+    flex: 1 
   },
 });
