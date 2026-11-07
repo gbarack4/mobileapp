@@ -245,18 +245,11 @@ export default function OnboardingScreen() {
 
   useEffect(() => {
     function applyDraftData(draft: any) {
-      const draftForm = draft.formData as Partial<OnboardingForm>;
-      const names = {
-        firstName:
-          typeof draftForm.firstName === "string" ? draftForm.firstName : "",
-        lastName:
-          typeof draftForm.lastName === "string" ? draftForm.lastName : "",
-      };
+      const draftForm = draft.formData as Partial<OnboardingForm>;     
 
       setForm((prev) => ({
         ...prev,
-        ...draftForm,
-        ...names,
+        ...draftForm,       
         address: {
           ...prev.address,
           ...draftForm.address,
@@ -499,9 +492,7 @@ export default function OnboardingScreen() {
     clearError();
 
     const normalizedForm = {
-      ...form,
-      firstName: form.firstName.trim(),
-      lastName: form.lastName.trim(),
+      ...form,      
     };
 
     try {

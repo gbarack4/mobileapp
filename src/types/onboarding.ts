@@ -24,12 +24,9 @@ export const EMPTY_ONBOARDING_ADDRESS: OnboardingAddress = {
   postcode: "",
 };
 
-export type OnboardingForm = {
-  firstName: string;
-  lastName: string;
+export type OnboardingForm = {  
   profilePhotoUri: string | null;
-  profilePhotoName: string | null;
-  dateOfBirth: string;
+  profilePhotoName: string | null; 
   address: OnboardingAddress;
   driverLicenceNumber: string;
   driverLicenceExpiry: string;
@@ -48,12 +45,9 @@ export type OnboardingForm = {
   documents: Record<DocumentType, string | null>;
 };
 
-export const INITIAL_ONBOARDING_FORM: OnboardingForm = {
-  firstName: "",
-  lastName: "",
+export const INITIAL_ONBOARDING_FORM: OnboardingForm = {  
   profilePhotoUri: null,
-  profilePhotoName: null,
-  dateOfBirth: "",
+  profilePhotoName: null, 
   address: { ...EMPTY_ONBOARDING_ADDRESS },
   driverLicenceNumber: "",
   driverLicenceExpiry: "",
