@@ -38,6 +38,8 @@ import {
   INITIAL_ONBOARDING_FORM,
   type OnboardingAddress,
   type OnboardingForm,
+  sanitizeOnboardingFormData,
+  toOnboardingApiPayload,
   type TransmissionType,
   type YesNo,
 } from "../../types/onboarding";
@@ -60,9 +62,17 @@ const ANDROID_RIPPLE =
 const COMPLETE_SETUP_MS = 3000;
 const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
 const DOCUMENT_UPLOAD_FAILED_MESSAGE = "Upload failed. Max 10 MB file.";
+const ONBOARDING_ACTIVE_KEY = "@onboarding_active";
 const ONBOARDING_START_TIME_KEY = "@onboarding_start_time";
 const TIMEOUT_MS = 20 * 60 * 1000;
 let hasEnteredOnboardingSession = false;
+
+async function clearOnboardingSessionFlags() {
+  await AsyncStorage.multiRemove([
+    ONBOARDING_ACTIVE_KEY,
+    ONBOARDING_START_TIME_KEY,
+  ]);
+}
 
 function wait(ms: number) {
   return new Promise((resolve) => {
@@ -147,9 +157,11 @@ const DOCUMENT_FIELDS: { type: DocumentType; label: string; hint?: string }[] =
   ];
 
 export default function OnboardingScreen() {
-  const { getToken } = useAuth();
+  const { getToken, signOut } = useAuth();
   const getTokenRef = useRef(getToken);
+  const signOutRef = useRef(signOut);
   getTokenRef.current = getToken;
+  signOutRef.current = signOut;
   const { step: stepParam } = useLocalSearchParams<{
     step?: string | string[];
   }>();
@@ -174,32 +186,49 @@ export default function OnboardingScreen() {
   const progress = ((stepIndex + 1) / STEPS.length) * 100;
 
   useEffect(() => {
+    let cancelled = false;
+
+    async function abandonOnboardingSession() {
+      await clearOnboardingSessionFlags();
+      try {
+        await signOutRef.current();
+      } catch (error) {
+        console.error("Failed to sign out after onboarding close:", error);
+      }
+      if (!cancelled) {
+        router.replace("/login");
+      }
+    }
+
     async function enforceSecurity() {
       try {
-        const startTimeStr = await AsyncStorage.getItem(
-          ONBOARDING_START_TIME_KEY,
-        );
+        const [activeFlag, startTimeStr] = await Promise.all([
+          AsyncStorage.getItem(ONBOARDING_ACTIVE_KEY),
+          AsyncStorage.getItem(ONBOARDING_START_TIME_KEY),
+        ]);
         const now = Date.now();
 
+        // Cold launch / page reload after the app or tab was closed while
+        // onboarding was incomplete → drop the session and force login.
         if (!hasEnteredOnboardingSession) {
           hasEnteredOnboardingSession = true;
 
-          if (startTimeStr) {
-            await AsyncStorage.removeItem(ONBOARDING_START_TIME_KEY);
-            router.replace("/login");
+          if (activeFlag || startTimeStr) {
+            await abandonOnboardingSession();
             return;
-          } else {
-            await AsyncStorage.setItem(
-              ONBOARDING_START_TIME_KEY,
-              now.toString(),
-            );
           }
-        } else if (startTimeStr) {
+
+          await AsyncStorage.multiSet([
+            [ONBOARDING_ACTIVE_KEY, "1"],
+            [ONBOARDING_START_TIME_KEY, now.toString()],
+          ]);
+          return;
+        }
+
+        if (startTimeStr) {
           const startTime = Number.parseInt(startTimeStr, 10);
           if (now - startTime > TIMEOUT_MS) {
-            await AsyncStorage.removeItem(ONBOARDING_START_TIME_KEY);
-            router.replace("/login");
-            return;
+            await abandonOnboardingSession();
           }
         }
       } catch (e) {
@@ -223,8 +252,7 @@ export default function OnboardingScreen() {
             if (startTimeStr) {
               const timePassed = Date.now() - Number.parseInt(startTimeStr, 10);
               if (timePassed > TIMEOUT_MS) {
-                await AsyncStorage.removeItem(ONBOARDING_START_TIME_KEY);
-                router.replace("/login");
+                await abandonOnboardingSession();
               }
             }
           } catch (error) {
@@ -238,18 +266,37 @@ export default function OnboardingScreen() {
       },
     );
 
+    // Web: closing/refreshing the tab leaves the active flag set so the next
+    // launch hits abandonOnboardingSession above.
+    function handlePageHide() {
+      void AsyncStorage.multiSet([
+        [ONBOARDING_ACTIVE_KEY, "1"],
+        [ONBOARDING_START_TIME_KEY, Date.now().toString()],
+      ]).catch((error) => {
+        console.error("Failed to persist onboarding close flag:", error);
+      });
+    }
+
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      window.addEventListener("pagehide", handlePageHide);
+    }
+
     return () => {
+      cancelled = true;
       subscription.remove();
+      if (Platform.OS === "web" && typeof window !== "undefined") {
+        window.removeEventListener("pagehide", handlePageHide);
+      }
     };
   }, []);
 
   useEffect(() => {
     function applyDraftData(draft: any) {
-      const draftForm = draft.formData as Partial<OnboardingForm>;     
+      const draftForm = sanitizeOnboardingFormData(draft.formData);
 
       setForm((prev) => ({
         ...prev,
-        ...draftForm,       
+        ...draftForm,
         address: {
           ...prev.address,
           ...draftForm.address,
@@ -491,23 +538,19 @@ export default function OnboardingScreen() {
     setIsContinuing(true);
     clearError();
 
-    const normalizedForm = {
-      ...form,      
-    };
+    const apiPayload = toOnboardingApiPayload(form);
 
     try {
       if (isLastStep) {
-        
-          const token = await getToken();
-          if (!token) throw new Error("No authentication token found.");
+        const token = await getToken();
+        if (!token) throw new Error("No authentication token found.");
 
-          await Promise.all([
-            submitFinalOnboarding(normalizedForm, token),
-            wait(COMPLETE_SETUP_MS),
-          ]);
-        
+        await Promise.all([
+          submitFinalOnboarding(apiPayload, token),
+          wait(COMPLETE_SETUP_MS),
+        ]);
 
-        await AsyncStorage.removeItem(ONBOARDING_START_TIME_KEY);
+        await clearOnboardingSessionFlags();
 
         router.replace("/onboarding/welcome");
         return;
@@ -519,7 +562,7 @@ export default function OnboardingScreen() {
       const nextStepIndex = stepIndex + 1;
 
       await saveOnboardingDraft(
-        { currentStepIndex: nextStepIndex, formData: normalizedForm },
+        { currentStepIndex: nextStepIndex, formData: apiPayload },
         token,
       );
 

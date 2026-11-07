@@ -4,6 +4,24 @@ if (!baseUrl) {
   throw new Error("EXPO_PUBLIC_API_URL is not defined");
 }
 
+const FORBIDDEN_ONBOARDING_KEYS = [
+  "firstName",
+  "lastName",
+  "dateOfBirth",
+  "profilePhotoUri",
+  "profilePhotoName",
+] as const;
+
+function stripForbiddenOnboardingKeys<T extends Record<string, unknown>>(
+  payload: T,
+): T {
+  const cleaned = { ...payload };
+  for (const key of FORBIDDEN_ONBOARDING_KEYS) {
+    delete cleaned[key];
+  }
+  return cleaned;
+}
+
 export type OnboardingDraft = {
   currentStepIndex: number;
   formData: Record<string, any>;
@@ -30,13 +48,20 @@ export async function saveOnboardingDraft(
   payload: { currentStepIndex: number; formData: Record<string, any> },
   token: string,
 ): Promise<void> {
+  const body = {
+    currentStepIndex: payload.currentStepIndex,
+    formData: stripForbiddenOnboardingKeys(
+      payload.formData as Record<string, unknown>,
+    ),
+  };
+
   const response = await fetch(`${baseUrl}/instructors/onboarding/draft`, {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(body),
   });
 
   if (!response.ok) {
@@ -48,13 +73,17 @@ export async function submitFinalOnboarding(
   payload: Record<string, any>,
   token: string,
 ): Promise<void> {
+  const body = stripForbiddenOnboardingKeys(
+    payload as Record<string, unknown>,
+  );
+
   const response = await fetch(`${baseUrl}/instructors/onboard`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(body),
   });
 
   if (!response.ok) {
