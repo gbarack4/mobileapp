@@ -1,3 +1,24 @@
+const iosGoogleMapsApiKey =
+  typeof process.env.EXPO_PUBLIC_GOOGLE_MAPS_IOS_API_KEY === "string"
+    ? process.env.EXPO_PUBLIC_GOOGLE_MAPS_IOS_API_KEY.trim()
+    : "";
+const androidGoogleMapsApiKey =
+  typeof process.env.EXPO_PUBLIC_GOOGLE_MAPS_ANDROID_API_KEY === "string"
+    ? process.env.EXPO_PUBLIC_GOOGLE_MAPS_ANDROID_API_KEY.trim()
+    : "";
+const hasGoogleMapsApiKey =
+  iosGoogleMapsApiKey.length > 0 || androidGoogleMapsApiKey.length > 0;
+
+if (
+  !hasGoogleMapsApiKey &&
+  (process.env.NODE_ENV !== "production" ||
+    process.env.EXPO_PUBLIC_ENABLE_DEBUG_INGEST === "true")
+) {
+  console.warn(
+    "[Maps:app.config] EXPO_PUBLIC_GOOGLE_MAPS_IOS_API_KEY / EXPO_PUBLIC_GOOGLE_MAPS_ANDROID_API_KEY are missing. Native Google Maps tiles will not load until they are set for the native build.",
+  );
+}
+
 export default {
   expo: {
     name: "instructor-hub",
@@ -28,7 +49,7 @@ export default {
           "Instructor Hub uses your location to show nearby schools and your position on the map.",
       },
       config: {
-        googleMapsApiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_IOS_API_KEY,
+        googleMapsApiKey: iosGoogleMapsApiKey || undefined,
       },
     },
     android: {
@@ -39,17 +60,20 @@ export default {
         backgroundColor: "#005eff",
       },
       permissions: [
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE",
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
       ],
       config: {
         googleMaps: {
-          apiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_ANDROID_API_KEY,
+          apiKey: androidGoogleMapsApiKey || undefined,
         },
       },
     },
     plugins: [
       "expo-router",
+      "expo-asset",
       [
         "expo-splash-screen",
         {
@@ -65,10 +89,8 @@ export default {
           // Required for PROVIDER_GOOGLE on iOS: enables Google Maps pods +
           // GMSServices.provideAPIKey in AppDelegate. ios.config.googleMapsApiKey
           // alone is not enough for this plugin.
-          iosGoogleMapsApiKey:
-            process.env.EXPO_PUBLIC_GOOGLE_MAPS_IOS_API_KEY,
-          androidGoogleMapsApiKey:
-            process.env.EXPO_PUBLIC_GOOGLE_MAPS_ANDROID_API_KEY,
+          iosGoogleMapsApiKey: iosGoogleMapsApiKey || undefined,
+          androidGoogleMapsApiKey: androidGoogleMapsApiKey || undefined,
         },
       ],
       "expo-secure-store",
@@ -100,6 +122,8 @@ export default {
       eas: {
         projectId: "598440c1-e7be-4572-b192-a7ffcb4ed2b1",
       },
+      // Boolean only — never put the API key in extra.
+      hasGoogleMapsApiKey,
     },
     owner: "driver-apps",
   },

@@ -164,7 +164,6 @@ export default function OnboardingScreen() {
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [isContinuing, setIsContinuing] = useState(false);
   const [isLoadingDraft, setIsLoadingDraft] = useState(true);
-  const [hideNameFields, setHideNameFields] = useState(false);
   const [uploadingDocType, setUploadingDocType] = useState<DocumentType | null>(
     null,
   );
@@ -178,6 +177,12 @@ export default function OnboardingScreen() {
 
   useEffect(() => {
     async function enforceSecurity() {
+      // Local UI / auth bypass: allow reopening onboarding without the
+      // one-shot session lock redirecting to login.
+      if (DEV_BYPASS_AUTH) {
+        return;
+      }
+
       try {
         const startTimeStr = await AsyncStorage.getItem(
           ONBOARDING_START_TIME_KEY,
@@ -256,10 +261,6 @@ export default function OnboardingScreen() {
           typeof draftForm.lastName === "string" ? draftForm.lastName : "",
       };
 
-      if (names.firstName && names.lastName) {
-        setHideNameFields(true);
-      }
-
       setForm((prev) => ({
         ...prev,
         ...draftForm,
@@ -283,7 +284,7 @@ export default function OnboardingScreen() {
         ? Math.min(Math.max(draft.currentStepIndex, 0), STEPS.length - 1)
         : 0;
 
-      setStepIndex(getNameError(names) ? 0 : savedStep);
+      setStepIndex(savedStep);
     }
 
     function applyDevStepOverride() {
@@ -327,21 +328,6 @@ export default function OnboardingScreen() {
         style={{ flex: 1, justifyContent: "center" }}
       />
     );
-  }
-
-  function getNameError(
-    formObj: Pick<OnboardingForm, "firstName" | "lastName">,
-  ): string | null {
-    if (!formObj.firstName.trim()) return "Enter your first name.";
-    if (!formObj.lastName.trim()) return "Enter your last name.";
-
-    if (
-      formObj.firstName.trim().length > 100 ||
-      formObj.lastName.trim().length > 100
-    ) {
-      return "First and last names must each be 100 characters or fewer.";
-    }
-    return null;
   }
 
   function updateForm<K extends keyof OnboardingForm>(
@@ -392,13 +378,6 @@ export default function OnboardingScreen() {
     }
     if (!/^\d{4}$/.test(form.address.postcode.trim())) {
       setError("Enter a valid 4-digit postcode.");
-      return false;
-    }
-    if (
-      form.dateOfBirth.trim() &&
-      !/^\d{2}\/\d{2}\/\d{4}$/.test(form.dateOfBirth.trim())
-    ) {
-      setError("Enter date of birth as DD/MM/YYYY.");
       return false;
     }
     return true;
@@ -521,13 +500,6 @@ export default function OnboardingScreen() {
 
   async function handleNext() {
     if (isContinuing) return;
-
-    const nameError = getNameError(form);
-    if (nameError) {
-      setStepIndex(0);
-      setError(nameError);
-      return;
-    }
 
     if (!validateStep()) return;
 
@@ -715,10 +687,8 @@ export default function OnboardingScreen() {
       <PersonalInfoStep
         form={form}
         focusedField={focusedField}
-        hideNameFields={hideNameFields}
         onFocusField={handleFocusField}
         onBlurField={handleBlurField}
-        onUpdateField={updateForm}
         onUpdateAddress={updateAddress}
         onSelectPhoto={handlePhotoSelect}
         onRemovePhoto={handlePhotoRemove}

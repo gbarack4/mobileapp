@@ -9,13 +9,8 @@ import { ProfilePhotoPicker } from "./profile-photo-picker";
 type PersonalInfoStepProps = {
   form: OnboardingForm;
   focusedField: string | null;
-  hideNameFields?: boolean;
   onFocusField: (field: string) => void;
   onBlurField: (field: string) => void;
-  onUpdateField: <K extends keyof OnboardingForm>(
-    key: K,
-    value: OnboardingForm[K],
-  ) => void;
   onUpdateAddress: <K extends keyof OnboardingAddress>(
     key: K,
     value: OnboardingAddress[K],
@@ -24,20 +19,6 @@ type PersonalInfoStepProps = {
   onRemovePhoto: () => void;
   photoError?: string | null;
 };
-
-function formatDateOfBirthInput(value: string) {
-  const digits = value.replace(/\D/g, "").slice(0, 8);
-
-  if (digits.length <= 2) {
-    return digits;
-  }
-
-  if (digits.length <= 4) {
-    return `${digits.slice(0, 2)}/${digits.slice(2)}`;
-  }
-
-  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
-}
 
 function SectionHeader({
   title,
@@ -57,10 +38,8 @@ function SectionHeader({
 export function PersonalInfoStep({
   form,
   focusedField,
-  hideNameFields,
   onFocusField,
   onBlurField,
-  onUpdateField,
   onUpdateAddress,
   onSelectPhoto,
   onRemovePhoto,
@@ -78,38 +57,6 @@ export function PersonalInfoStep({
         title="Your profile"
         subtitle="This is shown to schools when you join their instructor network."
       />
-      
-      {!hideNameFields && (
-        <>
-          <AuthTextField
-            label="First name"
-            value={form.firstName}
-            onChangeText={(value) => onUpdateField("firstName", value)}
-            onFocus={() => onFocusField("firstName")}
-            onBlur={() => onBlurField("firstName")}
-            placeholder="First name"
-            autoCapitalize="words"
-            autoCorrect={false}
-            maxLength={100}
-            returnKeyType="next"
-            focused={focusedField === "firstName"}
-          />
-
-          <AuthTextField
-            label="Last name"
-            value={form.lastName}
-            onChangeText={(value) => onUpdateField("lastName", value)}
-            onFocus={() => onFocusField("lastName")}
-            onBlur={() => onBlurField("lastName")}
-            placeholder="Last name"
-            autoCapitalize="words"
-            autoCorrect={false}
-            maxLength={100}
-            returnKeyType="next"
-            focused={focusedField === "lastName"}
-          />
-        </>
-      )}
 
       <ProfilePhotoPicker
         photoUri={form.profilePhotoUri}
@@ -117,22 +64,6 @@ export function PersonalInfoStep({
         uploadError={photoError}
         onSelect={onSelectPhoto}
         onRemove={onRemovePhoto}
-      />
-
-      <AuthTextField
-        label="Date of birth (optional)"
-        value={form.dateOfBirth}
-        onChangeText={(value) =>
-          onUpdateField("dateOfBirth", formatDateOfBirthInput(value))
-        }
-        onFocus={() => onFocusField("dateOfBirth")}
-        onBlur={() => onBlurField("dateOfBirth")}
-        placeholder="DD/MM/YYYY"
-        keyboardType="numbers-and-punctuation"
-        returnKeyType="next"
-        onSubmitEditing={() => line1Ref.current?.focus()}
-        focused={focusedField === "dateOfBirth"}
-        maxLength={10}
       />
 
       <SectionHeader
