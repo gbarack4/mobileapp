@@ -28,7 +28,6 @@ import { DocumentUploadField } from "../../components/onboarding/document-upload
 import { PersonalInfoStep } from "../../components/onboarding/personal-info-step";
 import { SelectionPills } from "../../components/onboarding/selection-pills";
 import { colors, radius, spacing } from "../../constants/theme";
-import { DEV_BYPASS_AUTH } from "../../constants/dev";
 import {
   getOnboardingDraft,
   saveOnboardingDraft,
@@ -58,7 +57,6 @@ type PressableState = {
 
 const ANDROID_RIPPLE =
   Platform.OS === "android" ? { color: "rgba(0, 94, 255, 0.14)" } : undefined;
-const LOCAL_DOCUMENT_TEST_MS = 1800;
 const COMPLETE_SETUP_MS = 3000;
 const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
 const DOCUMENT_UPLOAD_FAILED_MESSAGE = "Upload failed. Max 10 MB file.";
@@ -177,12 +175,6 @@ export default function OnboardingScreen() {
 
   useEffect(() => {
     async function enforceSecurity() {
-      // Local UI / auth bypass: allow reopening onboarding without the
-      // one-shot session lock redirecting to login.
-      if (DEV_BYPASS_AUTH) {
-        return;
-      }
-
       try {
         const startTimeStr = await AsyncStorage.getItem(
           ONBOARDING_START_TIME_KEY,
@@ -287,8 +279,8 @@ export default function OnboardingScreen() {
       setStepIndex(savedStep);
     }
 
-    function applyDevStepOverride() {
-      if (!__DEV__) return;
+    function applyDevStepOverride() { 
+      if (!__DEV__) return;    
       const raw = Array.isArray(stepParam) ? stepParam[0] : stepParam;
       const requested = Number(raw);
 
@@ -514,9 +506,7 @@ export default function OnboardingScreen() {
 
     try {
       if (isLastStep) {
-        if (DEV_BYPASS_AUTH) {
-          await wait(COMPLETE_SETUP_MS);
-        } else {
+        
           const token = await getToken();
           if (!token) throw new Error("No authentication token found.");
 
@@ -524,7 +514,7 @@ export default function OnboardingScreen() {
             submitFinalOnboarding(normalizedForm, token),
             wait(COMPLETE_SETUP_MS),
           ]);
-        }
+        
 
         await AsyncStorage.removeItem(ONBOARDING_START_TIME_KEY);
 
@@ -563,15 +553,7 @@ export default function OnboardingScreen() {
     clearError();
     setPhotoError(null);
 
-    try {
-      if (DEV_BYPASS_AUTH) {
-        setForm((current) => ({
-          ...current,
-          profilePhotoUri: uri,
-          profilePhotoName: fileName,
-        }));
-        return;
-      }
+    try {  
 
       const token = await getToken();
       if (!token) {
@@ -624,9 +606,7 @@ export default function OnboardingScreen() {
       setDocumentErrors((current) => ({ ...current, [type]: null }));
 
       const result = await DocumentPicker.getDocumentAsync({
-        type: DEV_BYPASS_AUTH
-          ? "*/*"
-          : ["application/pdf", "image/jpeg", "image/png"],
+        type: ["application/pdf", "image/jpeg", "image/png"],
         copyToCacheDirectory: true,
       });
 
@@ -643,16 +623,7 @@ export default function OnboardingScreen() {
         return;
       }
 
-      setUploadingDocType(type);
-
-      if (DEV_BYPASS_AUTH) {
-        await wait(LOCAL_DOCUMENT_TEST_MS);
-        setForm((current) => ({
-          ...current,
-          documents: { ...current.documents, [type]: file.uri },
-        }));
-        return;
-      }
+      setUploadingDocType(type);     
 
       const token = await getToken();
       if (!token) throw new Error("No token");
