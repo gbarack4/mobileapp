@@ -7,9 +7,7 @@ if (!baseUrl) {
 const FORBIDDEN_ONBOARDING_KEYS = [
   "firstName",
   "lastName",
-  "dateOfBirth",
-  "profilePhotoUri",
-  "profilePhotoName",
+  "dateOfBirth",  
 ] as const;
 
 function stripForbiddenOnboardingKeys<T extends Record<string, unknown>>(

@@ -197,11 +197,13 @@ export function sanitizeOnboardingFormData(
 }
 
 /**
- * Explicit API payload for draft save / final onboard.
- * Never includes firstName, lastName, dateOfBirth, or local photo URI fields.
+ * API payload for draft save and final onboarding.
+ * Includes the uploaded profile photo URL.
+ * Excludes removed identity fields and the photo filename.
  */
 export function toOnboardingApiPayload(form: OnboardingForm): Record<string, unknown> {
   return {
+    profilePhotoUri: form.profilePhotoUri,
     address: {
       line1: form.address.line1.trim(),
       line2: form.address.line2.trim() || undefined,
