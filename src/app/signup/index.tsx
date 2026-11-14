@@ -12,6 +12,7 @@ import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -44,7 +45,17 @@ type PressableState = {
 const ANDROID_RIPPLE =
   Platform.OS === "android" ? { color: "rgba(0, 94, 255, 0.14)" } : undefined;
 
+const TERMS_URL = "https://driveinstructor.pro/terms";
+const PRIVACY_URL = "https://driveinstructor.pro/privacy";
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+async function openLegalUrl(url: string) {
+  try {
+    await Linking.openURL(url);
+  } catch (error) {
+    console.error("Failed to open legal URL:", error);
+  }
+}
 
 type SignUpPhase = "form" | "submitting" | "verifying" | "verifying_submitting";
 
@@ -460,29 +471,51 @@ export default function SignUpScreen() {
                   ref={passwordRef}
                 />
 
-                <Pressable
-                  onPress={() => {
-                    setAgreedToTerms((current) => !current);
-                    clearError();
-                  }}
-                  android_ripple={ANDROID_RIPPLE}
-                  style={styles.termsRow}
-                >
-                  <View
-                    style={[
-                      styles.checkbox,
-                      agreedToTerms && styles.checkboxChecked,
-                    ]}
+                <View style={styles.termsRow}>
+                  <Pressable
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: agreedToTerms }}
+                    onPress={() => {
+                      setAgreedToTerms((current) => !current);
+                      clearError();
+                    }}
+                    android_ripple={ANDROID_RIPPLE}
+                    hitSlop={8}
                   >
-                    {agreedToTerms ? (
-                      <Text style={styles.checkmark}>✓</Text>
-                    ) : null}
+                    <View
+                      style={[
+                        styles.checkbox,
+                        agreedToTerms && styles.checkboxChecked,
+                      ]}
+                    >
+                      {agreedToTerms ? (
+                        <Text style={styles.checkmark}>✓</Text>
+                      ) : null}
+                    </View>
+                  </Pressable>
+                  <View style={styles.termsCopy}>
+                    <Text style={styles.termsText}>I agree to the </Text>
+                    <Pressable
+                      accessibilityRole="link"
+                      accessibilityLabel="Terms"
+                      hitSlop={8}
+                      onPress={() => void openLegalUrl(TERMS_URL)}
+                      android_ripple={ANDROID_RIPPLE}
+                    >
+                      <Text style={styles.termsLink}>Terms</Text>
+                    </Pressable>
+                    <Text style={styles.termsText}> & </Text>
+                    <Pressable
+                      accessibilityRole="link"
+                      accessibilityLabel="Privacy Policy"
+                      hitSlop={8}
+                      onPress={() => void openLegalUrl(PRIVACY_URL)}
+                      android_ripple={ANDROID_RIPPLE}
+                    >
+                      <Text style={styles.termsLink}>Privacy Policy</Text>
+                    </Pressable>
                   </View>
-                  <Text style={styles.termsText}>
-                    I agree to the <Text style={styles.termsLink}>Terms</Text> &{" "}
-                    <Text style={styles.termsLink}>Privacy Policy</Text>
-                  </Text>
-                </Pressable>
+                </View>
 
                 {error ? <Text style={styles.error}>{error}</Text> : null}
                 <Pressable
@@ -571,14 +604,21 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     lineHeight: 16,
   },
-  termsText: {
+  termsCopy: {
     flex: 1,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+  },
+  termsText: {
     fontSize: 14,
     lineHeight: 20,
     color: colors.textSecondary,
   },
   termsLink: {
     color: colors.primary,
+    fontSize: 14,
+    lineHeight: 20,
     fontWeight: "600",
   },
   error: {

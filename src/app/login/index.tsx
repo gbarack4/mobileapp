@@ -78,6 +78,14 @@ const PASSWORD_DROPDOWN_HEIGHT = 160;
 const TERMS_URL = "https://driveinstructor.pro/terms";
 const PRIVACY_URL = "https://driveinstructor.pro/privacy";
 
+async function openLegalUrl(url: string) {
+  try {
+    await Linking.openURL(url);
+  } catch (error) {
+    console.error("Failed to open legal URL:", error);
+  }
+}
+
 export default function LoginScreen() {
   const { completeSignIn, isLoaded } = useAuth();
   const passwordRef = useRef<TextInput>(null);
@@ -793,23 +801,34 @@ export default function LoginScreen() {
             ) : null}
 
             {!isForgotFlow ? (
-              <Text style={styles.termsDisclaimer}>
-                By signing in, you agree to our{" "}
-                <Text
-                  style={styles.termsLink}
-                  onPress={() => void Linking.openURL(TERMS_URL)}
-                >
-                  Terms and Conditions
-                </Text>{" "}
-                and acknowledge our{" "}
-                <Text
-                  style={styles.termsLink}
-                  onPress={() => void Linking.openURL(PRIVACY_URL)}
-                >
-                  Privacy Policy
+              <View style={styles.termsDisclaimer}>
+                <Text style={styles.termsDisclaimerText}>
+                  By signing in, you agree to our{" "}
                 </Text>
-                .
-              </Text>
+                <Pressable
+                  accessibilityRole="link"
+                  accessibilityLabel="Terms and Conditions"
+                  hitSlop={8}
+                  onPress={() => void openLegalUrl(TERMS_URL)}
+                  android_ripple={ANDROID_RIPPLE}
+                >
+                  <Text style={styles.termsLink}>Terms and Conditions</Text>
+                </Pressable>
+                <Text style={styles.termsDisclaimerText}>
+                  {" "}
+                  and acknowledge our{" "}
+                </Text>
+                <Pressable
+                  accessibilityRole="link"
+                  accessibilityLabel="Privacy Policy"
+                  hitSlop={8}
+                  onPress={() => void openLegalUrl(PRIVACY_URL)}
+                  android_ripple={ANDROID_RIPPLE}
+                >
+                  <Text style={styles.termsLink}>Privacy Policy</Text>
+                </Pressable>
+                <Text style={styles.termsDisclaimerText}>.</Text>
+              </View>
             ) : null}
           </ScrollView>
         </KeyboardAvoidingView>
@@ -1048,7 +1067,12 @@ const styles = StyleSheet.create({
   termsDisclaimer: {
     marginTop: "auto",
     paddingTop: spacing.xxxl,
-    textAlign: "center",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  termsDisclaimerText: {
     color: colors.textSecondary,
     fontSize: 13,
     lineHeight: 18,
@@ -1056,6 +1080,8 @@ const styles = StyleSheet.create({
   },
   termsLink: {
     color: colors.primary,
+    fontSize: 13,
+    lineHeight: 18,
     fontWeight: "700",
   },
   buttonPressed: {
