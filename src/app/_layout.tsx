@@ -1,10 +1,3 @@
-import { AuthStatus } from "@/components/auth/auth-status";
-import { SiteLoaderGate } from "@/components/site-loader/site-loader-gate";
-import { DEV_BYPASS_AUTH } from "@/constants/dev";
-import { colors } from "@/constants/theme";
-import { AuthProvider, useAuth } from "@/lib/auth/auth-provider";
-import { getInstructorAccountStatus } from "@/services/instructor-account";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Stack,
   useRootNavigationState,
@@ -15,6 +8,15 @@ import * as SplashScreen from "expo-splash-screen";
 import * as SystemUI from "expo-system-ui";
 import { useEffect, useState } from "react";
 import { StatusBar, StyleSheet, View } from "react-native";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
+import { IosPushRegistration } from "@/components/notifications/ios-push-registration";
+import { AuthStatus } from "@/components/auth/auth-status";
+import { SiteLoaderGate } from "@/components/site-loader/site-loader-gate";
+import { DEV_BYPASS_AUTH } from "@/constants/dev";
+import { colors } from "@/constants/theme";
+import { AuthProvider, useAuth } from "@/lib/auth/auth-provider";
+import { getInstructorAccountStatus } from "@/services/instructor-account";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 5 * 60_000, retry: 2 } },
@@ -45,7 +47,7 @@ function RootLayoutNav() {
     if (DEV_BYPASS_AUTH || !isLoaded || !navigation?.key) return;
     let cancelled = false;
     setRouteError(null);
-    const isPublic = ["login", "signup", "sso-callback",].includes(
+    const isPublic = ["login", "signup", "sso-callback"].includes(
       rootSegment ?? "",
     );
     if (!isSignedIn) {
@@ -108,12 +110,20 @@ function RootLayoutNav() {
       : () => setAttempt((value) => value + 1);
   return (
     <View style={styles.root}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />      
+      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
       <Stack
         screenOptions={{
           headerShown: false,
           contentStyle: { backgroundColor: colors.background },
         }}
+      />
+      <IosPushRegistration
+        enabled={
+          !DEV_BYPASS_AUTH &&
+          isSignedIn &&
+          !blocked &&
+          rootSegment === "dashboard"
+        }
       />
       {blocked ? (
         <View style={StyleSheet.absoluteFill}>

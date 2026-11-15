@@ -1,3 +1,4 @@
+import { unregisterIosPushSession } from "../../services/ios-push-registration";
 import { idleTimeRemaining } from "./session-idle";
 import { refreshOAuthSession } from "./oauth-client";
 import { logoutOAuthBrowserSession } from "./oauth-logout";
@@ -75,10 +76,16 @@ export function getSessionIdleRemaining(): number | null {
 }
 
 export function expireInactiveSession(): Promise<void> {
-  if (expiryInFlight) return expiryInFlight;
+  if (expiryInFlight !== null) {
+    return expiryInFlight;
+  }
+
   const pending = signOutCognitoSession(true).finally(() => {
-    if (expiryInFlight === pending) expiryInFlight = null;
+    if (expiryInFlight === pending) {
+      expiryInFlight = null;
+    }
   });
+
   expiryInFlight = pending;
   return pending;
 }
@@ -89,9 +96,13 @@ export async function recordSessionActivity(): Promise<void> {
     await expireInactiveSession();
     return;
   }
+
   lastActivityAt = Date.now();
- 
-  if (activityWriteInFlight) return activityWriteInFlight;
+
+  if (activityWriteInFlight !== null) {
+    return activityWriteInFlight;
+  }
+
   const version = sessionVersion;
   const pending = persistActivity(version).finally(() => {
     if (activityWriteInFlight === pending) activityWriteInFlight = null;
@@ -134,7 +145,19 @@ function withStorage<T>(operation: () => Promise<T>): Promise<T> {
 }
 
 function publishSession(nextSession: CognitoSession | null): void {
+  const previousSession = session;
   session = nextSession;
+
+  if (previousSession && previousSession.user.id !== nextSession?.user.id) {
+    void unregisterIosPushSession(
+      previousSession.user.id,
+      previousSession.accessToken,
+    ).catch(() => {
+      console.warn(
+        "[Push] Device cleanup failed; server registration may still be active.",
+      );
+    });
+  }
 
   for (const listener of listeners) {
     listener();
@@ -288,7 +311,6 @@ async function prepareIdleClock(
   credential: RefreshCredential,
   version: number,
 ): Promise<boolean> {
- 
   lastActivityAt ??= credential.lastActivityAt ?? Date.now();
   if (idleTimeRemaining(lastActivityAt) === 0) {
     await expireInactiveSession();
@@ -456,7 +478,7 @@ async function removeSavedSession(
   try {
     const stored = decodeRefreshCredential(await readRefreshToken());
     if (stored?.refreshMethod === "oauth") browserLogoutPending = true;
-    
+
     const refreshToken = stored?.refreshToken ?? memoryRefreshToken;
     if (refreshToken) pendingRevocations.add(refreshToken);
     if (inactivity)
@@ -483,7 +505,6 @@ async function revokePendingTokens(): Promise<void> {
 }
 
 async function finishBrowserLogout(): Promise<void> {
- 
   await withStorage(() => writeExpiryNotice(null));
   try {
     if (browserLogoutPending) await logoutOAuthBrowserSession();
@@ -496,10 +517,10 @@ async function finishBrowserLogout(): Promise<void> {
 }
 
 export async function signOutCognitoSession(inactivity = false): Promise<void> {
-  if (!inactivity && expiryInFlight) {
-   
+  if (!inactivity && expiryInFlight !== null) {
     await expiryInFlight.catch(() => undefined);
   }
+
   const memoryRefreshToken = session?.refreshToken ?? null;
   if (session?.refreshMethod === "oauth") browserLogoutPending = true;
   if (memoryRefreshToken) pendingRevocations.add(memoryRefreshToken);

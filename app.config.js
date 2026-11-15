@@ -73,6 +73,7 @@ export default {
     },
     plugins: [
       "expo-router",
+       "expo-notifications",
       "expo-asset",
       [
         "expo-splash-screen",
