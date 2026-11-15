@@ -118,6 +118,7 @@ function RootLayoutNav() {
         }}
       />
       <IosPushRegistration
+        diagnostics
         enabled={
           !DEV_BYPASS_AUTH &&
           isSignedIn &&
