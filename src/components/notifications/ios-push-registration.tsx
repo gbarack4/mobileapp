@@ -27,10 +27,17 @@ type NotificationPermission = Awaited<
   ReturnType<NotificationsModule["getPermissionsAsync"]>
 >;
 
-function validatePushEnvironment(environment: string | null): void {
+function validatePushEnvironment(
+  environment: string | null,
+  isAppStoreRelease: boolean,
+): void {
+  // Expo reads the embedded provisioning profile, which may be absent
+  // in a store-distributed app. APNs registration still validates signing.
+  if (environment === null && isAppStoreRelease) return;
+
   if (environment === null) {
     throw new Error(
-      "APNs environment is unavailable. Check push entitlements in the native iOS build.",
+      "APNs environment is unavailable and the release type is not APP_STORE. Check the native build configuration.",
     );
   }
 
@@ -148,7 +155,19 @@ export function IosPushRegistration({ enabled, diagnostics = false }: Props) {
       if (!isCurrent()) return null;
 
       reportCurrentStage(`APNs environment: ${environment ?? "null"}`);
-      validatePushEnvironment(environment);
+      let isAppStoreRelease = false;
+      if (environment === null) {
+        reportCurrentStage("Checking release type for missing APNs environment");
+        const releaseType = await application.getIosApplicationReleaseTypeAsync();
+        if (!isCurrent()) return null;
+
+        isAppStoreRelease =
+          releaseType === application.ApplicationReleaseType.APP_STORE;
+        reportCurrentStage(`Release type: ${releaseType}; APP_STORE=${isAppStoreRelease}`);
+      }
+
+      validatePushEnvironment(environment, isAppStoreRelease);
+      reportCurrentStage("Using production APNs; continuing to device registration");
 
       reportCurrentStage("Loading expo-notifications");
       const notifications = await import("expo-notifications");
@@ -270,7 +289,7 @@ export function IosPushRegistration({ enabled, diagnostics = false }: Props) {
 
   return (
     <View style={styles.diagnostics}>
-      <Text style={styles.heading}>Push diagnostics · v1</Text>
+      <Text style={styles.heading}>Push diagnostics · v2</Text>
       <Text style={styles.line}>
         enabled: {String(enabled)} · user available: {String(Boolean(userId))}
       </Text>
