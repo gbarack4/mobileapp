@@ -18,7 +18,7 @@ import {
   ProfileNavIcon,
 } from "../icons/dashboard-icons";
 import { useQuery } from "@tanstack/react-query";
-import { getInstructorInvites } from "@/services/school-invite";
+import { getInstructorUnreadCount } from "@/services/instructor-notifications";
 import { useAuth } from "@/lib/auth/auth-provider";
 
 type DashboardBottomNavProps = {
@@ -56,16 +56,15 @@ export function DashboardBottomNav({
   const insets = useSafeAreaInsets();
   const { getToken } = useAuth();
 
-  const { data: realInvites } = useQuery({
-    queryKey: ["instructor-invites"],
+  const { data: notificationBadgeCount = 0 } = useQuery({
+    queryKey: ["instructor-notifications-count"],
     queryFn: async () => {
       const token = await getToken();
-      return getInstructorInvites(token);
+      if (!token) throw new Error("Authentication required");
+      return getInstructorUnreadCount(token);
     },
+    refetchInterval: 30_000,
   });
-
-  const notificationBadgeCount =
-    realInvites?.filter((invite: any) => !invite._isRead).length ?? 0;
 
   const bottomSafeArea = insets.bottom;
 

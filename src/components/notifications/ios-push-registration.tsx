@@ -1,6 +1,8 @@
 import { useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { AppState, Platform } from "react-native";
 import { useAuth } from "../../lib/auth/auth-provider";
+import { syncIosAppIconBadge } from "../../services/instructor-notifications";
 import {
   getAuthOperationVersion,
   getSessionSnapshot,
@@ -54,7 +56,7 @@ function configureNotificationHandler(notifications: NotificationsModule): void 
         shouldShowBanner: show,
         shouldShowList: show,
         shouldPlaySound: show,
-        shouldSetBadge: false,
+        shouldSetBadge: show,
       });
     },
   });
@@ -72,6 +74,7 @@ function isPermissionAllowed(
 
 export function IosPushRegistration({ enabled }: Props) {
   const { userId, getToken } = useAuth();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     if (!enabled || !userId || Platform.OS !== "ios") return;
@@ -80,6 +83,7 @@ export function IosPushRegistration({ enabled }: Props) {
     const authVersion = getAuthOperationVersion();
     let disposed = false;
     let tokenSubscription: { remove(): void } | null = null;
+    let notificationSubscription: { remove(): void } | null = null;
     let syncing = false;
 
     const isCurrent = () =>
@@ -132,6 +136,13 @@ export function IosPushRegistration({ enabled }: Props) {
       if (!isCurrent()) return null;
 
       configureNotificationHandler(notifications);
+      if (!notificationSubscription) {
+        notificationSubscription = notifications.addNotificationReceivedListener(() => {
+          if (!isCurrent()) return;
+          void queryClient.invalidateQueries({ queryKey: ["instructor-notifications"] });
+          void queryClient.invalidateQueries({ queryKey: ["instructor-notifications-count"] });
+        });
+      }
       return notifications;
     };
 
@@ -211,6 +222,8 @@ export function IosPushRegistration({ enabled }: Props) {
         }
 
         await registerDeviceToken(notifications);
+        const accessToken = await getToken();
+        if (accessToken && isCurrent()) await syncIosAppIconBadge(accessToken);
       } catch (error: unknown) {
         reportError(error);
       } finally {
@@ -227,8 +240,9 @@ export function IosPushRegistration({ enabled }: Props) {
       disposed = true;
       appSubscription.remove();
       tokenSubscription?.remove();
+      notificationSubscription?.remove();
     };
-  }, [enabled, userId, getToken]);
+  }, [enabled, userId, getToken, queryClient]);
 
   return null;
 }

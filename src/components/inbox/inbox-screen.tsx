@@ -15,9 +15,16 @@ import type { NativeScrollEvent, NativeSyntheticEvent } from "react-native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth/auth-provider";
 
-import { getInstructorInvites } from "@/services/school-invite";
+import {
+  listInstructorNotifications,
+  markInstructorNotificationRead,
+  setIosAppIconBadge,
+  type InstructorPushNotification,
+} from "@/services/instructor-notifications";
 import { colors, spacing } from "../../constants/theme";
 import type { InboxNotification } from "../../types/inbox";
+import type { SchoolInvite } from "../../types/school-invite";
+import { getInstructorInvites } from "@/services/school-invite";
 import {
   HomeNavIcon,
   InboxNavIcon,
@@ -59,24 +66,45 @@ function formatRelativeTime(iso?: string | null) {
   return `${Math.round(hours / 24)}d`;
 }
 
-function mapInviteToNotification(
-  invite: Record<string, any>,
-): InboxNotification {
-  const school = invite.school ?? {};
-  const schoolName = invite.schoolName || school.name || "A school";
-  const schoolId = school.id || invite.id || schoolName;
-  const avatarUrl = invite.schoolLogoUrl || school.logoUrl || null;
-
+function mapPushToNotification(item: InstructorPushNotification): InboxNotification {
+  let type: InboxNotification["type"] = "booking";
+  switch (item.type) {
+    case "instructor_school_invitation":
+      type = "school";
+      break;
+    case "instructor_payout_completed":
+      type = "payment";
+      break;
+    case "instructor_booking_reminder_30m":
+      type = "reminder";
+      break;
+    default:
+      break;
+  }
   return {
-    id: invite.id,
+    id: item.id,
+    type,
+    title: item.title,
+    body: item.body,
+    timeLabel: formatRelativeTime(item.createdAt),
+    unread: item.readAt === null,
+    avatarUrl: null,
+    avatarColor: getSchoolAvatarColor(item.type),
+    initials: getSchoolInitials(item.title),
+  };
+}
+
+function mapLegacyInvite(invite: SchoolInvite): InboxNotification {
+  return {
+    id: `legacy:${invite.id}`,
     type: "school",
-    title: schoolName,
+    title: invite.schoolName,
     body: "has invited you to join as an instructor.",
-    timeLabel: formatRelativeTime(invite.createdAt),
-    unread: !invite._isRead,
-    avatarUrl,
-    avatarColor: invite.schoolAvatarColor || getSchoolAvatarColor(schoolId),
-    initials: invite.schoolInitials || getSchoolInitials(schoolName),
+    timeLabel: "Earlier",
+    unread: false,
+    avatarUrl: invite.schoolLogoUrl,
+    avatarColor: invite.schoolAvatarColor,
+    initials: invite.schoolInitials,
   };
 }
 
@@ -143,30 +171,36 @@ export function InboxScreen({ onScroll }: Readonly<InboxScreenProps>) {
   const [searchQuery, setSearchQuery] = useState("");
 
   const {
-    data: realInvites,
+    data: pushNotifications,
     isLoading,
     isError,
   } = useQuery({
+    queryKey: ["instructor-notifications"],
+    queryFn: async () => {
+      const token = await getToken();
+      if (!token) throw new Error("Authentication required");
+      return listInstructorNotifications(token);
+    },
+    refetchInterval: 30_000,
+  });
+
+  const { data: existingInvites } = useQuery({
     queryKey: ["instructor-invites"],
     queryFn: async () => {
       const token = await getToken();
+      if (!token) throw new Error("Authentication required");
       return getInstructorInvites(token);
     },
   });
 
-  const markAsRead = (inviteId: string) => {
-    queryClient.setQueryData(["instructor-invites"], (oldData: any[]) => {
-      if (!oldData) return oldData;
-      return oldData.map((invite) =>
-        invite.id === inviteId ? { ...invite, _isRead: true } : invite,
-      );
-    });
-  };
-
-  const notifications = useMemo(
-    () => (realInvites ?? []).map((invite) => mapInviteToNotification(invite)),
-    [realInvites],
-  );
+  const notifications = useMemo(() => {
+    const pushItems = pushNotifications ?? [];
+    const pushInviteIds = new Set(pushItems.map((item) => item.inviteId));
+    const legacyInvites = (existingInvites ?? [])
+      .filter((invite) => !pushInviteIds.has(invite.id))
+      .map(mapLegacyInvite);
+    return [...pushItems.map(mapPushToNotification), ...legacyInvites];
+  }, [pushNotifications, existingInvites]);
 
   const visibleNotifications = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -186,10 +220,35 @@ export function InboxScreen({ onScroll }: Readonly<InboxScreenProps>) {
     (item) => !item.unread,
   );
 
-  function handleNotificationPress(notification: InboxNotification) {
-    markAsRead(notification.id);
-    if (notification.type === "school") {
-      router.push({ pathname: "/invite", params: { id: notification.id } });
+  async function handleNotificationPress(notification: InboxNotification) {
+    if (notification.id.startsWith("legacy:")) {
+      router.push({ pathname: "/invite", params: { id: notification.id.slice(7) } });
+      return;
+    }
+    const item = pushNotifications?.find((candidate) => candidate.id === notification.id);
+    if (!item) return;
+
+    if (!item.readAt) {
+      try {
+        const token = await getToken();
+        if (!token) return;
+        const count = await markInstructorNotificationRead(token, item.id);
+        queryClient.setQueryData<InstructorPushNotification[]>(
+          ["instructor-notifications"],
+          (previous) => previous?.map((entry) => entry.id === item.id
+            ? { ...entry, readAt: new Date().toISOString() }
+            : entry),
+        );
+        queryClient.setQueryData(["instructor-notifications-count"], count);
+        await setIosAppIconBadge(count);
+      } catch (error) {
+        console.warn("[Notifications] Failed to mark as read:", error);
+        return;
+      }
+    }
+
+    if (item.type === "instructor_school_invitation" && item.inviteId) {
+      router.push({ pathname: "/invite", params: { id: item.inviteId } });
     }
   }
 
@@ -205,7 +264,7 @@ export function InboxScreen({ onScroll }: Readonly<InboxScreenProps>) {
             ? "Notifications will appear here when they are available."
             : searchQuery.trim()
               ? "Try a different search."
-              : "When schools invite you, they will show up here."}
+              : "Notifications will appear here when they are available."}
         </Text>
       </View>
     );
@@ -223,7 +282,7 @@ export function InboxScreen({ onScroll }: Readonly<InboxScreenProps>) {
           <NotificationRow
             key={notification.id}
             notification={notification}
-            onPress={() => handleNotificationPress(notification)}
+            onPress={() => void handleNotificationPress(notification)}
           />
         ))}
       </View>
