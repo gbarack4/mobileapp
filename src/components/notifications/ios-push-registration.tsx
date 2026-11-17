@@ -1,12 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import {
-  AppState,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { useEffect } from "react";
+import { AppState, Platform } from "react-native";
 import { useAuth } from "../../lib/auth/auth-provider";
 import {
   getAuthOperationVersion,
@@ -67,10 +60,6 @@ function configureNotificationHandler(notifications: NotificationsModule): void 
   });
 }
 
-function describePermission(permission: NotificationPermission): string {
-  return `status=${permission.status}; iOS=${permission.ios?.status ?? "unknown"}; canAskAgain=${permission.canAskAgain}`;
-}
-
 function isPermissionAllowed(
   permission: NotificationPermission,
   notifications: NotificationsModule,
@@ -81,19 +70,8 @@ function isPermissionAllowed(
   );
 }
 
-export function IosPushRegistration({ enabled, diagnostics = false }: Props) {
+export function IosPushRegistration({ enabled }: Props) {
   const { userId, getToken } = useAuth();
-  const [diagnosticLines, setDiagnosticLines] = useState<string[]>([]);
-
-  const reportStage = useCallback(
-    (message: string) => {
-      if (!diagnostics) return;
-
-      const line = `${new Date().toISOString().slice(11, 19)} ${message}`;
-      setDiagnosticLines((previous) => [...previous.slice(-11), line]);
-    },
-    [diagnostics],
-  );
 
   useEffect(() => {
     if (!enabled || !userId || Platform.OS !== "ios") return;
@@ -109,67 +87,47 @@ export function IosPushRegistration({ enabled, diagnostics = false }: Props) {
       getAuthOperationVersion() === authVersion &&
       getSessionSnapshot()?.user.id === ownerId;
 
-    const reportCurrentStage = (message: string) => {
-      if (isCurrent()) reportStage(message);
-    };
-
     const reportError = (error: unknown) => {
       if (!isCurrent()) return;
 
       const message = error instanceof Error ? error.message : "Unknown error";
       console.warn("[Push] Registration failed:", message);
-      reportStage(`ERROR: ${message}`);
     };
 
     const uploadToken = async (token: string) => {
       if (!isCurrent()) return;
-      reportCurrentStage("Getting access token");
       const accessToken = await getToken();
       if (!isCurrent()) return;
 
       if (!accessToken) {
-        reportCurrentStage("Stopped: access token unavailable");
         return;
       }
 
-      reportCurrentStage("Registering device with backend");
       await registerIosPushToken(
         { userId: ownerId, accessToken, isCurrent },
         token,
       );
-      reportCurrentStage("Registration service completed");
     };
 
     const prepareNotifications = async (): Promise<NotificationsModule | null> => {
-      reportCurrentStage("Loading expo-application");
       const application = await import("expo-application");
       if (!isCurrent()) return null;
-
-      reportCurrentStage(
-        `Version: ${application.nativeApplicationVersion ?? "unknown"}; build: ${application.nativeBuildVersion ?? "unknown"}`,
-      );
-      reportCurrentStage("Reading APNs environment");
 
       const environment =
         await application.getIosPushNotificationServiceEnvironmentAsync();
       if (!isCurrent()) return null;
 
-      reportCurrentStage(`APNs environment: ${environment ?? "null"}`);
       let isAppStoreRelease = false;
       if (environment === null) {
-        reportCurrentStage("Checking release type for missing APNs environment");
         const releaseType = await application.getIosApplicationReleaseTypeAsync();
         if (!isCurrent()) return null;
 
         isAppStoreRelease =
           releaseType === application.ApplicationReleaseType.APP_STORE;
-        reportCurrentStage(`Release type: ${releaseType}; APP_STORE=${isAppStoreRelease}`);
       }
 
       validatePushEnvironment(environment, isAppStoreRelease);
-      reportCurrentStage("Using production APNs; continuing to device registration");
 
-      reportCurrentStage("Loading expo-notifications");
       const notifications = await import("expo-notifications");
       if (!isCurrent()) return null;
 
@@ -181,11 +139,8 @@ export function IosPushRegistration({ enabled, diagnostics = false }: Props) {
       notifications: NotificationsModule,
       requestPermission: boolean,
     ): Promise<NotificationPermission | null> => {
-      reportCurrentStage("Reading notification permission");
       let permission = await notifications.getPermissionsAsync();
       if (!isCurrent()) return null;
-
-      reportCurrentStage(`Permission: ${describePermission(permission)}`);
 
       if (
         requestPermission &&
@@ -193,19 +148,16 @@ export function IosPushRegistration({ enabled, diagnostics = false }: Props) {
         permission.ios?.status ===
           notifications.IosAuthorizationStatus.NOT_DETERMINED
       ) {
-        reportCurrentStage("Requesting notification permission");
         permission = await notifications.requestPermissionsAsync({
           ios: { allowAlert: true, allowBadge: true, allowSound: true },
         });
       }
 
       if (!isCurrent()) return null;
-      reportCurrentStage(`Permission result: ${describePermission(permission)}`);
       return permission;
     };
 
     const cleanupRegistration = async () => {
-      reportCurrentStage("Notifications not allowed; cleaning up registration");
       tokenSubscription?.remove();
       tokenSubscription = null;
 
@@ -213,12 +165,10 @@ export function IosPushRegistration({ enabled, diagnostics = false }: Props) {
       if (!isCurrent()) return;
 
       if (!accessToken) {
-        reportCurrentStage("Cleanup skipped: access token unavailable");
         return;
       }
 
       await unregisterIosPushSession(ownerId, accessToken);
-      reportCurrentStage("Cleanup completed; notifications not allowed");
     };
 
     const registerDeviceToken = async (notifications: NotificationsModule) => {
@@ -230,13 +180,10 @@ export function IosPushRegistration({ enabled, diagnostics = false }: Props) {
         });
       }
 
-      reportCurrentStage("Requesting APNs device token");
       const token = await notifications.getDevicePushTokenAsync();
       if (!isCurrent()) return;
 
-      reportCurrentStage(`Device token received; type: ${token.type}`);
       if (token.type !== "ios") {
-        reportCurrentStage("Stopped: unexpected device token type");
         return;
       }
 
@@ -247,7 +194,6 @@ export function IosPushRegistration({ enabled, diagnostics = false }: Props) {
       if (syncing || !isCurrent()) return;
 
       if (AppState.currentState !== "active") {
-        reportCurrentStage(`Waiting for active app: ${AppState.currentState}`);
         return;
       }
 
@@ -272,7 +218,6 @@ export function IosPushRegistration({ enabled, diagnostics = false }: Props) {
       }
     };
 
-    reportStage("Registration effect started");
     const appSubscription = AppState.addEventListener("change", (state) => {
       if (state === "active") void sync(true);
     });
@@ -283,46 +228,7 @@ export function IosPushRegistration({ enabled, diagnostics = false }: Props) {
       appSubscription.remove();
       tokenSubscription?.remove();
     };
-  }, [enabled, userId, getToken, reportStage]);
+  }, [enabled, userId, getToken]);
 
-  if (!diagnostics || Platform.OS !== "ios") return null;
-
-  return (
-    <View style={styles.diagnostics}>
-      <Text style={styles.heading}>Push diagnostics · v2</Text>
-      <Text style={styles.line}>
-        enabled: {String(enabled)} · user available: {String(Boolean(userId))}
-      </Text>
-      <ScrollView style={styles.log}>
-        <Text selectable style={styles.line}>
-          {diagnosticLines.length === 0
-            ? "Registration has not started."
-            : diagnosticLines.join("\n")}
-        </Text>
-      </ScrollView>
-    </View>
-  );
+  return null;
 }
-
-const styles = StyleSheet.create({
-  diagnostics: {
-    backgroundColor: "#111827",
-    paddingHorizontal: 12,
-    paddingTop: 10,
-    paddingBottom: 24,
-  },
-  heading: {
-    color: "#ffffff",
-    fontSize: 13,
-    fontWeight: "700",
-    marginBottom: 4,
-  },
-  log: {
-    maxHeight: 180,
-  },
-  line: {
-    color: "#e5e7eb",
-    fontSize: 11,
-    lineHeight: 16,
-  },
-});
